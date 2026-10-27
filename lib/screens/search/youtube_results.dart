@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/providers/downloads_provider.dart';
 import 'package:wavvy/screens/downloader/downloader_dialogs.dart';
 import 'package:wavvy/screens/search/library_results.dart';
-import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 String _duration(Duration? d) {
@@ -33,7 +32,7 @@ class YoutubeResults extends ConsumerWidget {
         hasScrollBody: false,
         child: SearchEmptyState(
           message: state.searchError,
-          sprite: PixelSprites.search,
+          icon: Icons.cloud_off_rounded,
           action: TextButton.icon(
             onPressed: () =>
                 ref.read(ytdlpProvider.notifier).search(state.searchQuery),
@@ -50,8 +49,9 @@ class YoutubeResults extends ConsumerWidget {
           message: state.hasSearched
               ? 'No results for ${state.searchQuery}'
               : 'Search YouTube for music to download',
-          sprite: PixelSprites.headphones,
-          themed: false,
+          icon: state.hasSearched
+              ? Icons.search_off_rounded
+              : Icons.ondemand_video_rounded,
         ),
       );
     }

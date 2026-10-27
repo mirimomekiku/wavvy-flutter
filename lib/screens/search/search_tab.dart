@@ -9,6 +9,7 @@ import 'package:wavvy/screens/search/downloads_list.dart';
 import 'package:wavvy/screens/search/library_results.dart';
 import 'package:wavvy/screens/search/tiktok_panel.dart';
 import 'package:wavvy/screens/search/youtube_results.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 const _labels = {
@@ -187,53 +188,34 @@ class _Field extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = Wv.of(context);
 
-    // Material 3 search bar look: a tall pill with a real TextField inside.
-    return Container(
-      constraints: const BoxConstraints(minHeight: 44),
-      padding: const EdgeInsets.only(left: 18),
-      decoration: a.frame(color: a.surface, radius: 12, raised: false),
+    return AquaSearchFrame(
       child: Row(
         children: [
-          Icon(icon, size: 24, color: a.accent),
           const SizedBox(width: 12),
+          Icon(icon, size: 19, color: a.textSecondary),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller,
               autofocus: false,
               textInputAction: TextInputAction.search,
               cursorColor: a.accent,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: a.text,
-              ),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: false,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                hintText: hint,
-                hintStyle: TextStyle(fontSize: 14, color: a.textSecondary),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
-              ),
+              style: TextStyle(fontSize: 14, color: a.text),
+              decoration: aquaSearchDecoration(context, hint: hint),
               onChanged: onChanged,
               onSubmitted: onSubmitted,
             ),
           ),
           if (controller.text.isNotEmpty)
-            WvButton(
-              circular: true,
-              size: 40,
+            IconButton(
               tooltip: 'Clear',
               onPressed: onClear,
-              child: Icon(Icons.close_rounded, color: a.textSecondary),
-            )
-          else
-            const SizedBox(width: 18),
+              icon: Icon(
+                Icons.cancel_rounded,
+                size: 18,
+                color: a.textSecondary,
+              ),
+            ),
           if (onPaste != null && controller.text.isEmpty)
             IconButton(
               tooltip: 'Paste link',

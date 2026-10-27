@@ -6,66 +6,31 @@ import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 
-/// Mascot empty state shared by the Search sources: a pixel sprite on a
-/// stepped-corner tonal box and a short message.
+/// Aqua empty state shared by the Search sources: a gel orb, a title and an
+/// optional hint.
 class SearchEmptyState extends StatelessWidget {
   final String message;
-  final PixelSprite sprite;
-  final bool themed;
+  final String? hint;
+  final IconData icon;
   final Widget? action;
 
   const SearchEmptyState({
     super.key,
     required this.message,
-    this.sprite = PixelSprites.mascot,
-    this.themed = true,
+    this.hint,
+    this.icon = Icons.search_rounded,
     this.action,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final a = Wv.of(context);
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: a.surfaceHigh,
-                shape: BoxShape.circle,
-              ),
-              child: WvSymbol(
-                sprite: sprite,
-                size: 36,
-                themed: themed,
-                color: a.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: a.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            if (action != null) ...[const SizedBox(height: 14), action!],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      AquaEmptyState(icon: icon, title: message, hint: hint, action: action);
 }
 
 /// Section title with a pixel kicker, used above result groups.
@@ -122,8 +87,9 @@ class LibraryResults extends ConsumerWidget {
       return const SliverFillRemaining(
         hasScrollBody: false,
         child: SearchEmptyState(
+          icon: Icons.search_rounded,
           message: 'Search your library',
-          sprite: PixelSprites.mascot,
+          hint: 'Find songs, albums and artists on this device.',
         ),
       );
     }
@@ -146,8 +112,9 @@ class LibraryResults extends ConsumerWidget {
       return const SliverFillRemaining(
         hasScrollBody: false,
         child: SearchEmptyState(
+          icon: Icons.search_off_rounded,
           message: 'No results',
-          sprite: PixelSprites.mascotSleepy,
+          hint: 'Check the spelling or try a different search.',
         ),
       );
     }

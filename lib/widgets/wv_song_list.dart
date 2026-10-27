@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/page_heading.dart';
@@ -147,14 +148,7 @@ class WvEmptyMessage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: a.surfaceHigh,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 32, color: a.textSecondary),
-            ),
+            AquaOrb(icon: icon, size: 68),
             const SizedBox(height: 18),
             Text(
               message,

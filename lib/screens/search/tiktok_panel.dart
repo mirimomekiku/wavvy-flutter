@@ -37,8 +37,7 @@ class TikTokPanel extends ConsumerWidget {
         hasScrollBody: false,
         child: SearchEmptyState(
           message: 'Copy a link from TikTok and paste it above',
-          sprite: PixelSprites.cassette,
-          themed: false,
+          icon: Icons.link_rounded,
           action: WvButton(
             primary: true,
             width: 120,

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/providers/downloads_provider.dart';
 import 'package:wavvy/screens/downloader/downloader_dialogs.dart';
 import 'package:wavvy/screens/search/library_results.dart';
-import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 final downloadFilterProvider = StateProvider<int>((ref) => 0);
@@ -100,7 +99,7 @@ class DownloadsList extends ConsumerWidget {
                   : all.isEmpty
                   ? 'No downloads yet'
                   : 'No downloads in this view',
-              sprite: PixelSprites.download,
+              icon: Icons.download_done_rounded,
             ),
           )
         else

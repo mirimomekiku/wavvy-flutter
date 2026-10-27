@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 /// Empty/error content that remains reachable on short screens and large text.
@@ -29,7 +30,7 @@ class WvStatusMessage extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 38, color: a.textSecondary),
+                  AquaOrb(icon: icon, size: 68),
                   const SizedBox(height: 16),
                   Text(
                     title,
