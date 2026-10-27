@@ -1,62 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
+import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/page_heading.dart';
+import 'package:wavvy/widgets/bottom_bar.dart';
 
 class AudioEffectsScreen extends StatelessWidget {
   const AudioEffectsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         backgroundColor: a.background,
+        bottomNavigationBar: const BottomMiniPlayer(showTabView: false),
         body: SafeArea(
           child: Column(
             children: [
-              AquaBar(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Row(
-                    children: [
-                      GelButton(
-                        circular: true,
-                        size: 32,
-                        tooltip: "Back",
-                        onPressed: () => AppNav.pop(),
-                        child: const Icon(Icons.arrow_back_rounded),
-                      ),
-                      Expanded(
-                        child: Text(
-                          "Audio Control",
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: a.text,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            shadows: [
-                              Shadow(
-                                color: Colors.white.withValues(
-                                  alpha: a.dark ? 0.0 : 0.8,
-                                ),
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Balances the back button so the title stays centered.
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
+              const WvPageHeading(
+                title: 'Sound',
+                subtitle: 'Fine-tune your listening.',
+                back: true,
               ),
+              const SizedBox(height: 12),
               Builder(
                 builder: (context) {
                   final tabs = DefaultTabController.of(context);
@@ -64,7 +34,7 @@ class AudioEffectsScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: AnimatedBuilder(
                       animation: tabs.animation!,
-                      builder: (context, _) => AquaSegmented(
+                      builder: (context, _) => WvChips(
                         labels: const ["Equalizer", "Effects"],
                         selected: tabs.index,
                         onChanged: (i) => tabs.animateTo(i),
@@ -99,80 +69,54 @@ class _EqualizerTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final EqualizerState eq = ref.watch(equalizerProvider);
     final EqualizerNotifier controller = ref.read(equalizerProvider.notifier);
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
     {
       return Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: InsetGroup(
-              children: [
-                // Enable
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 4),
-                  child: Row(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 6, 8, 12),
+              decoration: a.frame(
+                color: a.primaryContainer,
+                radius: Ds.radiusXL,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
                       Expanded(
                         child: Text(
                           "Enable Equalizer",
                           style: TextStyle(
-                            color: a.text,
-                            fontSize: 14,
+                            color: a.onPrimaryContainer,
+                            fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                      AquaCheckbox(
+                      WvSwitch(
                         value: eq.isEnabled,
                         onChanged: (val) => controller.toggleEnabled(val),
                       ),
                     ],
                   ),
-                ),
-                // Preset selector
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          "Preset",
-                          style: TextStyle(
-                            color: a.text,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: WvChips(
+                      labels: EqualizerNotifier.presets.keys.toList(),
+                      selected: EqualizerNotifier.presets.keys.toList().indexOf(
+                        eq.currentPreset,
                       ),
-                      PopupMenuButton<String>(
-                        tooltip: "Choose preset",
-                        onSelected: controller.applyPreset,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Ds.radiusM),
-                          side: BorderSide(color: a.border),
-                        ),
-                        itemBuilder: (context) {
-                          return EqualizerNotifier.presets.keys.map((String choice) {
-                            return PopupMenuItem<String>(
-                              value: choice,
-                              child: Text(
-                                choice,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            );
-                          }).toList();
-                        },
-                        child: _PresetButton(
-                          label: eq.currentPreset,
-                        ),
+                      onChanged: (i) => controller.applyPreset(
+                        EqualizerNotifier.presets.keys.elementAt(i),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -183,11 +127,10 @@ class _EqualizerTab extends ConsumerWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        GelButton(
-                          circular: true,
+                        const WvSymbol(
+                          sprite: PixelSprites.mascotSleepy,
                           size: 72,
-                          onPressed: null,
-                          child: const Icon(Icons.equalizer_rounded),
+                          themed: true,
                         ),
                         const SizedBox(height: 16),
                         Text(
@@ -203,25 +146,18 @@ class _EqualizerTab extends ConsumerWidget {
                   )
                 : Container(
                     margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    decoration: BoxDecoration(
-                      color: a.stripe,
-                      borderRadius: BorderRadius.circular(Ds.radiusM),
-                      border: Border.all(color: a.border),
-                    ),
+                    decoration: a.frame(color: a.surface, radius: Ds.radiusXL),
                     clipBehavior: Clip.antiAlias,
                     child: Row(
                       children: [
                         _buildScale(eq, a),
-                        Container(width: 1, color: a.separator),
                         Expanded(
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             padding: const EdgeInsets.symmetric(horizontal: 6),
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: List.generate(eq.bands.length, (
-                                index,
-                              ) {
+                              children: List.generate(eq.bands.length, (index) {
                                 return _buildSliderColumn(
                                   context,
                                   eq,
@@ -242,8 +178,8 @@ class _EqualizerTab extends ConsumerWidget {
     }
   }
 
-  /// dB scale (max / 0 / min) shown to the left of the bands, like iTunes.
-  Widget _buildScale(EqualizerState controller, AquaPalette a) {
+  /// dB scale (max / 0 / min) shown to the left of the bands.
+  Widget _buildScale(EqualizerState controller, WvPalette a) {
     final minDb = controller.minDecibels;
     final maxDb = controller.maxDecibels;
     String fmt(double v) => "${v > 0 ? '+' : ''}${v.toStringAsFixed(0)} dB";
@@ -281,7 +217,7 @@ class _EqualizerTab extends ConsumerWidget {
     int index,
     bool isEnabled,
   ) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
     final band = eq.bands[index];
     final freqHz = band.centerFrequency;
     String freqLabel = freqHz >= 1000
@@ -306,7 +242,9 @@ class _EqualizerTab extends ConsumerWidget {
               const SizedBox(height: 8),
               SizedBox(
                 height: _pillHeight,
-                child: AquaLcd(
+                child: WvPanel(
+                  radius: 13,
+                  color: isEnabled ? a.primaryContainer : a.surfaceHigh,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Center(
                     child: FittedBox(
@@ -316,7 +254,7 @@ class _EqualizerTab extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: textColor,
+                          color: isEnabled ? a.onPrimaryContainer : textColor,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -326,16 +264,15 @@ class _EqualizerTab extends ConsumerWidget {
               ),
               const SizedBox(height: _pillGap),
               Expanded(
-                child: RotatedBox(
-                  quarterTurns: 3,
-                  child: Slider(
-                    value: safeSliderValue,
-                    min: minDb,
-                    max: maxDb,
-                    onChanged: isEnabled
-                        ? (val) => controller.setBandGain(index, val)
-                        : null,
-                  ),
+                child: _BandMeter(
+                  value: safeSliderValue,
+                  min: minDb,
+                  max: maxDb,
+                  color: isEnabled ? a.accent : a.textTertiary,
+                  trackColor: a.surfaceHighest,
+                  onChanged: isEnabled
+                      ? (val) => controller.setBandGain(index, val)
+                      : null,
                 ),
               ),
               const SizedBox(height: _freqGap),
@@ -359,54 +296,105 @@ class _EqualizerTab extends ConsumerWidget {
   }
 }
 
-/// Gel capsule that shows the current preset; used as the child of a
-/// [PopupMenuButton] (which supplies the tap handling).
-class _PresetButton extends StatelessWidget {
-  final String label;
+/// Pixel-block level meter for one EQ band. Tap or drag vertically to set the
+/// gain; blocks fill from the bottom up to the current level.
+class _BandMeter extends StatelessWidget {
+  final double value;
+  final double min;
+  final double max;
+  final Color color;
+  final Color trackColor;
+  final ValueChanged<double>? onChanged;
 
-  const _PresetButton({required this.label});
+  const _BandMeter({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.color,
+    required this.trackColor,
+    required this.onChanged,
+  });
+
+  double _fromDy(double dy, double height) {
+    if (height <= 0 || max <= min) return min;
+    final t = 1 - (dy / height).clamp(0.0, 1.0);
+    return min + (max - min) * t;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final span = max - min;
+    final fraction = span <= 0 ? 0.0 : ((value - min) / span).clamp(0.0, 1.0);
+    final step = span <= 0 ? 0.0 : span / 20;
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 48),
-      child: Center(
-        widthFactor: 1,
-        heightFactor: 1,
-        child: Container(
-          height: 30,
-          padding: const EdgeInsets.only(left: 14, right: 6),
-          decoration: BoxDecoration(
-            gradient: Aqua.gel(a.gelGray),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: a.gelBorder),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.white.withValues(alpha: a.dark ? 0.06 : 0.7),
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: a.glyph,
+    return Semantics(
+      slider: true,
+      value: "${value.toStringAsFixed(1)} dB",
+      increasedValue: "${(value + step).clamp(min, max).toStringAsFixed(1)} dB",
+      decreasedValue: "${(value - step).clamp(min, max).toStringAsFixed(1)} dB",
+      onIncrease: onChanged == null
+          ? null
+          : () => onChanged!((value + step).clamp(min, max)),
+      onDecrease: onChanged == null
+          ? null
+          : () => onChanged!((value - step).clamp(min, max)),
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final h = c.hasBoundedHeight ? c.maxHeight : 160.0;
+            void set(double dy) => onChanged?.call(_fromDy(dy, h));
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: onChanged == null
+                  ? null
+                  : (d) => set(d.localPosition.dy),
+              onVerticalDragUpdate: onChanged == null
+                  ? null
+                  : (d) => set(d.localPosition.dy),
+              child: Center(
+                child: SizedBox(
+                  width: 28,
+                  height: h,
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _MeterPainter(fraction, color, trackColor),
+                    ),
+                  ),
                 ),
               ),
-              Icon(Icons.unfold_more_rounded, size: 18, color: a.glyph),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _MeterPainter extends CustomPainter {
+  _MeterPainter(this.fraction, this.color, this.track);
+  final double fraction;
+  final Color color;
+  final Color track;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    const gap = 2.0;
+    final blocks = (size.height / 12).floor().clamp(4, 40);
+    final bh = (size.height - gap * (blocks - 1)) / blocks;
+    if (bh <= 0) return;
+    final filled = (fraction * blocks).round();
+    final paint = Paint()..isAntiAlias = false;
+    for (var i = 0; i < blocks; i++) {
+      final top = (size.height - (i + 1) * bh - i * gap).roundToDouble();
+      final rect = Rect.fromLTWH(0, top, size.width, bh.roundToDouble());
+      canvas.drawRect(rect, paint..color = i < filled ? color : track);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MeterPainter old) =>
+      old.fraction != fraction || old.color != color || old.track != track;
 }
 
 // ==========================================
@@ -424,11 +412,11 @@ class _EffectsTab extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AquaSectionBar(
+          WvSectionHeader(
             title: "Dynamics",
             trailing: Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: GelButton(
+              child: WvButton(
                 circular: true,
                 size: 28,
                 tooltip: "Reset Effects",
@@ -443,23 +431,59 @@ class _EffectsTab extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: InsetGroup(
+            child: Column(
               children: [
                 _buildEffectControl(
                   context,
+                  index: 0,
                   title: "Bass Boost",
                   icon: Icons.speaker_group_rounded,
                   value: fx.bassBoostStrength,
                   enabled: fx.isBassBoostEnabled,
                   onChanged: (val) => controller.setBassBoost(val),
                 ),
+                const SizedBox(height: 10),
                 _buildEffectControl(
                   context,
+                  index: 1,
                   title: "Virtualizer",
                   icon: Icons.surround_sound_rounded,
                   value: fx.virtualizerStrength,
                   enabled: fx.isVirtualizerEnabled,
                   onChanged: (val) => controller.setVirtualizer(val),
+                ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: fx.currentReverbPreset,
+                  decoration: const InputDecoration(
+                    labelText: 'Reverb',
+                    helperText: 'Add a little room to the sound',
+                  ),
+                  items:
+                      const [
+                            'None',
+                            'SmallRoom',
+                            'MediumRoom',
+                            'LargeRoom',
+                            'MediumHall',
+                            'LargeHall',
+                            'Plate',
+                          ]
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(
+                                value.replaceAllMapped(
+                                  RegExp(r'([a-z])([A-Z])'),
+                                  (m) => '${m[1]} ${m[2]}',
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) {
+                    if (value != null) controller.setReverb(value);
+                  },
                 ),
               ],
             ),
@@ -472,60 +496,66 @@ class _EffectsTab extends ConsumerWidget {
 
   Widget _buildEffectControl(
     BuildContext context, {
+    required int index,
     required String title,
     required IconData icon,
     required double value,
     required bool enabled,
     required Function(double) onChanged,
   }) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
-    {
-      final double normalizedValue = value / 1000;
-      final bool isEnabled = enabled;
-      final Color textColor = isEnabled ? a.text : a.textSecondary;
+    final (bg, fg) = a.tonal(index);
+    final double normalizedValue = value / 1000;
+    final bool isEnabled = enabled;
 
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Opacity(
-                  opacity: isEnabled ? 1 : 0.5,
-                  child: IconBadge(
-                    icon: icon,
-                    color: a.dark
-                        ? const Color(0xFF4F7FC4)
-                        : const Color(0xFF3C84DE),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                Text(
-                  "${(normalizedValue * 100).toInt()}%",
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: Ds.tileShape(index + 1),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Opacity(
+                opacity: isEnabled ? 1 : 0.6,
+                child: IconBadge(icon: icon, color: fg, size: 44),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
                   style: TextStyle(
-                    color: textColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: fg,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
+              ),
+              Text(
+                "${(normalizedValue * 100).toInt()}%",
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 14,
+              activeTrackColor: fg,
+              inactiveTrackColor: fg.withValues(alpha: 0.2),
+              thumbColor: fg,
             ),
-            Slider(value: normalizedValue, onChanged: onChanged),
-          ],
-        ),
-      );
-    }
+            child: Slider(value: normalizedValue, onChanged: onChanged),
+          ),
+        ],
+      ),
+    );
   }
 }

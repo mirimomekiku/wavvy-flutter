@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/vinyl_deck.dart';
 
 class AnimatedSeekableArtwork extends ConsumerStatefulWidget {
   final SongModel song;
@@ -24,7 +26,8 @@ class AnimatedSeekableArtwork extends ConsumerStatefulWidget {
       _AnimatedSeekableArtworkState();
 }
 
-class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwork> {
+class _AnimatedSeekableArtworkState
+    extends ConsumerState<AnimatedSeekableArtwork> {
   bool _showForward = false;
   bool _showRewind = false;
   Timer? _timer;
@@ -60,26 +63,24 @@ class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwor
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
     return Stack(
       alignment: Alignment.center,
       children: [
-        QueryArtworkWidget(
-          id: widget.song.id,
-          type: ArtworkType.AUDIO,
-          artworkFit: BoxFit.cover,
-          artworkBorder: BorderRadius.zero,
-          artworkWidth: widget.size,
-          artworkHeight: widget.size,
-          size: 1000,
-          nullArtworkWidget: Container(
-            width: widget.size,
-            height: widget.size,
-            color: a.stripe,
-            child: Icon(
-              Icons.music_note,
-              size: 80,
-              color: a.textSecondary,
+        Positioned.fill(
+          child: VinylDeck(
+            playing: ref.watch(playerProvider.select((s) => s.isPlaying)),
+            label: QueryArtworkWidget(
+              id: widget.song.id,
+              type: ArtworkType.AUDIO,
+              artworkFit: BoxFit.cover,
+              artworkBorder: BorderRadius.zero,
+              artworkWidth: widget.size,
+              artworkHeight: widget.size,
+              size: 1000,
+              nullArtworkWidget: WvMediaPlaceholder(
+                seed: widget.song.id,
+                size: widget.size,
+              ),
             ),
           ),
         ),
@@ -88,6 +89,7 @@ class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwor
           left: 0,
           right: widget.size / 2,
           child: _buildOverlayIcon(
+            context,
             isVisible: _showRewind,
             icon: Icons.replay_10_rounded,
             text: "-10",
@@ -98,15 +100,14 @@ class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwor
           left: widget.size / 2,
           right: 0,
           child: _buildOverlayIcon(
+            context,
             isVisible: _showForward,
             icon: Icons.forward_10_rounded,
             text: "+10",
           ),
         ),
 
-        if (ref.watch(
-          settingsProvider.select((s) => s.enableDoubleTapSeek),
-        ))
+        if (ref.watch(settingsProvider.select((s) => s.enableDoubleTapSeek)))
           Positioned.fill(
             child: Row(
               children: [
@@ -116,10 +117,9 @@ class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwor
                     behavior: HitTestBehavior.translucent,
                     onDoubleTap: () {
                       _triggerOverlay(forward: false);
-                      ref.read(playerProvider.notifier).seek(
-                        const Duration(seconds: -10),
-                        relative: true,
-                      );
+                      ref
+                          .read(playerProvider.notifier)
+                          .seek(const Duration(seconds: -10), relative: true);
                     },
                     child: Container(color: Colors.transparent),
                   ),
@@ -131,10 +131,9 @@ class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwor
                     behavior: HitTestBehavior.translucent,
                     onDoubleTap: () {
                       _triggerOverlay(forward: true);
-                      ref.read(playerProvider.notifier).seek(
-                        const Duration(seconds: 10),
-                        relative: true,
-                      );
+                      ref
+                          .read(playerProvider.notifier)
+                          .seek(const Duration(seconds: 10), relative: true);
                     },
                     child: Container(color: Colors.transparent),
                   ),
@@ -146,26 +145,42 @@ class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwor
     );
   }
 
-  Widget _buildOverlayIcon({
+  Widget _buildOverlayIcon(
+    BuildContext context, {
     required bool isVisible,
     required IconData icon,
     required String text,
   }) {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      opacity: isVisible ? 1.0 : 0.0,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.6),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [Icon(icon, color: Colors.white, size: 40)],
+    final a = Wv.of(context);
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 300),
+      curve: Ds.spring,
+      scale: isVisible ? 1.0 : 0.6,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        opacity: isVisible ? 1.0 : 0.0,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: a.primaryContainer.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: a.onPrimaryContainer, size: 32),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: a.onPrimaryContainer,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

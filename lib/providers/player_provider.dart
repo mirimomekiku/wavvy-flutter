@@ -207,6 +207,66 @@ class PlayerNotifier extends Notifier<PlayerState> {
     AppSnackbar.showSnackbar("Will play next", song.title);
   }
 
+  bool _editingQueue = false;
+
+  Future<void> _editQueue(
+    List<SongModel> next,
+    Future<void> Function() mutate,
+  ) async {
+    if (_editingQueue) return;
+    _editingQueue = true;
+    final previous = state.queue;
+    state = state.copyWith(queue: next);
+    try {
+      await mutate();
+      if (next.isEmpty) {
+        await _player.stop();
+        state = state.copyWith(clearCurrentSong: true, currentIndex: -1);
+      }
+    } catch (e) {
+      state = state.copyWith(queue: previous);
+      AppSnackbar.showErrorSnackBar(
+        'Queue unchanged',
+        'Could not update the play queue.',
+      );
+    } finally {
+      _editingQueue = false;
+    }
+  }
+
+  Future<void> removeFromQueue(int index) async {
+    final playlist = _effectivePlaylist;
+    if (playlist == null || index < 0 || index >= state.queue.length) return;
+    final next = [...state.queue]..removeAt(index);
+    await _editQueue(next, () => playlist.removeAt(index));
+  }
+
+  Future<void> clearUpcoming() async {
+    final playlist = _effectivePlaylist;
+    final start = state.currentIndex + 1;
+    if (playlist == null || start <= 0 || start >= state.queue.length) return;
+    final end = state.queue.length;
+    await _editQueue(
+      state.queue.take(start).toList(),
+      () => playlist.removeRange(start, end),
+    );
+  }
+
+  Future<void> moveQueueItem(int from, int to) async {
+    final playlist = _effectivePlaylist;
+    if (playlist == null ||
+        from < 0 ||
+        from >= state.queue.length ||
+        to < 0 ||
+        to >= state.queue.length ||
+        from == to) {
+      return;
+    }
+    final next = [...state.queue];
+    next.insert(to, next.removeAt(from));
+    await _editQueue(next, () => playlist.move(from, to));
+  }
+
   AudioSource _createAudioSource(SongModel song) {
     return AudioSource.uri(Uri.parse(song.uri!), tag: song);
   }

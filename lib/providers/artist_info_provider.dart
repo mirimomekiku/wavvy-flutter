@@ -47,7 +47,9 @@ class ArtistInfoNotifier extends Notifier<ArtistInfoState> {
   Future<void> fetchArtistInfo(String artistName) async {
     final token = _geniusAccessToken;
     if (token.isEmpty || token == 'YOUR_GENIUS_ACCESS_TOKEN_HERE') {
-      state = state.copyWith(bio: "Please add Token.");
+      state = state.copyWith(
+        bio: "Artist information is unavailable right now.",
+      );
       return;
     }
 
@@ -106,7 +108,9 @@ class ArtistInfoNotifier extends Notifier<ArtistInfoState> {
       }
     } catch (e) {
       if (isStale()) return;
-      state = state.copyWith(bio: "Error: $e");
+      state = state.copyWith(
+        bio: "Could not load this artist. Check your connection and try again.",
+      );
     } finally {
       if (!isStale()) state = state.copyWith(isLoading: false);
     }

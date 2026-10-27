@@ -116,7 +116,7 @@ class _TagEditorDialogState extends State<_TagEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AquaDialog(
+    return WvDialog(
       title: "Edit Tags",
       content: SingleChildScrollView(
         child: Column(
@@ -131,8 +131,8 @@ class _TagEditorDialogState extends State<_TagEditorDialog> {
         ),
       ),
       actions: [
-        aquaDialogButton("Cancel", () => Navigator.of(context).pop()),
-        aquaDialogButton(
+        wvDialogButton("Cancel", () => Navigator.of(context).pop()),
+        wvDialogButton(
           "Save",
           () => Navigator.of(context).pop(
             _TagValues(
@@ -154,7 +154,7 @@ class _TagEditorDialogState extends State<_TagEditorDialog> {
     TextEditingController controller, {
     bool isNumber = false,
   }) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Column(
@@ -163,38 +163,36 @@ class _TagEditorDialogState extends State<_TagEditorDialog> {
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
               color: a.textSecondary,
             ),
           ),
           const SizedBox(height: 4),
-          Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Ds.radiusS),
-              border: Border.all(color: a.gelBorder),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: a.dark
-                    ? const [Color(0xFF0C0C0C), Color(0xFF222222)]
-                    : const [Color(0xFFD6D6D6), Color(0xFFFFFFFF)],
-                stops: const [0.0, 0.4],
+          TextField(
+            controller: controller,
+            keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+            style: TextStyle(fontSize: 15, color: a.text),
+            cursorColor: a.accent,
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: a.surfaceHighest,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 14,
               ),
-            ),
-            child: TextField(
-              controller: controller,
-              keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-              style: TextStyle(fontSize: 14, color: a.text),
-              cursorColor: a.accent,
-              decoration: const InputDecoration(
-                isDense: true,
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: a.accent, width: 1.5),
               ),
             ),
           ),
@@ -264,63 +262,109 @@ void openSleepTimerDialog(WidgetRef ref) {
   showAppDialog<void>(
     builder: (dialogContext) => Consumer(
       builder: (context, ref, _) {
-        final a = Aqua.of(context);
         final current = ref.watch(
           playerProvider.select((s) => s.sleepTimerMinutes),
         );
-        return AquaDialog(
+        return WvDialog(
           title: "Sleep Timer",
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 for (int i = 0; i < options.length; i++)
-                  ColoredBox(
-                    color: i.isEven ? a.background : a.stripe,
-                    child: ListTile(
-                      title: Text(
-                        "${options[i]} minutes",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: a.text,
-                        ),
-                      ),
-                      trailing: current == options[i]
-                          ? Icon(Icons.check, color: a.accent)
-                          : null,
-                      onTap: () {
-                        Navigator.of(dialogContext).pop();
-                        ref
-                            .read(playerProvider.notifier)
-                            .setSleepTimer(options[i]);
-                      },
-                    ),
-                  ),
-                ColoredBox(
-                  color: options.length.isEven ? a.background : a.stripe,
-                  child: ListTile(
-                    title: Text(
-                      "Turn Off Timer",
-                      style: TextStyle(color: a.textSecondary),
-                    ),
-                    leading: Icon(
-                      Icons.timer_off_outlined,
-                      color: a.textSecondary,
-                    ),
+                  _SleepOption(
+                    label: "${options[i]} minutes",
+                    icon: Icons.bedtime_rounded,
+                    selected: current == options[i],
                     onTap: () {
                       Navigator.of(dialogContext).pop();
-                      ref.read(playerProvider.notifier).setSleepTimer(null);
+                      ref
+                          .read(playerProvider.notifier)
+                          .setSleepTimer(options[i]);
                     },
                   ),
+                _SleepOption(
+                  label: "Turn Off Timer",
+                  icon: Icons.timer_off_outlined,
+                  selected: false,
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    ref.read(playerProvider.notifier).setSleepTimer(null);
+                  },
                 ),
               ],
             ),
           ),
           actions: [
-            aquaDialogButton("Cancel", () => Navigator.of(dialogContext).pop()),
+            wvDialogButton("Cancel", () => Navigator.of(dialogContext).pop()),
           ],
         );
       },
     ),
   );
+}
+
+/// Tonal squircle option row (the selected one is filled with the primary).
+class _SleepOption extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SleepOption({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    final bg = selected ? a.accent : a.surfaceHighest;
+    final fg = selected ? a.onAccent : a.text;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: bg,
+          borderRadius: BorderRadius.circular(22),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 52),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 24, color: fg),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: fg,
+                        ),
+                      ),
+                    ),
+                    if (selected)
+                      Icon(Icons.check_rounded, size: 24, color: fg),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

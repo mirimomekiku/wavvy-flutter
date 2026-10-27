@@ -6,53 +6,12 @@ import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
-Widget _aquaSheet(
-  BuildContext context, {
-  required String title,
-  required Widget content,
-  required List<Widget> actions,
-}) {
-  final a = Aqua.of(context);
-  return Dialog(
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-    child: Container(
-      decoration: BoxDecoration(
-        color: a.background,
-        borderRadius: BorderRadius.circular(Ds.radiusM),
-        border: Border.all(color: a.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AquaSectionBar(title: title),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: content,
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: actions,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 void showSpeedDialog(WidgetRef ref) {
   final player = ref.read(audioPlayerProvider);
   showAppDialog(
     builder: (context) {
-      final a = Aqua.of(context);
-      return _aquaSheet(
-        context,
+      final a = Wv.of(context);
+      return WvDialog(
         title: "Playback Speed",
         content: StreamBuilder<double>(
           stream: player.speedStream,
@@ -61,14 +20,23 @@ void showSpeedDialog(WidgetRef ref) {
             return Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  "${currentSpeed.toStringAsFixed(2)}x",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: a.text,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 12,
+                  ),
+                  decoration: a.frame(color: a.primaryContainer, radius: 16),
+                  child: Text(
+                    "${currentSpeed.toStringAsFixed(2)}x",
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -1,
+                      color: a.onPrimaryContainer,
+                    ),
                   ),
                 ),
+                const SizedBox(height: 8),
                 Slider(
                   value: currentSpeed,
                   min: 0.5,
@@ -83,21 +51,8 @@ void showSpeedDialog(WidgetRef ref) {
           },
         ),
         actions: [
-          GelButton(
-            size: 32,
-            width: 80,
-            tooltip: "Reset",
-            onPressed: () => player.setSpeed(1.0),
-            child: const Text("Reset"),
-          ),
-          GelButton(
-            primary: true,
-            size: 32,
-            width: 80,
-            tooltip: "Done",
-            onPressed: () => AppNav.pop(),
-            child: const Text("Done"),
-          ),
+          wvDialogButton("Reset", () => player.setSpeed(1.0)),
+          wvDialogButton("Done", () => AppNav.pop(), primary: true),
         ],
       );
     },
@@ -114,21 +69,21 @@ void showSongInfoDialog(
   final info = ref.read(playerProvider.notifier).getSongInfo(song);
   showAppDialog(
     builder: (context) {
-      final a = Aqua.of(context);
-      return _aquaSheet(
-        context,
+      final a = Wv.of(context);
+      return WvDialog(
         title: "Song Details",
-        content: Text(info, style: TextStyle(color: a.text)),
-        actions: [
-          GelButton(
-            primary: true,
-            size: 32,
-            width: 80,
-            tooltip: "Close",
-            onPressed: () => AppNav.pop(),
-            child: const Text("Close"),
+        content: SingleChildScrollView(
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: a.frame(color: a.surfaceHighest, radius: 24),
+            child: Text(
+              info,
+              style: TextStyle(color: a.text, fontSize: 14, height: 1.5),
+            ),
           ),
-        ],
+        ),
+        actions: [wvDialogButton("Close", () => AppNav.pop(), primary: true)],
       );
     },
   );

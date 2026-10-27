@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -9,6 +8,7 @@ import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wavvy/models/lyric.dart';
 import 'package:wavvy/providers/lyrics_provider.dart';
+import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
@@ -31,7 +31,7 @@ class LyricCardGenerator extends ConsumerStatefulWidget {
 class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
   final ScreenshotController _screenshotController = ScreenshotController();
   final Set<int> _selectedIndices = {}; // Track selected lines
-  final int _maxLines = 1; // Increased limit slightly for better cards
+  final int _maxLines = 4; // Increased limit slightly for better cards
   Uint8List? _artworkBytes;
 
   @override
@@ -90,9 +90,12 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
         final file = File(imagePath);
         await file.writeAsBytes(imageBytes);
 
-        await Share.shareXFiles([
-          XFile(file.path),
-        ], text: 'Listening to ${widget.song.title} on Wavvy 🎵');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(file.path)],
+            text: 'Listening to ${widget.song.title} on Wavvy',
+          ),
+        );
       }
     } catch (e) {
       AppSnackbar.showErrorSnackBar("Error sharing", "$e");
@@ -103,26 +106,33 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
   Widget build(BuildContext context) {
     final sortedIndices = _selectedIndices.toList()..sort();
     final selectedLyrics = sortedIndices.map((i) => widget.lyrics[i]).toList();
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
     return Scaffold(
       backgroundColor: a.background,
       appBar: AppBar(
         centerTitle: true,
-        backgroundColor: Colors.transparent,
-        flexibleSpace: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: a.toolbar,
+        backgroundColor: a.background,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const WvKicker('SHARE CARD'),
+            Text(
+              "Share lyrics",
+              style: TextStyle(
+                color: a.text,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
+              ),
             ),
-            border: Border(bottom: BorderSide(color: a.toolbarBorder)),
-          ),
+          ],
         ),
-        leading: GelButton(
+        leading: WvButton(
           circular: true,
-          size: 32,
+          size: 40,
           tooltip: "Back",
           onPressed: () => Navigator.maybePop(context),
           child: const Icon(Icons.arrow_back_rounded),
@@ -130,10 +140,11 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
-            child: GelButton(
+            child: WvButton(
               primary: true,
-              size: 32,
-              width: 92,
+              size: 40,
+              squircle: true,
+              width: 100,
               tooltip: "Share",
               onPressed: sortedIndices.isEmpty ? null : _shareCard,
               child: const Row(
@@ -174,12 +185,14 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
             flex: 4,
             child: Container(
               decoration: BoxDecoration(
-                color: a.background,
-                border: Border(top: BorderSide(color: a.border)),
+                color: a.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(Ds.radiusXL),
+                ),
               ),
               child: Column(
                 children: [
-                  AquaSectionBar(
+                  WvSectionHeader(
                     title: "Select Lyrics",
                     trailing: Padding(
                       padding: const EdgeInsets.only(right: 16),
@@ -188,6 +201,7 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
                         style: TextStyle(
                           color: a.textSecondary,
                           fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -204,6 +218,10 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
                           onTap: () => _toggleSelection(index),
                           child: AnimatedContainer(
                             duration: Ds.fast,
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 2,
+                            ),
                             constraints: const BoxConstraints(minHeight: 48),
                             padding: const EdgeInsets.symmetric(
                               vertical: 10,
@@ -211,15 +229,11 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? null
-                                  : (index.isEven ? a.background : a.stripe),
-                              gradient: isSelected
-                                  ? LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: a.selection,
-                                    )
-                                  : null,
+                                  ? a.primaryContainer
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(
+                                isSelected ? 22 : 16,
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -227,18 +241,20 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
                                   child: Text(
                                     line.text,
                                     style: TextStyle(
-                                      color: isSelected ? Colors.white : a.text,
+                                      color: isSelected
+                                          ? a.onPrimaryContainer
+                                          : a.text,
                                       fontWeight: isSelected
                                           ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      fontSize: 14,
+                                          : FontWeight.w500,
+                                      fontSize: 16,
                                     ),
                                   ),
                                 ),
                                 if (isSelected)
-                                  const Icon(
-                                    Icons.check_rounded,
-                                    color: Colors.white,
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    color: a.onPrimaryContainer,
                                     size: 20,
                                   ),
                               ],
@@ -259,164 +275,76 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
 
   // --- THE ACTUAL CARD DESIGN ---
   Widget _buildCard(List<Lyric> lines) {
+    final a = Wv.of(context);
     return AspectRatio(
-      aspectRatio: 4 / 5, // Standard Social Media Portrait
+      aspectRatio: 4 / 5,
       child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Ds.radiusL),
-          color: Colors.grey[900],
-          image: _artworkBytes != null
-              ? DecorationImage(
-                  image: MemoryImage(_artworkBytes!),
-                  fit: BoxFit.cover,
-                )
-              : null,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(Ds.radiusL),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 1, sigmaY: 1),
-                child: Container(color: Colors.black.withValues(alpha: 0.3)),
-              ),
-
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.2),
-                      Colors.black.withValues(alpha: 0.4),
-                      Colors.black.withValues(alpha: 0.8),
-                    ],
+        decoration: a.frame(color: a.surface, radius: 20),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                WvKicker('Lyrics', color: a.text),
+                WvSymbol(sprite: PixelSprites.note, size: 16, color: a.accent),
+              ],
+            ),
+            const SizedBox(height: 16),
+            WvArtwork(
+              radius: 12,
+              child: _artworkBytes == null
+                  ? WvMediaPlaceholder(seed: widget.song.id, size: 72)
+                  : Image.memory(
+                      _artworkBytes!,
+                      width: 72,
+                      height: 72,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            Expanded(
+              child: Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: 240,
+                    child: Text(
+                      lines.isEmpty
+                          ? 'Tap lyrics below to preview'
+                          : lines.map((line) => line.text).join('\n'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'WorkSans',
+                        fontSize: lines.isEmpty ? 18 : 27,
+                        height: 1.35,
+                        color: a.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
-
-              // 3. Content
-              Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Spacer(),
-
-                    // Artwork Thumb (Clean Shadow)
-                    if (_artworkBytes != null)
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(Ds.radiusS),
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black45,
-                              blurRadius: 5,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                          image: DecorationImage(
-                            image: MemoryImage(_artworkBytes!),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
-
-                    const Spacer(),
-
-                    // Lyrics
-                    if (lines.isEmpty)
-                      Text(
-                        "Tap lyrics below to preview",
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
-                          fontSize: 16,
-                          fontWeight: FontWeight.w300,
-                        ),
-                      )
-                    else
-                      ...lines.map(
-                        (l) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Text(
-                            l.text,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                              letterSpacing: -0.5,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black87,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                    const Spacer(),
-
-                    // Footer / Brand Tag
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(Ds.radiusM),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.music_note_rounded,
-                            color: widget.themeColor,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: Text(
-                              "${widget.song.title} • ${widget.song.artist}",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Wavvy",
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.3),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 10,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
+            ),
+            Divider(color: a.outline.withValues(alpha: 0.4)),
+            Text(
+              widget.song.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: a.text,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
               ),
-            ],
-          ),
+            ),
+            Text(
+              widget.song.artist ?? 'Unknown Artist',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: a.text, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            WvKicker('Wavvy', color: a.text),
+          ],
         ),
       ),
     );
