@@ -287,12 +287,15 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 600));
     expect(tester.takeException(), isNull);
-    for (final label in ['Queue', 'Lyrics', 'Artist', 'Player']) {
-      await tester.tap(find.text(label).last);
+    for (final label in ['Queue', 'Lyrics', 'About', 'Player']) {
+      await tester.tap(find.byTooltip(label));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(tester.takeException(), isNull, reason: label);
-      expect(find.byTooltip('Pause'), findsOneWidget);
+      expect(
+        find.byTooltip('Pause'),
+        label == 'Player' ? findsOneWidget : findsNothing,
+      );
     }
   });
   for (final dark in [false, true]) {
@@ -307,13 +310,16 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 600));
       expect(tester.takeException(), isNull);
-      for (final label in ['Queue', 'Lyrics', 'Artist', 'Player']) {
-        await tester.ensureVisible(find.text(label).last);
-        await tester.tap(find.text(label).last);
+      for (final label in ['Queue', 'Lyrics', 'About', 'Player']) {
+        await tester.ensureVisible(find.byTooltip(label));
+        await tester.tap(find.byTooltip(label));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 600));
         expect(tester.takeException(), isNull, reason: label);
-        expect(find.byTooltip('Pause'), findsOneWidget);
+        expect(
+          find.byTooltip('Pause'),
+          label == 'Player' ? findsOneWidget : findsNothing,
+        );
       }
     });
   }

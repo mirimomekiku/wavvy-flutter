@@ -6,6 +6,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/artist_info_provider.dart';
+import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/lyrics_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/player_sheet_provider.dart';
@@ -16,10 +17,8 @@ import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/widgets/lyric_card.dart';
 import 'package:wavvy/widgets/seekable_artwork.dart';
 import 'package:wavvy/widgets/song_menu.dart';
-import 'package:wavvy/widgets/audio_dialogs.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/status_message.dart';
-import 'package:wavvy/player_sheets/player_dialogs.dart';
 import 'package:wavvy/screens/audio_effects/effects.screen.dart';
 
 class FullPlayerSheet extends ConsumerStatefulWidget {
@@ -51,151 +50,99 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
       if (settings.enableLyricsFetching) 2,
       if (settings.enableArtistInfoFetching) 3,
     ];
-    const labels = ['Player', 'Queue', 'Lyrics', 'Artist'];
     final page = ref.watch(sheetPageIndexProvider);
+    final statusBar = math.max(
+      MediaQuery.paddingOf(context).top,
+      MediaQueryData.fromView(View.of(context)).padding.top,
+    );
+    void goTo(int i) => _pages.animateToPage(
+      i,
+      duration: Ds.medium,
+      curve: Curves.easeOutCubic,
+    );
+    final navBar = math.max(
+      MediaQuery.paddingOf(context).bottom,
+      MediaQueryData.fromView(View.of(context)).padding.bottom,
+    );
+    final nav = _SheetNav(page: page, pages: visible, onSelect: goTo);
     return WvSystemUi(
       child: Material(
         color: a.background,
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  gradient: a.chromeGradient,
-                  border: Border(bottom: BorderSide(color: a.separator)),
-                ),
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            'NOW PLAYING',
-                            style: TextStyle(
-                              fontSize: 10,
-                              letterSpacing: 1.4,
-                              fontWeight: FontWeight.w600,
-                              color: a.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            song.album ?? 'Your library',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 13, color: a.text),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'More',
-                      onPressed: () => SongMenuHelper.show(
-                        context,
-                        ref,
-                        song,
-                        options: const SongMenuOptions(
-                          showDelete: true,
-                          showCustomEqualizer: true,
-                          showSystemEqualizer: true,
-                          showSongInfo: true,
-                          showPlaybackSpeed: true,
-                        ),
-                      ),
-                      icon: const Icon(Icons.more_horiz_rounded),
-                    ),
-                  ],
-                ),
+        // The modal route strips the top inset from MediaQuery, so read it from
+        // the window; the header paints behind the status bar and is padded.
+        child: Column(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: a.chromeGradient,
+                border: Border(bottom: BorderSide(color: a.separator)),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: WvChips(
-                  labels: [for (final i in visible) labels[i]],
-                  selected: visible.indexOf(page),
-                  onChanged: (i) => _pages.animateToPage(
-                    visible[i],
-                    duration: Ds.medium,
-                    curve: Curves.easeOutCubic,
+              padding: EdgeInsets.fromLTRB(8, 4 + statusBar, 8, 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
                   ),
-                ),
+                  Expanded(
+                    child: Text(
+                      'Now Playing',
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: a.text,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'More',
+                    onPressed: () => SongMenuHelper.show(
+                      context,
+                      ref,
+                      song,
+                      options: const SongMenuOptions(
+                        showDelete: true,
+                        showCustomEqualizer: true,
+                        showSystemEqualizer: true,
+                        showSongInfo: true,
+                        showPlaybackSpeed: true,
+                      ),
+                    ),
+                    icon: const Icon(Icons.more_horiz_rounded),
+                  ),
+                ],
               ),
-              Expanded(
-                child: PageView(
-                  controller: _pages,
-                  physics: const NeverScrollableScrollPhysics(),
-                  onPageChanged: (index) =>
-                      ref.read(sheetPageIndexProvider.notifier).set(index),
-                  children: [
-                    _record(song),
-                    const _QueuePage(),
-                    _buildLyricsPage(context),
-                    _buildArtistPage(context),
-                  ],
-                ),
+            ),
+            Expanded(
+              child: PageView(
+                controller: _pages,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (index) =>
+                    ref.read(sheetPageIndexProvider.notifier).set(index),
+                children: [
+                  _NowPlayingPage(
+                    song: song,
+                    onLyrics: settings.enableLyricsFetching
+                        ? () => goTo(2)
+                        : null,
+                    onArtist: settings.enableArtistInfoFetching
+                        ? () => goTo(3)
+                        : null,
+                  ),
+                  const _QueuePage(),
+                  _buildLyricsPage(context),
+                  _buildArtistPage(context),
+                ],
               ),
-              _PlayerDock(compactTitle: page != 0),
-            ],
-          ),
+            ),
+            _SheetToolbar(bottomInset: navBar, child: nav),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _record(SongModel song) {
-    final a = Wv.of(context);
-    return LayoutBuilder(
-      builder: (context, c) {
-        final side = math.min(
-          c.maxWidth - 56,
-          math.max(160.0, c.maxHeight - 122),
-        );
-        return SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(28, 8, 28, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: SizedBox.square(
-                    dimension: side,
-                    child: AnimatedSeekableArtwork(
-                      song: song,
-                      size: side,
-                      iconColor: a.text,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  song.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.w600,
-                    color: a.text,
-                    height: 1.15,
-                    letterSpacing: -0.7,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  song.artist ?? 'Unknown Artist',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 15, color: a.textSecondary),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -236,59 +183,75 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
           );
         }
 
+        final current = lyricsState.currentIndex;
         return Stack(
           children: [
-            ScrollablePositionedList.builder(
-              itemCount: lyrics.length,
-              physics: const BouncingScrollPhysics(),
-              itemScrollController: ref.read(lyricsScrollControllerProvider),
-              itemPositionsListener: ref.read(lyricsPositionsListenerProvider),
-              padding: const EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 24,
-                bottom: 110,
-              ),
-              itemBuilder: (context, index) {
-                final line = lyrics[index];
-                final isActive = index == lyricsState.currentIndex;
-                return InkWell(
-                  onTap: () =>
-                      ref.read(playerProvider.notifier).seek(line.time),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      line.text,
-                      style: TextStyle(
-                        color: isActive ? a.accent : a.textSecondary,
-                        fontSize: 26,
-                        fontWeight: isActive
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        height: 1.4,
-                        letterSpacing: -0.4,
+            // Soft fade at the top and bottom so lines glide in and out.
+            ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (rect) => const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black,
+                  Colors.black,
+                  Colors.transparent,
+                ],
+                stops: [0, 0.07, 0.92, 1],
+              ).createShader(rect),
+              child: ScrollablePositionedList.builder(
+                itemCount: lyrics.length,
+                physics: const BouncingScrollPhysics(),
+                itemScrollController: ref.read(lyricsScrollControllerProvider),
+                itemPositionsListener: ref.read(
+                  lyricsPositionsListenerProvider,
+                ),
+                padding: const EdgeInsets.fromLTRB(24, 36, 24, 120),
+                itemBuilder: (context, index) {
+                  final isActive = index == current;
+                  final isPast = current >= 0 && index < current;
+                  final color = isActive
+                      ? a.accent
+                      : a.textSecondary.withValues(alpha: isPast ? 0.4 : 0.75);
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => ref
+                        .read(playerProvider.notifier)
+                        .seek(lyrics[index].time),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 10,
+                        horizontal: 4,
+                      ),
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOut,
+                        style: TextStyle(
+                          color: color,
+                          fontSize: isActive ? 28 : 22,
+                          fontWeight: isActive
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          height: 1.3,
+                          letterSpacing: -0.4,
+                        ),
+                        child: Text(lyrics[index].text),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
             Positioned(
               bottom: 16,
-              right: 24,
+              right: 20,
               child: WvButton(
                 primary: true,
-                width: 160,
-                size: 48,
-                tooltip: "Share Card",
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.ios_share_rounded, size: 18),
-                    SizedBox(width: 6),
-                    Text("Share Card"),
-                  ],
-                ),
+                circular: true,
+                size: 52,
+                tooltip: 'Share Card',
+                child: const Icon(Icons.ios_share_rounded),
                 onPressed: () {
                   final song = ref.read(playerProvider).currentSong;
                   if (song != null) {
@@ -320,60 +283,105 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
         if (artistInfo.isLoading) {
           return const Center(child: PixelLoader(size: 36));
         }
+        final name = currentSong?.artist ?? 'Unknown Artist';
+        final mine = ref
+            .watch(libraryProvider.select((s) => s.songs))
+            .where((s) => s.artist == currentSong?.artist)
+            .toList();
+        final albums = {for (final s in mine) s.album}.length;
         Widget placeholder() => WvMediaPlaceholder(
           seed: currentSong?.artistId ?? currentSong?.id ?? 0,
-          size: 200,
+          size: 168,
         );
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: WvArtwork(
-                  circular: true,
-                  elevated: true,
-                  child: artistInfo.imageUrl.isNotEmpty
-                      ? Image.network(
-                          artistInfo.imageUrl,
-                          width: 200,
-                          height: 200,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, o, s) => placeholder(),
-                        )
-                      : placeholder(),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                currentSong?.artist ?? "About the Artist",
-                style: TextStyle(
-                  color: a.text,
-                  fontSize: 24,
-                  fontFamily: 'WorkSans',
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-              WvPanel(
-                padding: const EdgeInsets.all(20),
-                color: a.tertiaryContainer,
-                radius: 14,
-                child: Text(
-                  artistInfo.bio.isEmpty
-                      ? "No information found."
-                      : artistInfo.bio,
-                  style: TextStyle(
-                    color: a.onTertiaryContainer,
-                    fontSize: 15,
-                    height: 1.5,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: WvArtwork(
+                      circular: true,
+                      elevated: true,
+                      child: artistInfo.imageUrl.isNotEmpty
+                          ? Image.network(
+                              artistInfo.imageUrl,
+                              width: 168,
+                              height: 168,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, o, s) => placeholder(),
+                            )
+                          : placeholder(),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 18),
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: a.text,
+                      fontSize: 26,
+                      fontFamily: 'WorkSans',
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                  if (mine.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${mine.length} ${mine.length == 1 ? 'track' : 'tracks'}'
+                      ' \u00b7 $albums ${albums == 1 ? 'album' : 'albums'}'
+                      ' in your library',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: a.textSecondary, fontSize: 13),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  WvPanel(
+                    padding: const EdgeInsets.all(18),
+                    color: a.surface,
+                    radius: 14,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
+                              color: a.accent,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'About',
+                              style: TextStyle(
+                                color: a.text,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          artistInfo.bio.isEmpty
+                              ? 'No information found.'
+                              : artistInfo.bio,
+                          style: TextStyle(
+                            color: a.textSecondary,
+                            fontSize: 14,
+                            height: 1.55,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
         );
       },
@@ -381,161 +389,431 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
   }
 }
 
-/// The "Playing Next" list. Owns its ScrollController so the scroll position
-/// survives rebuilds, and keeps the playing track in view.
-class _PlayerDock extends ConsumerWidget {
-  const _PlayerDock({required this.compactTitle});
-  final bool compactTitle;
+/// The Player tab: artwork, title row, seek bar, transport and mode dock.
+class _NowPlayingPage extends ConsumerWidget {
+  const _NowPlayingPage({required this.song, this.onLyrics, this.onArtist});
+  final SongModel song;
+  final VoidCallback? onLyrics;
+  final VoidCallback? onArtist;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final a = Wv.of(context);
-    final shortScreen = MediaQuery.sizeOf(context).height < 520;
     final state = ref.watch(playerProvider);
     final controls = ref.read(playerProvider.notifier);
-    return Container(
-      decoration: BoxDecoration(
-        gradient: a.chromeGradient,
-        border: Border(top: BorderSide(color: a.separator)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (compactTitle)
-            Text(
-              state.currentSong?.title ?? '',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: a.textSecondary),
-            ),
-          Consumer(
-            builder: (context, ref, _) {
-              final duration = ref.watch(durationProvider);
-              final position = ref.watch(positionProvider);
-              final max = math.max(1.0, duration.inMilliseconds.toDouble());
-              return Column(
-                children: [
-                  SizedBox(
-                    height: 30,
-                    child: Slider(
-                      value: position.inMilliseconds.toDouble().clamp(0.0, max),
-                      max: max,
-                      label: PlayerUtils.formatDuration(position),
-                      onChanged: duration > Duration.zero
-                          ? (v) =>
-                                controls.seek(Duration(milliseconds: v.toInt()))
-                          : null,
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final canNext =
+        state.currentIndex < state.queue.length - 1 ||
+        state.loopMode == LoopMode.all;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = math.min(c.maxWidth, 480.0) - 32;
+        final side = math.min(width, math.max(140.0, c.maxHeight - 330));
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: c.maxHeight),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        PlayerUtils.formatDuration(position),
-                        style: TextStyle(fontSize: 10, color: a.textSecondary),
+                      Center(
+                        child: SizedBox.square(
+                          dimension: side,
+                          child: AnimatedSeekableArtwork(
+                            song: song,
+                            size: side,
+                            iconColor: a.text,
+                          ),
+                        ),
                       ),
-                      Text(
-                        PlayerUtils.formatDuration(duration),
-                        style: TextStyle(fontSize: 10, color: a.textSecondary),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  song.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                    color: a.text,
+                                    height: 1.15,
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: onArtist,
+                                  child: Text(
+                                    song.artist ?? 'Unknown Artist',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: a.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (onLyrics != null) ...[
+                            const SizedBox(width: 12),
+                            WvButton(
+                              circular: true,
+                              squircle: true,
+                              size: 44,
+                              tooltip: 'View lyrics',
+                              onPressed: onLyrics,
+                              child: const Icon(Icons.lyrics_outlined),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _SeekRow(song: song),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: WvButton(
+                              size: 60,
+                              tooltip: 'Previous',
+                              onPressed: state.currentIndex > 0
+                                  ? controls.previous
+                                  : null,
+                              child: const Icon(
+                                Icons.skip_previous_rounded,
+                                size: 30,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          WvButton(
+                            primary: true,
+                            width: 88,
+                            size: 68,
+                            tooltip: state.isPlaying ? 'Pause' : 'Play',
+                            onPressed: controls.togglePlay,
+                            child: Icon(
+                              state.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 34,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: WvButton(
+                              size: 60,
+                              tooltip: 'Next',
+                              onPressed: canNext ? controls.next : null,
+                              child: const Icon(
+                                Icons.skip_next_rounded,
+                                size: 30,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: a.surfaceHigh,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: a.outline.withValues(alpha: 0.65),
+                          ),
+                        ),
+                        child: IntrinsicHeight(
+                          child: Row(
+                            children: [
+                              _ModeCell(
+                                tooltip: state.isShuffleModeEnabled
+                                    ? 'Shuffle on'
+                                    : 'Shuffle',
+                                selected: state.isShuffleModeEnabled,
+                                icon: Icons.shuffle_rounded,
+                                onPressed: controls.toggleShuffle,
+                              ),
+                              VerticalDivider(width: 1, color: a.separator),
+                              _ModeCell(
+                                tooltip: state.loopMode == LoopMode.off
+                                    ? 'Repeat'
+                                    : 'Repeat ${state.loopMode.name}',
+                                selected: state.loopMode != LoopMode.off,
+                                icon: PlayerUtils.getLoopIcon(state.loopMode),
+                                onPressed: controls.cycleLoopMode,
+                              ),
+                              VerticalDivider(width: 1, color: a.separator),
+                              _ModeCell(
+                                tooltip: 'Sound',
+                                selected: false,
+                                icon: Icons.tune_rounded,
+                                onPressed: () =>
+                                    AppNav.push(const AudioEffectsScreen()),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                tooltip: state.isShuffleModeEnabled ? 'Shuffle on' : 'Shuffle',
-                isSelected: state.isShuffleModeEnabled,
-                onPressed: controls.toggleShuffle,
-                icon: Icon(
-                  Icons.shuffle_rounded,
-                  color: state.isShuffleModeEnabled
-                      ? a.accent
-                      : a.textSecondary,
-                  size: 21,
                 ),
               ),
-              IconButton(
-                tooltip: 'Previous',
-                onPressed: state.currentIndex > 0 ? controls.previous : null,
-                icon: const Icon(Icons.skip_previous_rounded, size: 29),
-              ),
-              WvButton(
-                primary: true,
-                circular: true,
-                size: shortScreen ? 48 : 58,
-                tooltip: state.isPlaying ? 'Pause' : 'Play',
-                onPressed: controls.togglePlay,
-                child: Icon(
-                  state.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: 32,
-                ),
-              ),
-              IconButton(
-                tooltip: 'Next',
-                onPressed:
-                    state.currentIndex < state.queue.length - 1 ||
-                        state.loopMode == LoopMode.all
-                    ? controls.next
-                    : null,
-                icon: const Icon(Icons.skip_next_rounded, size: 29),
-              ),
-              IconButton(
-                tooltip: state.loopMode == LoopMode.off
-                    ? 'Repeat'
-                    : 'Repeat ${state.loopMode.name}',
-                onPressed: controls.cycleLoopMode,
-                icon: Icon(
-                  PlayerUtils.getLoopIcon(state.loopMode),
-                  color: state.loopMode != LoopMode.off
-                      ? a.accent
-                      : a.textSecondary,
-                  size: 21,
-                ),
-              ),
-            ],
-          ),
-          if (!shortScreen)
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              children: [
-                TextButton.icon(
-                  onPressed: () => showSpeedDialog(ref),
-                  icon: const Icon(Icons.speed_rounded, size: 16),
-                  label: const Text('Speed', style: TextStyle(fontSize: 11)),
-                ),
-                TextButton.icon(
-                  onPressed: () => openSleepTimerDialog(ref),
-                  icon: Icon(
-                    state.sleepTimerMinutes == null
-                        ? Icons.bedtime_outlined
-                        : Icons.bedtime_rounded,
-                    size: 16,
-                  ),
-                  label: Text(
-                    state.sleepTimerMinutes == null
-                        ? 'Sleep timer'
-                        : '${state.sleepTimerMinutes} min',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () => AppNav.push(const AudioEffectsScreen()),
-                  icon: const Icon(Icons.tune_rounded, size: 16),
-                  label: const Text('Sound', style: TextStyle(fontSize: 11)),
-                ),
-              ],
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Brushed-metal bottom toolbar, like the bar under a Mac OS X window.
+class _SheetToolbar extends StatelessWidget {
+  const _SheetToolbar({required this.child, required this.bottomInset});
+  final Widget child;
+
+  /// System navigation bar height; the toolbar paints behind it.
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        gradient: a.chromeGradient,
+        border: Border(
+          top: BorderSide(color: a.outline.withValues(alpha: 0.55)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.white.withValues(alpha: a.dark ? 0.04 : 0.7),
+            offset: const Offset(0, -1),
+          ),
         ],
       ),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + bottomInset),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Icon-only page switcher (Player / Queue / Lyrics / About) drawn as a
+/// connected Aqua segmented control: gel segments, blue when selected.
+class _SheetNav extends StatelessWidget {
+  const _SheetNav({
+    required this.page,
+    required this.pages,
+    required this.onSelect,
+  });
+  final int page;
+  final List<int> pages;
+  final ValueChanged<int> onSelect;
+
+  static const _icons = [
+    Icons.album_rounded,
+    Icons.queue_music_rounded,
+    Icons.lyrics_rounded,
+    Icons.person_rounded,
+  ];
+  static const _tips = ['Player', 'Queue', 'Lyrics', 'About'];
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return Row(
+      children: [
+        for (int i = 0; i < pages.length; i++)
+          Expanded(
+            child: Tooltip(
+              message: _tips[pages[i]],
+              child: Semantics(
+                button: true,
+                selected: page == pages[i],
+                label: _tips[pages[i]],
+                excludeSemantics: true,
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.horizontal(
+                    left: i == 0 ? const Radius.circular(8) : Radius.zero,
+                    right: i == pages.length - 1
+                        ? const Radius.circular(8)
+                        : Radius.zero,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: a.gelGradient(primary: page == pages[i]),
+                      border: Border(
+                        top: BorderSide(
+                          color: page == pages[i]
+                              ? Color.lerp(a.accent, Colors.black, 0.25)!
+                              : a.outline.withValues(alpha: 0.7),
+                        ),
+                        bottom: BorderSide(
+                          color: page == pages[i]
+                              ? Color.lerp(a.accent, Colors.black, 0.25)!
+                              : a.outline.withValues(alpha: 0.7),
+                        ),
+                        left: BorderSide(
+                          color: i == 0 || page == pages[i]
+                              ? (page == pages[i]
+                                    ? Color.lerp(a.accent, Colors.black, 0.25)!
+                                    : a.outline.withValues(alpha: 0.7))
+                              : Colors.transparent,
+                        ),
+                        right: BorderSide(
+                          color: page == pages[i]
+                              ? Color.lerp(a.accent, Colors.black, 0.25)!
+                              : a.outline.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                    child: InkWell(
+                      onTap: () => onSelect(pages[i]),
+                      child: SizedBox(
+                        height: 40,
+                        child: Icon(
+                          _icons[pages[i]],
+                          size: 22,
+                          color: page == pages[i] ? a.onAccent : a.text,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ModeCell extends StatelessWidget {
+  const _ModeCell({
+    required this.tooltip,
+    required this.selected,
+    required this.icon,
+    required this.onPressed,
+  });
+  final String tooltip;
+  final bool selected;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return Expanded(
+      child: Tooltip(
+        message: tooltip,
+        child: Semantics(
+          button: true,
+          selected: selected,
+          label: tooltip,
+          excludeSemantics: true,
+          child: InkWell(
+            onTap: onPressed,
+            child: Container(
+              height: 48,
+              color: selected ? a.primaryContainer : Colors.transparent,
+              child: Icon(
+                icon,
+                size: 22,
+                color: selected ? a.onPrimaryContainer : a.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Wavy seek bar with elapsed/total time and a bitrate/format readout.
+class _SeekRow extends ConsumerWidget {
+  const _SeekRow({required this.song});
+  final SongModel song;
+
+  String get _format {
+    // Raw media-store rows can lack these; the readout is optional.
+    String ext = '';
+    int kbps = 0;
+    try {
+      ext = song.fileExtension.trim().toUpperCase();
+      final ms = song.duration ?? 0;
+      kbps = ms > 0 ? (song.size * 8 / ms).round() : 0;
+    } catch (_) {}
+    return [if (kbps > 0) '$kbps kbps', if (ext.isNotEmpty) ext].join(' · ');
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = Wv.of(context);
+    final duration = ref.watch(durationProvider);
+    final position = ref.watch(positionProvider);
+    final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final controls = ref.read(playerProvider.notifier);
+    final max = math.max(1.0, duration.inMilliseconds.toDouble());
+    final style = TextStyle(fontSize: 11, color: a.textSecondary);
+    final format = _format;
+    return Column(
+      children: [
+        SizedBox(
+          height: 32,
+          child: WvWavySlider(
+            value: position.inMilliseconds.toDouble().clamp(0.0, max),
+            max: max,
+            animate: playing,
+            onChanged: (v) {
+              if (duration > Duration.zero) {
+                controls.seek(Duration(milliseconds: v.toInt()));
+              }
+            },
+          ),
+        ),
+        Row(
+          children: [
+            Text(PlayerUtils.formatDuration(position), style: style),
+            Expanded(
+              child: Center(
+                child: format.isEmpty
+                    ? null
+                    : Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: a.surfaceHigh,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: a.separator),
+                        ),
+                        child: Text(format, style: style),
+                      ),
+              ),
+            ),
+            Text(PlayerUtils.formatDuration(duration), style: style),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -548,35 +826,49 @@ class _QueuePage extends ConsumerWidget {
     final state = ref.watch(playerProvider);
     final queue = state.queue;
     final controls = ref.read(playerProvider.notifier);
+    final totalMs = queue.fold<int>(0, (sum, s) => sum + (s.duration ?? 0));
+    final hasUpcoming = state.currentIndex < queue.length - 1;
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
+          padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  'Up next \u00b7 ${queue.length} tracks',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: a.text,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Up next',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                        color: a.text,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${queue.length} ${queue.length == 1 ? 'track' : 'tracks'}'
+                      ' \u00b7 ${PlayerUtils.formatDuration(Duration(milliseconds: totalMs))}',
+                      style: TextStyle(fontSize: 12, color: a.textSecondary),
+                    ),
+                  ],
                 ),
               ),
-              Flexible(
-                child: TextButton(
-                  onPressed: state.currentIndex < queue.length - 1
-                      ? controls.clearUpcoming
-                      : null,
-                  child: const Text(
-                    'Clear upcoming',
-                    maxLines: 2,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 11),
-                  ),
+              const SizedBox(width: 8),
+              WvButton(
+                size: 38,
+                width: 112,
+                tooltip: 'Clear upcoming',
+                onPressed: hasUpcoming ? controls.clearUpcoming : null,
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.playlist_remove_rounded),
+                    SizedBox(width: 6),
+                    Text('Clear'),
+                  ],
                 ),
               ),
             ],
@@ -589,98 +881,121 @@ class _QueuePage extends ConsumerWidget {
             itemCount: queue.length,
             onReorderItem: controls.moveQueueItem,
             itemExtent: math.max(
-              72.0,
-              MediaQuery.textScalerOf(context).scale(40) + 32,
+              76.0,
+              MediaQuery.textScalerOf(context).scale(40) + 36,
             ),
             itemBuilder: (context, index) {
               final song = queue[index];
               final current = state.currentIndex == index;
-              return Material(
+              return Padding(
                 key: ValueKey('queue-$index-${song.id}'),
-                color: current
-                    ? a.primaryContainer
-                    : index.isOdd
-                    ? a.stripe
-                    : a.surface,
-                child: InkWell(
-                  onTap: () {
-                    if (!current) {
-                      ref
-                          .read(audioPlayerProvider)
-                          .seek(Duration.zero, index: index);
-                      ref.read(audioPlayerProvider).play();
-                    }
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                    child: Row(
-                      children: [
-                        WvArtwork(
-                          radius: 6,
-                          child: wvArtwork(
-                            context,
-                            id: song.id,
-                            type: ArtworkType.AUDIO,
-                            size: 40,
-                            placeholder: Icons.music_note_rounded,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: Material(
+                  color: current ? a.primaryContainer : a.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(
+                      color: current
+                          ? a.accent.withValues(alpha: 0.55)
+                          : a.separator,
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () {
+                      if (!current) {
+                        ref
+                            .read(audioPlayerProvider)
+                            .seek(Duration.zero, index: index);
+                        ref.read(audioPlayerProvider).play();
+                      }
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+                      child: Row(
+                        children: [
+                          WvArtwork(
+                            radius: 8,
+                            child: wvArtwork(
+                              context,
+                              id: song.id,
+                              type: ArtworkType.AUDIO,
+                              size: 44,
+                              placeholder: Icons.music_note_rounded,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: current
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                  color: a.text,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  song.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: current
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: current
+                                        ? a.onPrimaryContainer
+                                        : a.text,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                song.artist ?? 'Unknown Artist',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 11,
+                                const SizedBox(height: 3),
+                                Text(
+                                  song.artist ?? 'Unknown Artist',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: current
+                                        ? a.onPrimaryContainer.withValues(
+                                            alpha: 0.75,
+                                          )
+                                        : a.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (current)
+                            Icon(
+                              Icons.graphic_eq_rounded,
+                              size: 20,
+                              color: a.accent,
+                            ),
+                          IconButton(
+                            tooltip: 'Remove from queue',
+                            onPressed: () => controls.removeFromQueue(index),
+                            icon: Icon(
+                              Icons.close_rounded,
+                              color: a.textSecondary,
+                              size: 18,
+                            ),
+                          ),
+                          ReorderableDragStartListener(
+                            index: index,
+                            child: Semantics(
+                              label: 'Reorder ${song.title}',
+                              child: SizedBox(
+                                width: 32,
+                                height: 48,
+                                child: Icon(
+                                  Icons.drag_indicator_rounded,
+                                  size: 22,
                                   color: a.textSecondary,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Remove from queue',
-                          onPressed: () => controls.removeFromQueue(index),
-                          icon: Icon(
-                            Icons.close_rounded,
-                            color: a.textSecondary,
-                            size: 18,
-                          ),
-                        ),
-                        ReorderableDragStartListener(
-                          index: index,
-                          child: Semantics(
-                            label: 'Reorder ${song.title}',
-                            child: SizedBox(
-                              width: 28,
-                              height: 48,
-                              child: Icon(
-                                Icons.drag_handle_rounded,
-                                size: 20,
-                                color: a.textSecondary,
-                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
