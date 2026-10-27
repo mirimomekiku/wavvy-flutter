@@ -1,37 +1,94 @@
 # Wavvy
-***A modern, feature-rich offline music player for Android built with Flutter.***
+***An offline music player for Android, built with Flutter, in the Mac OS X Aqua style of its desktop sibling Kaisu.***
 
-Wavvy combines a beautiful, adaptive UI with powerful playback features, automatic metadata fetching, and an integrated downloader for YouTube and TikTok.
+Wavvy plays the music already on your phone and adds synced lyrics and artist
+information when you are online. The **full** build can also search online and
+download audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp); the **Play**
+build has no downloader (see [Builds](#builds)).
 
-### Screenshots
-| ![A descriptive alt text](./screenshots/home.jpg) | ![A descriptive alt text](./screenshots/library.jpg) | ![A descriptive alt text](./screenshots/sheet.jpg) |
-| ------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------- |
-| ![A descriptive alt text](./screenshots/lyrics.jpg) | ![A descriptive alt text](./screenshots/queue.jpg) | ![A descriptive alt text](./screenshots/artist.jpg) |
+## Features
 
-## ✨ Features
-  🎧 Playback & Audio
-  - Gapless Playback
-  - Audio Effects: Includes Fade In/Out, Skip Silence, and Speed/Pitch control.
-  - Format Support: Plays MP3, FLAC, M4A, WAV, and more.
-  - System Integration: Full background playback, notification controls.
+### Playback & audio
+- Gapless playback of MP3, FLAC, M4A, WAV and anything else Android can decode.
+- Background playback with notification and lock-screen controls.
+- Editable queue: play next, add, reorder, remove, clear upcoming.
+- Shuffle, repeat, speed and pitch (remembered per album), A-B loop and 15 second skips.
+- Sleep timer: minutes, end of the track or end of the queue, with a fade-out.
+- Reopens with the queue and position you left; headphone and call handling you can tune.
+- Volume leveling from ReplayGain tags; crossfade (experimental).
+- Favorites with a Liked songs list, and a home-screen widget.
+- Fade in and out on play and pause, and skip silence (both off by default).
+- Sound: a 5-band equalizer with presets, bass boost, virtualizer, reverb and a
+  volume boost. Effects the device does not support are shown as unavailable.
 
-### 🎨 UI & Customization
-  - Adaptive Themes: The player UI automatically extracts colors from the current album art.
-  - Dynamic Theming: Choose from 50+ color schemes with automatic Dark/Light mode switching.
-  - Immersive Player: A beautiful, gesture-driven player sheet with animated artwork and lyrics.
+### Look and feel
+- Aqua design: silver toolbars, recessed LCD display, gel buttons, paper content.
+- Appearances: Aqua (default), Graphite and System (Material You wallpaper
+  colors), each in light and dark.
+- Optional **Album colors**: tint the whole app from the current artwork.
+- A vinyl-and-tonearm player sheet with Player, Queue, Lyrics and Artist tabs.
 
-### 📝 Lyrics & Metadata
-  - Live Synced Lyrics: Automatically fetches time-stamped lyrics from LRCLib.
-  - Artist Insights: Integrates with Genius API to show artist biographies and high-res photos.
-  - Lyric Cards: Select lyrics and generate beautiful, shareable cards for Instagram Stories or WhatsApp Status.
-  - Tag Editing: Edit song metadata (Title, Artist, Album) directly within the app.
+### Lyrics & metadata
+- Time-synced lyrics from [LRCLib](https://lrclib.net).
+- Artist biographies and photos from Genius.
+- Lyric cards: pick up to four lines and share them as an image.
+- Tag editing (title, artist, album, year, genre).
 
-## 🔒 Permissions
-Wavvy requires storage access to index your local music library.
+### Library
+- Songs, albums, artists and playlists, with in-place filtering and sorting.
+- Home feed built from your own listening history (incognito mode pauses it).
+- Search your library. In the full build, also search online or paste a link
+  (YouTube, TikTok and many other sites) and download the audio into your
+  library, tagged with title, artist and cover.
 
-- Android 13+ (SDK 33): Requests `READ_MEDIA_AUDIO` and `READ_MEDIA_IMAGES`.
-- Android 12 & below: Requests `READ_EXTERNAL_STORAGE`.
+## Permissions
 
-Notifications: Required for playback controls on newer Android versions.
+| Android | What Wavvy asks for |
+| --- | --- |
+| 13+ | `READ_MEDIA_AUDIO` to list your music; notifications for playback controls |
+| 6 to 12 | `READ_EXTERNAL_STORAGE` to list your music |
+| 9 and below | also `WRITE_EXTERNAL_STORAGE`, to add downloads to your music folder |
 
-Note: The app will prompt for these permissions on the first launch. If denied, the library will be empty.
+Editing tags or deleting a song needs no standing permission on Android 10+:
+Android shows its own confirmation each time. Downloads (full build) are saved
+to `Music/Wavvy` in your music library.
+
+If access is refused for good, Wavvy shows an **Open Settings** button instead
+of asking again. The library stays empty until music access is granted.
+
+## Builds
+
+| Flavor | What it is |
+| --- | --- |
+| `play` | No downloader. Safe for the Play Store. |
+| `full` | Adds the yt-dlp downloader. It downloads and runs code from outside any store, so it is for sideloading only. |
+
+```sh
+flutter run --flavor full      # or: --flavor play
+flutter build apk --flavor full --release
+flutter build appbundle --flavor play --release
+```
+
+Plain `flutter run` uses `full`. See [docs/flavors.md](docs/flavors.md).
+
+## If playback cannot start
+
+Wavvy cannot run without its audio service. If it fails to start, an alert
+explains the likely cause and offers **Try Again** and **Restart Wavvy**. The
+raw error is under **Details**, with a copy button.
+
+## Developing
+
+```sh
+flutter pub get
+flutter analyze
+flutter test
+flutter run
+```
+
+- Artist information needs a Genius token: put `GENIUS_ACCESS_TOKEN=...` in a
+  `.env` file at the project root (it is gitignored and bundled as an asset).
+- `docs/architecture.md` describes how the app is put together.
+- `docs/kaisu-companion-redesign.md` records the Aqua design.
+- `flutter_riverpod` and `dynamic_color` are held on their current major
+  versions on purpose; see the notes in `pubspec.yaml`.
