@@ -1,23 +1,20 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/service/effects.service.dart';
-import 'package:wavvy/service/equalizer.service.dart'; // Needed for SongModel
 
 class WavvyAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
+  final AndroidEqualizer _equalizer;
   final _enhancer = AndroidLoudnessEnhancer();
-  final EqualizerService _eqService = Get.put(EqualizerService());
-  final NativeEffectsService _nativeFx = Get.put(NativeEffectsService());
 
-  late AudioPipeline pipeline = AudioPipeline(
-    androidAudioEffects: [_enhancer, _eqService.equalizerInstance],
+  late final AudioPipeline pipeline = AudioPipeline(
+    androidAudioEffects: [_enhancer, _equalizer],
   );
 
   late final AudioPlayer _player = AudioPlayer(audioPipeline: pipeline);
 
-  WavvyAudioHandler() {
+  WavvyAudioHandler({required AndroidEqualizer equalizer})
+    : _equalizer = equalizer {
     _init();
   }
 
@@ -25,14 +22,8 @@ class WavvyAudioHandler extends BaseAudioHandler
     _enhancer.setEnabled(true);
     _enhancer.setTargetGain(1.0);
 
-    _eqService.equalizerInstance.setEnabled(true);
+    _equalizer.setEnabled(true);
     _player.setSkipSilenceEnabled(false);
-
-    _player.androidAudioSessionIdStream.listen((sessionId) {
-      if (sessionId != null) {
-        _nativeFx.initEffects(sessionId);
-      }
-    });
 
     _player.playbackEventStream.listen((PlaybackEvent event) {
       final playing = _player.playing;
@@ -70,7 +61,9 @@ class WavvyAudioHandler extends BaseAudioHandler
     _player.sequenceStateStream.listen((state) {
       if (state.currentSource == null) return;
 
-      final song = state.currentSource!.tag as SongModel;
+      final tag = state.currentSource!.tag;
+      if (tag is! SongModel) return;
+      final song = tag;
       Uri? artUri;
       if (song.albumId != null) {
         artUri = Uri.parse(
