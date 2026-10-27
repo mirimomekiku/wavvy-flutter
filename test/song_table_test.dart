@@ -118,10 +118,10 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Library'), findsOneWidget);
-    expect(find.text('SONGS'), findsOneWidget);
-    expect(find.text('ALBUMS'), findsOneWidget);
-    expect(find.text('ARTISTS'), findsOneWidget);
-    expect(find.text('PLAYLISTS'), findsOneWidget);
+    expect(find.text('Songs'), findsOneWidget);
+    expect(find.text('Albums'), findsOneWidget);
+    expect(find.text('Artists'), findsOneWidget);
+    expect(find.text('Playlists'), findsOneWidget);
     expect(find.text('Title'), findsOneWidget);
     expect(find.byTooltip('Sort tracks'), findsOneWidget);
     expect(find.text('Play all'), findsOneWidget);
@@ -155,8 +155,8 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('SONGS'), findsOneWidget);
-    expect(find.text('PLAYLISTS'), findsOneWidget);
+    expect(find.text('Songs'), findsOneWidget);
+    expect(find.text('Playlists'), findsOneWidget);
     expect(find.text('Song 1'), findsNothing);
     expect(find.text('Library'), findsNothing); // header scrolled away
   });
@@ -192,32 +192,32 @@ void main() {
     final container = containerOf(tester);
     expect(container.read(librarySectionProvider), LibrarySection.songs);
 
-    await tester.tap(find.text('ALBUMS'));
+    await tester.tap(find.text('Albums'));
     await tester.pump();
     expect(container.read(librarySectionProvider), LibrarySection.albums);
     expect(find.text('Album 1'), findsOneWidget);
     expect(find.text('Song 1'), findsNothing);
     expect(find.text('Title'), findsNothing);
 
-    await tester.tap(find.text('ARTISTS'));
+    await tester.tap(find.text('Artists'));
     await tester.pump();
     expect(container.read(librarySectionProvider), LibrarySection.artists);
     expect(find.text('Artist 1'), findsOneWidget);
     expect(find.text('Album 1'), findsNothing);
 
     // The four pills are wider than the screen: the chip row scrolls.
-    await tester.ensureVisible(find.text('PLAYLISTS'));
+    await tester.ensureVisible(find.text('Playlists'));
     await tester.pump();
-    await tester.tap(find.text('PLAYLISTS'));
+    await tester.tap(find.text('Playlists'));
     await tester.pump();
     expect(container.read(librarySectionProvider), LibrarySection.playlists);
     expect(find.text('Road trip'), findsOneWidget);
     expect(find.text('Focus'), findsOneWidget);
     expect(find.byTooltip('New Playlist'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('SONGS'));
+    await tester.ensureVisible(find.text('Songs'));
     await tester.pump();
-    await tester.tap(find.text('SONGS'));
+    await tester.tap(find.text('Songs'));
     await tester.pump();
     expect(container.read(librarySectionProvider), LibrarySection.songs);
     expect(find.text('Song 1'), findsOneWidget);
@@ -238,12 +238,12 @@ void main() {
             ),
           )
           .any((widget) => widget.properties.selected == true);
-      expect(selected('SONGS'), isTrue);
-      expect(selected('ALBUMS'), isFalse);
-      await tester.tap(find.text('ALBUMS'));
+      expect(selected('Songs'), isTrue);
+      expect(selected('Albums'), isFalse);
+      await tester.tap(find.text('Albums'));
       await tester.pumpAndSettle();
-      expect(selected('SONGS'), isFalse);
-      expect(selected('ALBUMS'), isTrue);
+      expect(selected('Songs'), isFalse);
+      expect(selected('Albums'), isTrue);
     },
   );
 

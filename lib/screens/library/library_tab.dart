@@ -78,8 +78,8 @@ class LibraryTab extends ConsumerWidget {
 
   /// Tall enough for the compact chips (+ indicator) at the current text scale.
   static double _chipsExtent(BuildContext context) {
-    final label = MediaQuery.textScalerOf(context).scale(12) * 1.4;
-    return (label + 24).clamp(48.0, 100.0);
+    final label = MediaQuery.textScalerOf(context).scale(13) * 1.4;
+    return (label + 28).clamp(52.0, 110.0);
   }
 }
 
@@ -123,28 +123,83 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
     super.dispose();
   }
 
+  bool _focused = false;
+
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-    child: TextField(
-      controller: _query,
-      onChanged: (v) => ref.read(libraryQueryProvider.notifier).state = v,
-      decoration: InputDecoration(
-        hintText: 'Filter your library',
-        prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: ref.watch(libraryQueryProvider).isEmpty
-            ? null
-            : IconButton(
-                tooltip: 'Clear filter',
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () {
-                  _query.clear();
-                  ref.read(libraryQueryProvider.notifier).state = '';
-                },
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    final fill = a.dark ? const Color(0xFF1B2028) : Colors.white;
+    // Aqua search field: capsule, inset top edge, blue focus glow.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(fill, Colors.black, a.dark ? 0.35 : 0.1)!,
+              fill,
+            ],
+            stops: const [0, 0.4],
+          ),
+          border: Border.all(
+            color: _focused ? a.accent : a.outline.withValues(alpha: 0.75),
+          ),
+          boxShadow: [
+            if (_focused)
+              BoxShadow(
+                color: a.accent.withValues(alpha: 0.45),
+                blurRadius: 6,
+                spreadRadius: 1,
+              )
+            else
+              BoxShadow(
+                color: Colors.white.withValues(alpha: a.dark ? 0.05 : 0.8),
+                offset: const Offset(0, 1),
               ),
+          ],
+        ),
+        child: Focus(
+          onFocusChange: (f) => setState(() => _focused = f),
+          child: TextField(
+            controller: _query,
+            onChanged: (v) => ref.read(libraryQueryProvider.notifier).state = v,
+            style: const TextStyle(fontSize: 14),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: false,
+              contentPadding: const EdgeInsets.symmetric(vertical: 11),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              hintText: 'Search songs, albums, artists',
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                size: 19,
+                color: a.textSecondary,
+              ),
+              suffixIcon: ref.watch(libraryQueryProvider).isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear filter',
+                      icon: Icon(
+                        Icons.cancel_rounded,
+                        size: 18,
+                        color: a.textSecondary,
+                      ),
+                      onPressed: () {
+                        _query.clear();
+                        ref.read(libraryQueryProvider.notifier).state = '';
+                      },
+                    ),
+            ),
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SectionChipsDelegate extends SliverPersistentHeaderDelegate {
@@ -174,16 +229,107 @@ class _SectionChipsDelegate extends SliverPersistentHeaderDelegate {
       color: Wv.of(context).background,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Consumer(
-        builder: (context, ref, _) => WvChips(
-          labels: _sectionLabels,
-          uppercase: true,
-          indicator: true,
-          selected: selected,
-          onChanged: (i) => ref
-              .read(librarySectionProvider.notifier)
-              .set(LibrarySection.values[i]),
-        ),
+      child: _SectionPills(selected: selected),
+    );
+  }
+}
+
+/// Pinned, scrollable section pills with a live count on each.
+class _SectionPills extends ConsumerWidget {
+  const _SectionPills({required this.selected});
+  final int selected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = Wv.of(context);
+    final counts = [
+      ref.watch(libraryProvider.select((s) => s.songs.length)),
+      ref.watch(libraryProvider.select((s) => s.albums.length)),
+      ref.watch(libraryProvider.select((s) => s.artists.length)),
+      ref.watch(playlistsProvider.select((s) => s.playlists.length)),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (int i = 0; i < _sectionLabels.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Semantics(
+                button: true,
+                selected: selected == i,
+                label: _sectionLabels[i],
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const StadiumBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: Ink(
+                    decoration: ShapeDecoration(
+                      gradient: a.gelGradient(primary: selected == i),
+                      shape: StadiumBorder(
+                        side: BorderSide(
+                          color: selected == i
+                              ? Color.lerp(a.accent, Colors.black, 0.25)!
+                              : a.outline.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      shadows: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: a.dark ? 0.25 : 0.14,
+                          ),
+                          blurRadius: 1,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => ref
+                          .read(librarySectionProvider.notifier)
+                          .set(LibrarySection.values[i]),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _sectionLabels[i],
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: selected == i ? a.onAccent : a.text,
+                                shadows: selected == i
+                                    ? const [
+                                        Shadow(
+                                          color: Color(0x66305792),
+                                          offset: Offset(0, -1),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${counts[i]}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: selected == i
+                                    ? a.onAccent.withValues(alpha: 0.85)
+                                    : a.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -223,39 +369,6 @@ class _SongsSection extends ConsumerWidget {
     return SliverMainAxisGroup(
       slivers: [
         SliverToBoxAdapter(child: _SortRow(songs: songs)),
-        SliverToBoxAdapter(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: Wv.of(context).chromeGradient,
-              border: Border.symmetric(
-                horizontal: BorderSide(color: Wv.of(context).separator),
-              ),
-            ),
-            padding: const EdgeInsets.fromLTRB(16, 7, 54, 7),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Name / Artist',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Wv.of(context).textSecondary,
-                    ),
-                  ),
-                ),
-                Text(
-                  'Time',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Wv.of(context).textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) => _SongRow(song: songs[index], index: index),
@@ -274,19 +387,45 @@ class _SortRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final a = Wv.of(context);
     final sort = ref.watch(libraryProvider.select((s) => s.sort));
+    final player = ref.read(playerProvider.notifier);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 6),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${songs.length} tracks',
-                  style: TextStyle(color: a.textSecondary, fontSize: 12),
-                ),
-              ),
-              PopupMenuButton<SortOption>(
+          WvButton(
+            primary: true,
+            width: 112,
+            size: 40,
+            onPressed: songs.isEmpty
+                ? null
+                : () => player.playSong(songs.first, contextList: songs),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.play_arrow_rounded),
+                SizedBox(width: 4),
+                Text('Play all'),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          WvButton(
+            circular: true,
+            size: 40,
+            tooltip: 'Shuffle',
+            onPressed: songs.isEmpty
+                ? null
+                : () {
+                    final mix = [...songs]..shuffle();
+                    player.playSong(mix.first, contextList: mix);
+                  },
+            child: const Icon(Icons.shuffle_rounded),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: PopupMenuButton<SortOption>(
                 tooltip: 'Sort tracks',
                 initialValue: sort,
                 onSelected: (s) =>
@@ -300,8 +439,12 @@ class _SortRow extends ConsumerWidget {
                     ),
                 ],
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
+                  ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.sort_rounded,
@@ -309,11 +452,17 @@ class _SortRow extends ConsumerWidget {
                         color: a.textSecondary,
                       ),
                       const SizedBox(width: 6),
-                      Text(
-                        _sortLabels[_sortOptions.indexOf(sort).clamp(0, 2)],
-                        style: TextStyle(color: a.textSecondary, fontSize: 12),
+                      Flexible(
+                        child: Text(
+                          _sortLabels[_sortOptions.indexOf(sort).clamp(0, 2)],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: a.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 6),
                       Icon(
                         Icons.expand_more_rounded,
                         size: 16,
@@ -323,52 +472,7 @@ class _SortRow extends ConsumerWidget {
                   ),
                 ),
               ),
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: WvButton(
-                  primary: true,
-                  width: double.infinity,
-                  onPressed: songs.isEmpty
-                      ? null
-                      : () => ref
-                            .read(playerProvider.notifier)
-                            .playSong(songs.first, contextList: songs),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.play_arrow_rounded),
-                      SizedBox(width: 6),
-                      Text('Play all'),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: WvButton(
-                  width: double.infinity,
-                  onPressed: songs.isEmpty
-                      ? null
-                      : () {
-                          final mix = [...songs]..shuffle();
-                          ref
-                              .read(playerProvider.notifier)
-                              .playSong(mix.first, contextList: mix);
-                        },
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.shuffle_rounded),
-                      SizedBox(width: 6),
-                      Text('Shuffle'),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -499,12 +603,13 @@ Widget _grid({
   required int count,
   required IndexedWidgetBuilder builder,
   double aspectRatio = 0.78,
+  int columns = 2,
 }) {
   return SliverPadding(
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
     sliver: SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+        crossAxisCount: columns,
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
         childAspectRatio: aspectRatio,
@@ -610,48 +715,27 @@ class _ArtistsSection extends ConsumerWidget {
     return SliverMainAxisGroup(
       slivers: [
         _countLabel(context, '${items.length} artists'),
-        SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
+        _grid(
+          count: items.length,
+          columns: 3,
+          aspectRatio: 0.74,
+          builder: (context, index) {
             final artist = items[index];
-            final a = Wv.of(context);
-            return Material(
-              color: index.isOdd ? a.stripe : a.surface,
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                leading: WvArtwork(
-                  circular: true,
-                  child: wvArtwork(
-                    context,
-                    id: artist.id,
-                    type: ArtworkType.ARTIST,
-                    size: 44,
-                    placeholder: Icons.person_outline_rounded,
-                  ),
-                ),
-                title: Text(
-                  artist.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                subtitle: Text(
-                  '${artist.numberOfAlbums} albums / ${artist.numberOfTracks} tracks',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right_rounded,
-                  color: a.textSecondary,
-                ),
-                onTap: () => AppNav.push(ArtistDetailScreen(artist: artist)),
+            return WvGridTile(
+              index: index,
+              circular: true,
+              title: artist.artist,
+              subtitle: '${artist.numberOfTracks} tracks',
+              onTap: () => AppNav.push(ArtistDetailScreen(artist: artist)),
+              artworkBuilder: (size) => wvArtwork(
+                context,
+                id: artist.id,
+                type: ArtworkType.ARTIST,
+                size: size,
+                placeholder: Icons.person_outline_rounded,
               ),
             );
-          }, childCount: items.length),
+          },
         ),
       ],
     );
@@ -698,9 +782,11 @@ class _PlaylistsSection extends ConsumerWidget {
       slivers: [
         _countLabel(context, "${playlists.length} playlists"),
         _grid(
-          count: playlists.length,
+          count: playlists.length + 1,
           aspectRatio: 0.95,
-          builder: (context, index) {
+          builder: (context, i) {
+            if (i == 0) return const _NewPlaylistTile();
+            final index = i - 1;
             final playlist = playlists[index];
             return _PlaylistTile(
               index: index,
@@ -721,6 +807,41 @@ class _PlaylistsSection extends ConsumerWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+class _NewPlaylistTile extends ConsumerWidget {
+  const _NewPlaylistTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = Wv.of(context);
+    return Material(
+      color: a.primaryContainer.withValues(alpha: 0.55),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: a.accent.withValues(alpha: 0.5)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => showNewPlaylistDialog(ref),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_circle_outline_rounded, size: 36, color: a.accent),
+            const SizedBox(height: 8),
+            Text(
+              'New playlist',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: a.onPrimaryContainer,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
