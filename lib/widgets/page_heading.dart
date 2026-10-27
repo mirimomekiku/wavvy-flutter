@@ -23,8 +23,15 @@ class WvPageHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = Wv.of(context);
+    // Screens that already sit inside a SafeArea see a zero top inset here, so
+    // this only pads headings that draw behind the status bar (the tab shell).
     return Container(
-      padding: EdgeInsets.fromLTRB(back ? 8 : 16, 10, 10, 12),
+      padding: EdgeInsets.fromLTRB(
+        back ? 8 : 16,
+        10 + MediaQuery.paddingOf(context).top,
+        10,
+        12,
+      ),
       decoration: BoxDecoration(
         gradient: a.chromeGradient,
         border: Border(

@@ -34,18 +34,17 @@ class HomeScreen extends ConsumerWidget {
           extendBody: true,
           backgroundColor: a.background,
           bottomNavigationBar: const BottomMiniPlayer(),
-          body: const SafeArea(
-            bottom: false,
-            child: TabBarView(
-              // Pages scroll horizontally inside (shelves, chips), so switching
-              // tabs is done from the bottom nav only.
-              physics: NeverScrollableScrollPhysics(),
-              children: [
-                _KeepAlive(child: HomeView()),
-                _KeepAlive(child: LibraryTab()),
-                _KeepAlive(child: SearchTab()),
-              ],
-            ),
+          // No SafeArea: each tab's heading pads itself below the status bar so
+          // its background paints behind it.
+          body: const TabBarView(
+            // Pages scroll horizontally inside (shelves, chips), so switching
+            // tabs is done from the bottom nav only.
+            physics: NeverScrollableScrollPhysics(),
+            children: [
+              _KeepAlive(child: HomeView()),
+              _KeepAlive(child: LibraryTab()),
+              _KeepAlive(child: SearchTab()),
+            ],
           ),
         ),
       ),
