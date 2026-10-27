@@ -8,10 +8,15 @@ import 'package:wavvy/providers/home_feed_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/library_section_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
-import 'package:wavvy/providers/search_source_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/playback/favorites.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
+import 'package:wavvy/screens/library/liked/liked.screen.dart';
+import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
+import 'package:wavvy/screens/library/playlists/view/playlist.screen.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/widgets/page_heading.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/open_player.dart';
@@ -28,20 +33,31 @@ class HomeView extends ConsumerWidget {
         : 'Good evening';
   }
 
+  /// "12 h 30 m" for the library readout; "45 m" under an hour.
+  static String totalTime(int milliseconds) =>
+      PlayerUtils.formatTotalTime(milliseconds);
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final a = Wv.of(context);
     final library = ref.watch(libraryProvider);
     final feed = ref.watch(homeFeedProvider);
     final stats = ref.watch(settingsProvider.select((s) => s.showStats));
-    final downloads = ref.watch(
-      settingsProvider.select((s) => s.enableDownloader),
-    );
-    final song = ref.watch(playerProvider.select((s) => s.currentSong));
-    void albums() {
-      ref.read(librarySectionProvider.notifier).set(LibrarySection.albums);
+    final player = ref.watch(playerProvider);
+    final liked = ref.watch(likedSongsProvider);
+    final song = player.currentSong;
+    final actions = ref.read(playerProvider.notifier);
+
+    void toLibrary([LibrarySection? section]) {
+      if (section != null) {
+        ref.read(librarySectionProvider.notifier).set(section);
+      }
       DefaultTabController.maybeOf(context)?.animateTo(1);
     }
+
+    void albums() => toLibrary(LibrarySection.albums);
+
+    final shelfScale = MediaQuery.textScalerOf(context);
 
     return RefreshIndicator(
       onRefresh: () => ref.read(libraryProvider.notifier).fetchAllSongs(),
@@ -97,7 +113,9 @@ class HomeView extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(
                         library.permissionDenied
-                            ? 'Allow music access to see your collection here.'
+                            ? library.permissionBlocked
+                                  ? 'Turn on music access for Wavvy in Settings.'
+                                  : 'Allow music access to see your collection here.'
                             : 'Add music to your device, then refresh your library.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: a.textSecondary, height: 1.5),
@@ -109,19 +127,21 @@ class HomeView extends ConsumerWidget {
                           if (library.permissionDenied)
                             WvButton(
                               width: 140,
+                              primary: library.permissionBlocked,
                               onPressed: openAppSettings,
                               child: const Text('Open Settings'),
                             ),
-                          WvButton(
-                            primary: true,
-                            width: 110,
-                            onPressed: () => ref
-                                .read(libraryProvider.notifier)
-                                .fetchAllSongs(),
-                            child: Text(
-                              library.permissionDenied ? 'Retry' : 'Refresh',
+                          if (!library.permissionBlocked)
+                            WvButton(
+                              primary: true,
+                              width: 110,
+                              onPressed: () => ref
+                                  .read(libraryProvider.notifier)
+                                  .fetchAllSongs(),
+                              child: Text(
+                                library.permissionDenied ? 'Retry' : 'Refresh',
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ],
@@ -130,297 +150,361 @@ class HomeView extends ConsumerWidget {
               ),
             ),
           if (library.songs.isNotEmpty) ...[
+            const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+            // ---- Now playing / ready
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Material(
-                  color: a.surface,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    side: BorderSide(color: a.outline.withValues(alpha: 0.5)),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: song == null
-                        ? () => ref
-                              .read(playerProvider.notifier)
-                              .playSong(
+              child: AquaWindow(
+                title: song == null
+                    ? 'Ready when you are'
+                    : 'Continue listening',
+                subtitle: song == null
+                    ? '${library.songs.length} tracks on this device'
+                    : null,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      button: true,
+                      label: song == null
+                          ? 'Your collection'
+                          : 'Open the player, ${song.title}',
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(6),
+                        onTap: song == null
+                            ? () => actions.playSong(
                                 library.songs.first,
                                 contextList: library.songs,
                               )
-                        : () => openWavvyPlayer(context, ref),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Row(
-                        children: [
-                          WvArtwork(
-                            radius: 9,
-                            child: wvArtwork(
-                              context,
-                              id: song?.id ?? library.songs.first.id,
-                              type: ArtworkType.AUDIO,
-                              size: 48,
-                              placeholder: Icons.album_outlined,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  song == null
-                                      ? 'READY WHEN YOU ARE'
-                                      : 'CONTINUE LISTENING',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    letterSpacing: 0.8,
-                                    fontWeight: FontWeight.w600,
-                                    color: a.accent,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  song?.title ?? 'Your collection',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: a.text,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  song?.artist ??
-                                      '${library.songs.length} tracks on this device',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: a.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right_rounded,
-                            color: a.textSecondary,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      WvButton(
-                        width: 108,
-                        size: 30,
-                        onPressed: () {
-                          final songs = [...library.songs]..shuffle();
-                          ref
-                              .read(playerProvider.notifier)
-                              .playSong(songs.first, contextList: songs);
-                        },
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
+                            : () => openWavvyPlayer(context, ref),
+                        child: Row(
                           children: [
-                            Icon(Icons.shuffle_rounded, size: 15),
-                            SizedBox(width: 5),
-                            Text('Shuffle all'),
+                            WvArtwork(
+                              radius: 8,
+                              child: wvArtwork(
+                                context,
+                                id: song?.id ?? library.songs.first.id,
+                                type: ArtworkType.AUDIO,
+                                size: 64,
+                                placeholder: Icons.album_outlined,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 9,
+                                ),
+                                decoration: a.lcdDecoration.copyWith(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      song?.title ?? 'Your collection',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: a.text,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      song?.artist ??
+                                          '${library.albums.length} albums \u00b7 ${library.artists.length} artists',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: a.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      WvButton(
-                        width: 80,
-                        size: 30,
-                        onPressed: albums,
-                        child: const Text('Albums'),
-                      ),
-                      if (downloads) ...[
-                        const SizedBox(width: 8),
-                        WvButton(
-                          width: 100,
-                          size: 30,
-                          onPressed: () {
-                            ref.read(searchSourceProvider.notifier).state =
-                                SearchSource.downloads;
-                            DefaultTabController.maybeOf(context)?.animateTo(2);
-                          },
-                          child: const Text('Downloads'),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            if (stats && feed.recentSongs.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: _Section(
-                  title: 'Jump back in',
-                  subtitle: 'Recently played',
-                  action: 'Library',
-                  onTap: () =>
-                      DefaultTabController.maybeOf(context)?.animateTo(1),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate((context, i) {
-                  final s = feed.recentSongs[i];
-                  return _HomeTrack(song: s, index: i, songs: feed.recentSongs);
-                }, childCount: feed.recentSongs.length.clamp(0, 4)),
-              ),
-            ],
-            if (feed.recentAlbums.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: _Section(
-                  title: 'Recently added albums',
-                  subtitle: 'New in your collection',
-                  action: 'Show all',
-                  onTap: albums,
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 176 + MediaQuery.textScalerOf(context).scale(40),
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    itemCount: feed.recentAlbums.length.clamp(0, 8),
-                    separatorBuilder: (_, _) => const SizedBox(width: 14),
-                    itemBuilder: (context, i) {
-                      final album = feed.recentAlbums[i];
-                      return SizedBox(
-                        width: 142,
-                        child: WvGridTile(
-                          title: album.album,
-                          subtitle: album.artist,
-                          onTap: () =>
-                              AppNav.push(AlbumDetailScreen(album: album)),
-                          artworkBuilder: (size) => wvArtwork(
-                            context,
-                            id: album.id,
-                            type: ArtworkType.ALBUM,
-                            size: size,
-                            placeholder: Icons.album_outlined,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ],
-            if (feed.dailyMix.isNotEmpty)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: a.frame(
-                      color: a.primaryContainer,
-                      raised: false,
                     ),
-                    child: Row(
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        Icon(
-                          Icons.auto_awesome_outlined,
-                          color: a.accent,
-                          size: 28,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        WvButton(
+                          primary: true,
+                          width: 96,
+                          size: 34,
+                          onPressed: song == null
+                              ? () => actions.playSong(
+                                  library.songs.first,
+                                  contextList: library.songs,
+                                )
+                              : actions.togglePlay,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                'A mix for today',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 17,
-                                  color: a.onPrimaryContainer,
-                                ),
+                              Icon(
+                                player.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 18,
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${feed.dailyMix.length} tracks from your library',
-                                style: TextStyle(
-                                  color: a.onPrimaryContainer,
-                                  fontSize: 12,
-                                ),
-                              ),
+                              const SizedBox(width: 4),
+                              Text(player.isPlaying ? 'Pause' : 'Play'),
                             ],
                           ),
                         ),
-                        IconButton(
-                          tooltip: 'Play daily mix',
-                          onPressed: () => ref
-                              .read(playerProvider.notifier)
-                              .playSong(
-                                feed.dailyMix.first,
-                                contextList: feed.dailyMix,
-                              ),
-                          icon: Icon(
-                            Icons.play_circle_fill_rounded,
-                            size: 42,
-                            color: a.accent,
+                        WvButton(
+                          width: 112,
+                          size: 34,
+                          onPressed: () {
+                            final songs = [...library.songs]..shuffle();
+                            actions.playSong(songs.first, contextList: songs);
+                          },
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.shuffle_rounded, size: 15),
+                              SizedBox(width: 5),
+                              Text('Shuffle all'),
+                            ],
                           ),
                         ),
                       ],
                     ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ---- Library readout
+            SliverToBoxAdapter(
+              child: AquaWindow(
+                title: 'Your library',
+                subtitle: 'On this device',
+                action: 'Browse',
+                onAction: toLibrary,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AquaLcdCell(
+                            value: '${library.songs.length}',
+                            label: 'Songs',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AquaLcdCell(
+                            value: '${library.albums.length}',
+                            label: 'Albums',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AquaLcdCell(
+                            value: '${library.artists.length}',
+                            label: 'Artists',
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AquaLcdCell(
+                            value: '${feed.playlists.length}',
+                            label: 'Playlists',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${totalTime(library.songs.fold<int>(0, (sum, s) => sum + (s.duration ?? 0)))} of music',
+                      style: TextStyle(fontSize: 12, color: a.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ---- Quick access
+            if (feed.quickAccess.isNotEmpty)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'Quick access',
+                  subtitle: 'Playlists and albums to jump into',
+                  child: _QuickAccess(items: feed.quickAccess, feed: feed),
+                ),
+              ),
+
+            // ---- Recently played
+            if (stats && feed.recentSongs.isNotEmpty)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'Jump back in',
+                  subtitle: 'Recently played',
+                  action: 'Library',
+                  onAction: toLibrary,
+                  child: _TrackList(songs: feed.recentSongs, count: 4),
+                ),
+              ),
+
+            // ---- Albums
+            if (feed.recentAlbums.isNotEmpty)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'Recently added albums',
+                  subtitle: 'New in your collection',
+                  action: 'Show all',
+                  onAction: albums,
+                  child: SizedBox(
+                    height: 190 + shelfScale.scale(40),
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: feed.recentAlbums.length.clamp(0, 8),
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (context, i) {
+                        final album = feed.recentAlbums[i];
+                        return SizedBox(
+                          width: 130,
+                          child: WvGridTile(
+                            title: album.album,
+                            subtitle: album.artist,
+                            onTap: () =>
+                                AppNav.push(AlbumDetailScreen(album: album)),
+                            artworkBuilder: (size) => wvArtwork(
+                              context,
+                              id: album.id,
+                              type: ArtworkType.ALBUM,
+                              size: size,
+                              placeholder: Icons.album_outlined,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
+
+            // ---- Top artists
+            if (stats && feed.topArtists.isNotEmpty)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'Top artists',
+                  subtitle: 'Based on what you play',
+                  child: SizedBox(
+                    height: 108 + shelfScale.scale(32),
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: feed.topArtists.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 14),
+                      itemBuilder: (context, i) =>
+                          _ArtistChip(artist: feed.topArtists[i]),
+                    ),
+                  ),
+                ),
+              ),
+
+            // ---- Daily mix
+            if (feed.dailyMix.isNotEmpty)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'A mix for today',
+                  subtitle: '${feed.dailyMix.length} tracks from your library',
+                  action: 'Play',
+                  onAction: () => actions.playSong(
+                    feed.dailyMix.first,
+                    contextList: feed.dailyMix,
+                  ),
+                  child: _TrackList(songs: feed.dailyMix, count: 3),
+                ),
+              ),
+
+            // ---- More from the top artist
+            if (stats && feed.moreFromArtist != null)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'More from ${feed.moreFromArtist!.artist}',
+                  subtitle: 'Songs you have not played lately',
+                  action: 'Artist',
+                  onAction: () => AppNav.push(
+                    ArtistDetailScreen(artist: feed.moreFromArtist!),
+                  ),
+                  child: _TrackList(songs: feed.moreFrom, count: 4),
+                ),
+              ),
           ],
-          if (library.songs.isNotEmpty &&
-              stats &&
-              feed.mostPlayed.isNotEmpty) ...[
-            const SliverToBoxAdapter(
-              child: _Section(
+          if (library.songs.isNotEmpty && stats && feed.mostPlayed.isNotEmpty)
+            SliverToBoxAdapter(
+              child: AquaWindow(
                 title: 'On repeat',
                 subtitle: 'Your most-played tracks',
+                child: _TrackList(songs: feed.mostPlayed, count: 4),
               ),
             ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _HomeTrack(
-                  song: feed.mostPlayed[i],
-                  index: i,
-                  songs: feed.mostPlayed,
+          if (library.songs.isNotEmpty && feed.recentlyAdded.isNotEmpty)
+            SliverToBoxAdapter(
+              child: AquaWindow(
+                title: 'New songs',
+                subtitle: 'Latest additions',
+                action: 'Library',
+                onAction: toLibrary,
+                child: _TrackList(songs: feed.recentlyAdded, count: 5),
+              ),
+            ),
+          if (library.songs.isNotEmpty && liked.isNotEmpty)
+            SliverToBoxAdapter(
+              child: AquaWindow(
+                title: 'Liked songs',
+                subtitle: '${liked.length} you hearted',
+                action: 'Show all',
+                onAction: () => AppNav.push(const LikedSongsScreen()),
+                child: _TrackList(songs: liked, count: 4),
+              ),
+            ),
+          if (library.songs.isNotEmpty && feed.playlists.isNotEmpty)
+            SliverToBoxAdapter(
+              child: AquaWindow(
+                title: 'Your playlists',
+                action: 'Show all',
+                onAction: () => toLibrary(LibrarySection.playlists),
+                child: AquaMenuList(
+                  rows: [
+                    for (final p in feed.playlists.take(4))
+                      AquaMenuRow(
+                        icon: Icons.queue_music_rounded,
+                        label: '${p['name']}',
+                        chevron: true,
+                        onTap: () => AppNav.push(
+                          PlaylistDetailScreen(
+                            playlistId: p['id'] as int,
+                            playlistName: '${p['name']}',
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                childCount: feed.mostPlayed.length.clamp(0, 4),
               ),
             ),
-          ],
-          if (library.songs.isNotEmpty && feed.discover.isNotEmpty) ...[
-            const SliverToBoxAdapter(
-              child: _Section(
+          if (library.songs.isNotEmpty && feed.discover.isNotEmpty)
+            SliverToBoxAdapter(
+              child: AquaWindow(
                 title: 'Rediscover your library',
                 subtitle: 'Something you have not played lately',
+                child: _TrackList(songs: feed.discover, count: 4),
               ),
             ),
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _HomeTrack(
-                  song: feed.discover[i],
-                  index: i,
-                  songs: feed.discover,
-                ),
-                childCount: feed.discover.length.clamp(0, 4),
-              ),
-            ),
-          ],
           SliverToBoxAdapter(
             child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
           ),
@@ -430,48 +514,185 @@ class HomeView extends ConsumerWidget {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({
-    required this.title,
-    required this.subtitle,
-    this.action,
-    this.onTap,
-  });
-  final String title;
-  final String subtitle;
-  final String? action;
-  final VoidCallback? onTap;
+/// The first [count] songs as striped rows that play the whole [songs] list.
+class _TrackList extends StatelessWidget {
+  const _TrackList({required this.songs, required this.count});
+  final List<SongModel> songs;
+  final int count;
+
   @override
   Widget build(BuildContext context) {
+    final shown = songs.take(count).toList();
+    return Column(
+      children: [
+        for (var i = 0; i < shown.length; i++)
+          _HomeTrack(song: shown[i], index: i, songs: songs),
+      ],
+    );
+  }
+}
+
+/// Two-column grid of playlists, albums and songs.
+class _QuickAccess extends ConsumerWidget {
+  const _QuickAccess({required this.items, required this.feed});
+  final List<QuickAccessItem> items;
+  final HomeFeed feed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final a = Wv.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 17,
-                    letterSpacing: -0.4,
-                    fontWeight: FontWeight.w600,
-                    color: a.text,
-                  ),
+
+    void open(QuickAccessItem item) {
+      switch (item.kind) {
+        case QuickAccessKind.playlist:
+          AppNav.push(
+            PlaylistDetailScreen(playlistId: item.id, playlistName: item.title),
+          );
+        case QuickAccessKind.album:
+          AppNav.push(AlbumDetailScreen(album: item.album!));
+        case QuickAccessKind.song:
+          ref
+              .read(playerProvider.notifier)
+              .playSong(item.song!, contextList: feed.recentlyAdded);
+      }
+    }
+
+    Widget cell(QuickAccessItem item) {
+      final art = item.kind == QuickAccessKind.playlist
+          ? Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: a.gelGradient(primary: true),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Icon(
+                Icons.queue_music_rounded,
+                size: 20,
+                color: a.onAccent,
+              ),
+            )
+          : WvArtwork(
+              radius: 7,
+              child: SizedBox.square(
+                dimension: 36,
+                child: wvArtwork(
+                  context,
+                  id: item.kind == QuickAccessKind.album
+                      ? item.album!.id
+                      : item.song!.id,
+                  type: item.kind == QuickAccessKind.album
+                      ? ArtworkType.ALBUM
+                      : ArtworkType.AUDIO,
+                  size: 36,
+                  placeholder: Icons.music_note_rounded,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 12, color: a.textSecondary),
+              ),
+            );
+      return Semantics(
+        button: true,
+        label: item.title,
+        child: InkWell(
+          onTap: () => open(item),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  art,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: a.text,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += 2) {
+      rows.add(
+        ColoredBox(
+          color: (i ~/ 2).isOdd ? a.stripe : a.surface,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cell(items[i])),
+                VerticalDivider(width: 1, color: a.separator),
+                Expanded(
+                  child: i + 1 < items.length
+                      ? cell(items[i + 1])
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
-          if (action != null)
-            TextButton(onPressed: onTap, child: Text(action!)),
-        ],
+        ),
+      );
+    }
+    return Column(children: rows);
+  }
+}
+
+class _ArtistChip extends StatelessWidget {
+  const _ArtistChip({required this.artist});
+  final ArtistModel artist;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return SizedBox(
+      width: 80,
+      child: Semantics(
+        button: true,
+        label: artist.artist,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => AppNav.push(ArtistDetailScreen(artist: artist)),
+          child: Column(
+            children: [
+              WvArtwork(
+                circular: true,
+                child: SizedBox.square(
+                  dimension: 72,
+                  child: wvArtwork(
+                    context,
+                    id: artist.id,
+                    type: ArtworkType.ARTIST,
+                    size: 72,
+                    placeholder: Icons.person_rounded,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                artist.artist,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: a.text,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

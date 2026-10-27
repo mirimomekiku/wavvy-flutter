@@ -3,8 +3,10 @@ import 'package:wavvy/providers/artist_info_provider.dart';
 import 'package:wavvy/providers/player_sheet_provider.dart';
 import 'package:wavvy/providers/library_section_provider.dart';
 import 'package:wavvy/providers/search_source_provider.dart';
-import 'package:wavvy/providers/downloads_provider.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:wavvy/downloader/downloads_provider.dart';
+import 'package:wavvy/downloader/engine_provider.dart';
+import 'package:wavvy/downloader/models.dart';
+import 'package:wavvy/downloader/search_provider.dart';
 import 'package:wavvy/screens/library/library_tab.dart';
 import 'package:wavvy/screens/search/search_tab.dart';
 import 'dart:io';
@@ -14,6 +16,8 @@ import 'package:wavvy/screens/settings/settings.screen.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
 import 'package:wavvy/screens/library/playlists/view/playlist.screen.dart';
+import 'package:just_audio/just_audio.dart' show AndroidEqualizerBand;
+import 'package:wavvy/providers/audio_effects_provider.dart';
 import 'package:wavvy/screens/audio_effects/effects.screen.dart';
 import 'package:wavvy/widgets/lyric_card.dart';
 import 'package:wavvy/models/lyric.dart';
@@ -32,6 +36,9 @@ import 'package:wavvy/providers/playlists_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/screens/home/home.screen.dart';
+
+import 'helpers/fake_engine.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_theme.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/player_sheets/full_player_sheet.dart';
@@ -151,6 +158,38 @@ class _PreviewPage extends SheetPageIndexNotifier {
   int build() => page;
 }
 
+class _PreviewBand extends Fake implements AndroidEqualizerBand {
+  _PreviewBand(this.centerFrequency, this.gain);
+  @override
+  final double centerFrequency;
+  @override
+  final double gain;
+  @override
+  Stream<double> get gainStream => Stream.value(gain);
+}
+
+class _PreviewEq extends EqualizerNotifier {
+  @override
+  EqualizerState build() => EqualizerState(
+    isEnabled: true,
+    currentPreset: 'Rock',
+    bands: [
+      _PreviewBand(60, 5),
+      _PreviewBand(230, 3),
+      _PreviewBand(910, -1),
+      _PreviewBand(3600, 3),
+      _PreviewBand(14000, 5),
+    ],
+  );
+}
+
+class _PreviewSource extends SearchSourceNotifier {
+  _PreviewSource(this.source);
+  final SearchSource source;
+  @override
+  SearchSource build() => source;
+}
+
 class _PreviewSection extends LibrarySectionNotifier {
   _PreviewSection(this.section);
   final LibrarySection section;
@@ -158,21 +197,26 @@ class _PreviewSection extends LibrarySectionNotifier {
   LibrarySection build() => section;
 }
 
-class _PreviewDownloads extends YtdlpNotifier {
+class _PreviewOnline extends OnlineSearchNotifier {
   @override
-  YtdlpState build() => YtdlpState(
-    taskTitles: {'one': 'Evening drive'},
-    progressMap: {'one': 42},
-    statusMap: {'one': DownloadTaskStatus.running},
-  );
-}
-
-class _PreviewClips extends TikTokNotifier {
-  @override
-  TikTokState build() => TikTokState(
-    taskTitles: {'two': 'City lights'},
-    progressMap: {'two': 100},
-    statusMap: {'two': DownloadTaskStatus.complete},
+  OnlineSearchState build() => OnlineSearchState(
+    query: 'evening drive',
+    hasSearched: true,
+    results: [
+      fakeMedia(
+        'a',
+        title: 'Evening drive',
+        artist: 'Night Radio',
+        seconds: 245,
+      ),
+      fakeMedia('b', title: 'City lights', artist: 'Night Radio', seconds: 198),
+      fakeMedia(
+        'c',
+        title: 'Slow afternoons',
+        artist: 'Quiet Hours',
+        seconds: 312,
+      ),
+    ],
   );
 }
 
@@ -196,9 +240,21 @@ Widget _app(
       artistInfoProvider.overrideWith(_PreviewArtist.new),
       sheetPageIndexProvider.overrideWith(() => _PreviewPage(page)),
       librarySectionProvider.overrideWith(() => _PreviewSection(section)),
-      searchSourceProvider.overrideWith((ref) => source),
-      ytdlpProvider.overrideWith(_PreviewDownloads.new),
-      tiktokProvider.overrideWith(_PreviewClips.new),
+      searchSourceProvider.overrideWith(() => _PreviewSource(source)),
+      equalizerProvider.overrideWith(_PreviewEq.new),
+      ytDlpEngineProvider.overrideWithValue(FakeYtDlpEngine()),
+      downloadStoreProvider.overrideWithValue(
+        FakeDownloadStore([
+          fakeTask(
+            '1',
+            title: 'Evening drive',
+            status: DownloadStatus.running,
+            progress: 42,
+          ),
+          fakeTask('2', title: 'City lights', status: DownloadStatus.complete),
+        ]),
+      ),
+      onlineSearchProvider.overrideWith(_PreviewOnline.new),
     ],
     child: MaterialApp(
       theme: WavvyTheme.light(WvAppearance.aqua),
@@ -259,9 +315,52 @@ void main() {
     'library-albums': const Scaffold(body: LibraryTab()),
     'library-artists': const Scaffold(body: LibraryTab()),
     'library-playlists': const Scaffold(body: LibraryTab()),
-    'downloads': const Scaffold(body: SearchTab()),
-    'youtube': const Scaffold(body: SearchTab()),
-    'tiktok': const Scaffold(body: SearchTab()),
+    'online': const Scaffold(body: SearchTab()),
+    'feedback': const Scaffold(
+      body: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AquaToast(
+              title: 'Downloaded',
+              subtitle: 'ICED COFFEE O MANGO SHAKE',
+              kind: ToastKind.success,
+            ),
+            SizedBox(height: 14),
+            AquaToast(
+              title: 'Could not play',
+              subtitle: 'Could not play Song 3.',
+              kind: ToastKind.error,
+            ),
+            SizedBox(height: 14),
+            AquaToast(
+              title: 'Sleep Timer',
+              subtitle: 'Music will stop in 30 minutes',
+            ),
+            SizedBox(height: 28),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AquaCheckMark(size: 26),
+                SizedBox(width: 24),
+                AquaCheckMark(size: 40),
+                SizedBox(width: 24),
+                AquaSpinner(size: 24),
+                SizedBox(width: 24),
+                AquaSpinner(size: 40),
+                SizedBox(width: 24),
+                AquaProgressRing(
+                  value: 0.6,
+                  child: Icon(Icons.close_rounded, size: 14),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
     'settings': const SettingsScreen(),
     'album': AlbumDetailScreen(album: _album(1)),
     'artist': ArtistDetailScreen(artist: _artist(1)),
@@ -345,11 +444,7 @@ void main() {
                 }[entry.key] ??
                 LibrarySection.songs,
             source:
-                const {
-                  'downloads': SearchSource.downloads,
-                  'youtube': SearchSource.youtube,
-                  'tiktok': SearchSource.tiktok,
-                }[entry.key] ??
+                const {'online': SearchSource.online}[entry.key] ??
                 SearchSource.library,
           ),
         );

@@ -4,6 +4,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/dialogs.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/playlists_provider.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 /// Playlist dialogs / sheets (ported from the old PlaylistsController).
@@ -116,108 +117,62 @@ void showAddToPlaylistSheet(
   WidgetRef ref,
   SongModel song,
 ) {
-  showModalBottomSheet(
+  showAquaSheet<void>(
     context: context,
-    builder: (sheetContext) {
-      final a = Wv.of(sheetContext);
-      return Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(sheetContext).size.height * 0.6,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    title: 'Add to Playlist',
+    subtitle: song.title,
+    builder: (sheetContext) => Consumer(
+      builder: (context, ref, _) {
+        final playlists = ref.watch(
+          playlistsProvider.select((s) => s.playlists),
+        );
+        return ListView(
+          shrinkWrap: true,
+          padding: EdgeInsets.only(
+            top: 12,
+            bottom: 12 + MediaQuery.paddingOf(sheetContext).bottom,
+          ),
           children: [
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: WvSectionHeader(title: "Add to Playlist"),
-            ),
-            Flexible(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final playlists = ref.watch(
-                    playlistsProvider.select((s) => s.playlists),
-                  );
-                  if (playlists.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Center(
-                        child: Text(
-                          "No playlists found",
-                          style: TextStyle(color: a.textSecondary),
-                        ),
-                      ),
-                    );
-                  }
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    itemCount: playlists.length,
-                    itemBuilder: (context, index) {
-                      final playlist = playlists[index];
-                      final (bg, fg) = a.tonal(index);
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Material(
-                          color: bg,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(
-                              color: a.outline.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            onTap: () {
-                              ref
-                                  .read(playlistsProvider.notifier)
-                                  .addSongToLocalPlaylist(
-                                    playlist['id'],
-                                    song.id,
-                                  );
-                              Navigator.pop(context);
-                            },
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(minHeight: 60),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.queue_music_rounded,
-                                      size: 24,
-                                      color: fg,
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Text(
-                                        playlist['name'],
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: fg,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+            if (playlists.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: AquaEmptyState(
+                  icon: Icons.queue_music_rounded,
+                  title: 'No playlists yet',
+                  hint: 'Create one to start collecting songs.',
+                ),
+              )
+            else
+              AquaMenuGroup(
+                rows: [
+                  for (final playlist in playlists)
+                    AquaMenuRow(
+                      icon: Icons.queue_music_rounded,
+                      label: '${playlist['name']}',
+                      onTap: () {
+                        ref
+                            .read(playlistsProvider.notifier)
+                            .addSongToLocalPlaylist(playlist['id'], song.id);
+                        Navigator.pop(sheetContext);
+                      },
+                    ),
+                ],
               ),
+            AquaMenuGroup(
+              rows: [
+                AquaMenuRow(
+                  icon: Icons.add_rounded,
+                  label: 'New Playlist\u2026',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    showNewPlaylistDialog(ref);
+                  },
+                ),
+              ],
             ),
           ],
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 }

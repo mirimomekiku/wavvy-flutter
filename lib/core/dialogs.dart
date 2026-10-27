@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:wavvy/core/app_context.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 /// Context-free dialog helpers (replace Get.dialog / Get.defaultDialog).
@@ -20,8 +21,8 @@ Future<T?> showAppDialog<T>({
   );
 }
 
-/// Wv dialog shell: rounded surface, bold title, body, and a row of pill
-/// buttons.
+/// A Mac OS X alert window: a silver title bar with the red close light over
+/// paper content, and a button bar of gel buttons along the bottom.
 class WvDialog extends StatelessWidget {
   final String title;
   final Widget content;
@@ -37,60 +38,116 @@ class WvDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = Wv.of(context);
+    final radius = BorderRadius.circular(10);
 
     return Dialog(
-      backgroundColor: a.surfaceHigh,
+      backgroundColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Ds.radiusXL),
-        side: BorderSide(color: a.separator),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
-            child: Text(
-              title,
-              style: TextStyle(
-                color: a.text,
-                fontSize: 24,
-                fontFamily: 'WorkSans',
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.4,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: a.surface,
+            borderRadius: radius,
+            border: Border.all(color: a.outline.withValues(alpha: 0.6)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: a.dark ? 0.55 : 0.3),
+                blurRadius: 28,
+                offset: const Offset(0, 10),
               ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Title bar.
+                Container(
+                  constraints: const BoxConstraints(minHeight: 36),
+                  decoration: BoxDecoration(
+                    gradient: a.chromeGradient,
+                    border: Border(
+                      bottom: BorderSide(
+                        color: a.outline.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Semantics(
+                        button: true,
+                        label: 'Close',
+                        child: InkResponse(
+                          onTap: () => Navigator.of(context).maybePop(),
+                          radius: 20,
+                          child: const SizedBox(
+                            width: 40,
+                            height: 36,
+                            child: Center(child: AquaCloseLight()),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: a.text,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      // Balances the close light so the title stays centered.
+                      const SizedBox(width: 40),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+                    child: DefaultTextStyle.merge(
+                      style: TextStyle(
+                        color: a.textSecondary,
+                        fontSize: 13.5,
+                        height: 1.45,
+                      ),
+                      child: content,
+                    ),
+                  ),
+                ),
+                if (actions.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+                    decoration: BoxDecoration(
+                      color: a.surfaceHigh,
+                      border: Border(top: BorderSide(color: a.separator)),
+                    ),
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: actions,
+                    ),
+                  ),
+              ],
             ),
           ),
-          Flexible(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(28, 14, 28, 12),
-              child: DefaultTextStyle.merge(
-                style: TextStyle(color: a.textSecondary, fontSize: 14),
-                child: content,
-              ),
-            ),
-          ),
-          if (actions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: Wrap(
-                alignment: WrapAlignment.end,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                children: actions,
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Pill button for dialog action rows. Destructive actions fill with the
-/// error color.
+/// A gel button for a dialog's button bar. The default (primary) button is
+/// blue; a destructive one is red.
 Widget wvDialogButton(
   String label,
   VoidCallback? onPressed, {
@@ -101,33 +158,65 @@ Widget wvDialogButton(
     builder: (context) {
       final a = Wv.of(context);
       if (destructive) {
+        const radius = 16.0;
+        final red = a.error;
         return Semantics(
           button: true,
           enabled: onPressed != null,
           label: label,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 96, minHeight: 48),
-            child: Material(
-              color: a.error,
-              borderRadius: BorderRadius.circular(24),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onPressed,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+          child: ExcludeSemantics(
+            child: Opacity(
+              opacity: onPressed == null ? 0.55 : 1,
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(radius),
+                clipBehavior: Clip.antiAlias,
+                child: Ink(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(radius),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color.lerp(red, Colors.white, 0.45)!,
+                        Color.lerp(red, Colors.white, 0.1)!,
+                        red,
+                        Color.lerp(red, Colors.white, 0.12)!,
+                      ],
+                      stops: const [0, 0.45, 0.52, 1],
+                    ),
+                    border: Border.all(
+                      color: Color.lerp(red, Colors.black, 0.3)!,
+                    ),
                   ),
-                  child: Center(
-                    widthFactor: 1,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: a.scheme.onError,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                  child: InkWell(
+                    onTap: onPressed,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 96,
+                        minHeight: 36,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Center(
+                          widthFactor: 1,
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: a.scheme.onError,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              shadows: const [
+                                Shadow(
+                                  color: Color(0x66000000),
+                                  offset: Offset(0, -1),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -139,7 +228,7 @@ Widget wvDialogButton(
       }
       return WvButton(
         width: 96,
-        size: 44,
+        size: 36,
         primary: primary,
         onPressed: onPressed,
         child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),

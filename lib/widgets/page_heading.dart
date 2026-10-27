@@ -12,6 +12,7 @@ class WvPageHeading extends StatelessWidget {
     this.actions = const [],
     this.back = false,
     this.settings = false,
+    this.bottom,
   });
   final String title;
   final String? subtitle;
@@ -19,6 +20,9 @@ class WvPageHeading extends StatelessWidget {
   final List<Widget> actions;
   final bool back;
   final bool settings;
+
+  /// A row under the title and subtitle (for example the Search source icons).
+  final Widget? bottom;
 
   @override
   Widget build(BuildContext context) {
@@ -38,64 +42,72 @@ class WvPageHeading extends StatelessWidget {
           bottom: BorderSide(color: a.outline.withValues(alpha: 0.55)),
         ),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (back)
-            IconButton(
-              tooltip: 'Back',
-              onPressed: AppNav.pop,
-              icon: const Icon(Icons.arrow_back_rounded),
-            ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (eyebrow != null) ...[
-                  Text(
-                    eyebrow!,
-                    style: TextStyle(
-                      color: a.textSecondary,
-                      fontSize: 11,
-                      letterSpacing: 1.1,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                ],
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20,
-                    height: 1.15,
-                    letterSpacing: -0.4,
-                    fontWeight: FontWeight.w600,
-                    color: a.text,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (back)
+                IconButton(
+                  tooltip: 'Back',
+                  onPressed: AppNav.pop,
+                  icon: const Icon(Icons.arrow_back_rounded),
                 ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 5),
-                  Text(
-                    subtitle!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: a.textSecondary,
-                      height: 1.4,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (eyebrow != null) ...[
+                      Text(
+                        eyebrow!,
+                        style: TextStyle(
+                          color: a.textSecondary,
+                          fontSize: 11,
+                          letterSpacing: 1.1,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                    ],
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 20,
+                        height: 1.15,
+                        letterSpacing: -0.4,
+                        fontWeight: FontWeight.w600,
+                        color: a.text,
+                      ),
                     ),
-                  ),
-                ],
-              ],
-            ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: a.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              ...actions,
+              if (settings)
+                IconButton(
+                  tooltip: 'Settings',
+                  onPressed: () => AppNav.pushNamed('/settings'),
+                  icon: const Icon(Icons.tune_rounded),
+                ),
+            ],
           ),
-          ...actions,
-          if (settings)
-            IconButton(
-              tooltip: 'Settings',
-              onPressed: () => AppNav.pushNamed('/settings'),
-              icon: const Icon(Icons.tune_rounded),
-            ),
+          if (bottom != null)
+            Padding(padding: const EdgeInsets.only(top: 10), child: bottom),
         ],
       ),
     );

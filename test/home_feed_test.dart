@@ -295,7 +295,26 @@ void main() {
               if (empty) {
                 expect(find.text('No Songs'), findsOneWidget);
               } else {
-                expect(find.text('Jump back in'), findsOneWidget);
+                for (final title in const [
+                  'Ready when you are',
+                  'Your library',
+                  'Quick access',
+                  'Jump back in',
+                  'Recently added albums',
+                  'Top artists',
+                  'A mix for today',
+                  'On repeat',
+                  'New songs',
+                  'Your playlists',
+                  'Rediscover your library',
+                ]) {
+                  await tester.scrollUntilVisible(
+                    find.text(title),
+                    200,
+                    scrollable: find.byType(Scrollable).first,
+                  );
+                  expect(find.text(title), findsOneWidget, reason: title);
+                }
                 await tester.fling(
                   find.byType(CustomScrollView),
                   const Offset(0, -3000),
@@ -309,6 +328,22 @@ void main() {
         }
       }
     }
+
+    testWidgets('Continue listening has Play and Shuffle, no extra shortcuts', (
+      tester,
+    ) async {
+      view(tester, const Size(411, 732));
+      await tester.pumpWidget(
+        app(size: const Size(411, 732), scale: 1, dark: false),
+      );
+      await tester.pump();
+      expect(find.text('Shuffle all'), findsOneWidget);
+      expect(find.text('Play'), findsOneWidget);
+      // The Albums and Downloads shortcuts are gone from the hero window.
+      expect(find.text('Albums'), findsNothing);
+      expect(find.text('Downloads'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('Show all under recent albums sets the library section', (
       tester,

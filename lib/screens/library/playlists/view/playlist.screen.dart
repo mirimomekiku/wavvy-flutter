@@ -4,6 +4,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/playlists_provider.dart';
 import 'package:wavvy/theme/pixel_art.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
@@ -34,7 +35,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
               return Column(
                 children: [
                   WvTopBar(title: playlistName),
-                  const Expanded(child: Center(child: PixelLoader(size: 40))),
+                  const Expanded(child: Center(child: AquaSpinner(size: 40))),
                 ],
               );
             }

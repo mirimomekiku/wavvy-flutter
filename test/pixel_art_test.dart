@@ -7,8 +7,8 @@ import 'package:wavvy/theme/wavvy_widgets.dart';
 
 Widget _app(Widget child, {bool dark = false}) {
   final theme = dark
-      ? WavvyTheme.dark(WvAppearance.materialYou)
-      : WavvyTheme.light(WvAppearance.materialYou);
+      ? WavvyTheme.dark(WvAppearance.aqua)
+      : WavvyTheme.light(WvAppearance.aqua);
   return MaterialApp(
     theme: theme,
     home: Scaffold(body: Center(child: child)),

@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:wavvy/models/lyric.dart';
 import 'package:wavvy/providers/lyrics_provider.dart';
 import 'package:wavvy/theme/pixel_art.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
@@ -251,12 +252,7 @@ class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
                                     ),
                                   ),
                                 ),
-                                if (isSelected)
-                                  Icon(
-                                    Icons.check_circle_rounded,
-                                    color: a.onPrimaryContainer,
-                                    size: 20,
-                                  ),
+                                if (isSelected) const AquaCheckMark(size: 22),
                               ],
                             ),
                           ),
