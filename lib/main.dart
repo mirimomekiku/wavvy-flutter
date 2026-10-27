@@ -1,40 +1,24 @@
-import 'dart:isolate';
-import 'dart:ui';
-
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:wavvy/instances/audio_handler.instance.dart';
 import 'package:wavvy/providers/audio_coordinator.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
-import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:wavvy/downloader/downloads_provider.dart';
+import 'package:wavvy/downloader/engine_provider.dart';
+import 'package:wavvy/downloader/flavor.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/screens/home/home.screen.dart';
 import 'package:wavvy/screens/settings/settings.screen.dart';
+import 'package:wavvy/screens/startup/startup_failure.screen.dart';
 import 'package:wavvy/wavvy_app.dart';
-import 'package:wavvy/theme/wavvy_theme.dart';
-import 'package:wavvy/theme/wavvy_widgets.dart';
-
-@pragma('vm:entry-point')
-void downloadCallback(String id, int status, int progress) {
-  final SendPort? send = IsolateNameServer.lookupPortByName(
-    'downloader_send_port',
-  );
-
-  if (send != null) {
-    send.send([id, status, progress]);
-  } else {
-    debugPrint("DownloadCallback: SendPort not found");
-  }
-}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,64 +27,34 @@ Future<void> main() async {
       'Work Sans',
     ], await rootBundle.loadString('assets/fonts/OFL-WorkSans.txt'));
   });
+
+  // None of these stop music from playing, so a failure only disables the
+  // feature that needs it (artist info, downloads, tag editing).
+  await _bestEffort(".env", () => dotenv.load(fileName: ".env"));
+  await _bestEffort("metadata", MetadataGod.initialize);
+
+  await _launch();
+}
+
+Future<void> _bestEffort(String what, Future<void> Function() task) async {
   try {
-    await dotenv.load(fileName: ".env");
+    await task();
   } catch (e) {
-    debugPrint("No .env loaded: $e");
+    debugPrint("$what unavailable: $e");
   }
+}
 
-  await FlutterDownloader.initialize(debug: kDebugMode);
-  await FlutterDownloader.registerCallback(downloadCallback);
-  await MetadataGod.initialize();
-
-  final WavvyAudioHandler handler;
+/// Starts audio, then the app. Audio is required, so if it can't start the
+/// user gets the recovery screen, whose Try Again runs this again.
+Future<void> _launch() async {
   final AndroidEqualizer equalizer = AndroidEqualizer();
+  final WavvyAudioHandler handler;
   try {
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.music());
-
-    handler = await AudioService.init(
-      builder: () => WavvyAudioHandler(equalizer: equalizer),
-      config: const AudioServiceConfig(
-        androidNotificationChannelId: 'com.mirimomekiku.wavvy.channel.audio',
-        androidNotificationChannelName: 'Wavvy',
-        androidNotificationOngoing: true,
-        androidStopForegroundOnPause: true,
-      ),
-    );
-  } catch (e) {
-    debugPrint("INIT ERROR: $e");
-    runApp(
-      MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: WavvyTheme.light(WvAppearance.aqua),
-        home: Scaffold(
-          body: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.headphones_outlined, size: 44),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Playback could not start',
-                    style: WavvyTheme.light(
-                      WvAppearance.aqua,
-                    ).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Close and reopen Wavvy to try again.',
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    handler = await _startAudio(equalizer);
+  } catch (e, stack) {
+    debugPrint("INIT ERROR: $e\n$stack");
+    // A fresh key gives each attempt a fresh screen (no leftover spinner).
+    runApp(StartupFailureApp(key: UniqueKey(), error: e, onRetry: _launch));
     return;
   }
 
@@ -112,9 +66,28 @@ Future<void> main() async {
     ],
   );
 
-  await container.read(settingsProvider.notifier).load();
+  try {
+    await container.read(settingsProvider.notifier).load();
+  } catch (e) {
+    debugPrint("Could not load settings, using defaults: $e");
+  }
 
   runApp(UncontrolledProviderScope(container: container, child: const MyApp()));
+}
+
+Future<WavvyAudioHandler> _startAudio(AndroidEqualizer equalizer) async {
+  final session = await AudioSession.instance;
+  await session.configure(const AudioSessionConfiguration.music());
+
+  return AudioService.init(
+    builder: () => WavvyAudioHandler(equalizer: equalizer, session: session),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.mirimomekiku.wavvy.channel.audio',
+      androidNotificationChannelName: 'Wavvy',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+    ),
+  );
 }
 
 class MyApp extends ConsumerWidget {
@@ -124,9 +97,14 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Keep app-lifetime providers alive without rebuilding on every event.
     ref.watch(audioCoordinatorProvider);
-    ref.watch(downloadEventsProvider.notifier);
-    ref.watch(ytdlpProvider.notifier);
-    ref.watch(tiktokProvider.notifier);
+    if (kDownloaderAvailable) {
+      // Follows downloads (and finishes them) for the whole app lifetime.
+      ref.watch(downloadsProvider.notifier);
+      // yt-dlp breaks when sites change, so keep it current.
+      ref.listen(engineProvider.select((e) => e.isReady), (_, ready) {
+        if (ready) ref.read(engineProvider.notifier).updateIfDue();
+      });
+    }
 
     return WavvyMaterialApp(
       home: const HomeScreen(),
