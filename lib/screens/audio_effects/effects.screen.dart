@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
 import 'package:wavvy/theme/pixel_art.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/page_heading.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
@@ -97,7 +98,7 @@ class _EqualizerTab extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      WvSwitch(
+                      AquaSwitch(
                         value: eq.isEnabled,
                         onChanged: (val) => controller.toggleEnabled(val),
                       ),

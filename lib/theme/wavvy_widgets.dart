@@ -502,16 +502,6 @@ class _WvButtonState extends State<WvButton> {
   }
 }
 
-/// Material 3 Expressive switch: a primary track with a growing thumb.
-class WvSwitch extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-  const WvSwitch({super.key, required this.value, required this.onChanged});
-  @override
-  Widget build(BuildContext context) =>
-      Switch.adaptive(value: value, onChanged: onChanged);
-}
-
 /// Row of toggle chips. Shape morphs on selection: the selected chip is a full
 /// pill in the secondary container, the others are rounded squares. With
 /// [indicator] a short accent bar sits under the selected chip.
@@ -856,21 +846,31 @@ class InsetGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = Wv.of(context);
-    return Material(
-      color: a.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: BorderSide(color: a.separator),
-      ),
+    // Aqua group box: soft panel, fine outline, white lip below.
+    return Container(
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (int i = 0; i < children.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, indent: dividerIndent, color: a.separator),
-            children[i],
-          ],
+      decoration: BoxDecoration(
+        color: a.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: a.outline.withValues(alpha: 0.55)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.white.withValues(alpha: a.dark ? 0.04 : 0.75),
+            offset: const Offset(0, 1),
+          ),
         ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          children: [
+            for (int i = 0; i < children.length; i++) ...[
+              if (i > 0)
+                Divider(height: 1, indent: dividerIndent, color: a.separator),
+              children[i],
+            ],
+          ],
+        ),
       ),
     );
   }
