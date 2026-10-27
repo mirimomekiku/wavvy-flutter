@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/dialogs.dart';
+import 'package:wavvy/core/media_store.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
@@ -30,17 +32,15 @@ Future<void> editSongTags(WidgetRef ref, SongModel song) async {
 
   // Fetch deep metadata (SongModel is fast but limited).
   try {
-    final Metadata? metadata = await MetadataGod.readMetadata(file: song.data);
-    if (metadata != null) {
-      String getVal(String? val, String fallback) =>
-          (val == null || val.isEmpty) ? fallback : val;
+    final metadata = await MetadataGod.readMetadata(file: song.data);
+    String getVal(String? val, String fallback) =>
+        (val == null || val.isEmpty) ? fallback : val;
 
-      title = getVal(metadata.title, title);
-      artist = getVal(metadata.artist, artist);
-      album = getVal(metadata.album, album);
-      year = metadata.year?.toString() ?? "";
-      genre = metadata.genre ?? "";
-    }
+    title = getVal(metadata.title, title);
+    artist = getVal(metadata.artist, artist);
+    album = getVal(metadata.album, album);
+    year = metadata.year?.toString() ?? "";
+    genre = metadata.genre ?? "";
   } catch (e) {
     debugPrint("readMetadata failed: $e");
   }
@@ -122,11 +122,29 @@ class _TagEditorDialogState extends State<_TagEditorDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildTagField("Title", _titleCtrl),
-            _buildTagField("Artist", _artistCtrl),
-            _buildTagField("Album", _albumCtrl),
-            _buildTagField("Year", _yearCtrl, isNumber: true),
-            _buildTagField("Genre", _genreCtrl),
+            AquaField(label: 'Title', controller: _titleCtrl),
+            const SizedBox(height: 12),
+            AquaField(label: 'Artist', controller: _artistCtrl),
+            const SizedBox(height: 12),
+            AquaField(label: 'Album', controller: _albumCtrl),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 96,
+                  child: AquaField(
+                    label: 'Year',
+                    controller: _yearCtrl,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: AquaField(label: 'Genre', controller: _genreCtrl),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -148,58 +166,6 @@ class _TagEditorDialogState extends State<_TagEditorDialog> {
       ],
     );
   }
-
-  Widget _buildTagField(
-    String label,
-    TextEditingController controller, {
-    bool isNumber = false,
-  }) {
-    final a = Wv.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: a.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          TextField(
-            controller: controller,
-            keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-            style: TextStyle(fontSize: 15, color: a.text),
-            cursorColor: a.accent,
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: a.surfaceHighest,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 14,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: a.accent, width: 1.5),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 Future<void> _saveTags(
@@ -208,6 +174,17 @@ Future<void> _saveTags(
   required _TagValues values,
 }) async {
   try {
+    // Android 10+ only lets an app edit a media file after the user agrees.
+    final mediaStore = ref.read(mediaStoreProvider);
+    final allowed = await mediaStore.requestWriteAccess(song.id);
+    if (!allowed) {
+      AppSnackbar.showSnackbar(
+        "Tags not changed",
+        "Allow Wavvy to modify this song to edit its tags.",
+      );
+      return;
+    }
+
     AppSnackbar.showSnackbar("Saving metadata...", "");
 
     // 1. Read existing metadata to preserve artwork and other fields
@@ -236,6 +213,7 @@ Future<void> _saveTags(
     await MetadataGod.writeMetadata(file: song.data, metadata: newMetadata);
 
     // 4. Refresh library
+    await mediaStore.scanFile(song.data);
     await ref.read(libraryProvider.notifier).fetchAllSongs();
 
     // 5. Keep the player's copy of the song in sync with the new tags.
@@ -247,7 +225,7 @@ Future<void> _saveTags(
       ref.read(playerProvider.notifier).replaceSong(refreshed.first);
     }
 
-    AppSnackbar.showSnackbar("Success", "Tags updated successfully");
+    AppSnackbar.showSuccess("Success", "Tags updated successfully");
   } catch (e) {
     AppSnackbar.showErrorSnackBar(
       "Error",
@@ -256,7 +234,7 @@ Future<void> _saveTags(
   }
 }
 
-/// Sleep timer picker.
+/// Sleep timer picker: a menu of durations with the current one checked.
 void openSleepTimerDialog(WidgetRef ref) {
   const options = [15, 30, 45, 60, 90];
   showAppDialog<void>(
@@ -265,32 +243,102 @@ void openSleepTimerDialog(WidgetRef ref) {
         final current = ref.watch(
           playerProvider.select((s) => s.sleepTimerMinutes),
         );
+        final mode = ref.watch(playerProvider.select((s) => s.sleepMode));
+        final endsAt = ref.watch(playerProvider.select((s) => s.sleepEndsAt));
+        final a = Wv.of(context);
+        final status = switch (mode) {
+          SleepMode.off => 'Music plays until you stop it',
+          SleepMode.minutes =>
+            endsAt == null
+                ? 'Music stops in $current minutes'
+                : 'Music stops at ${TimeOfDay.fromDateTime(endsAt).format(context)}',
+          SleepMode.endOfTrack => 'Music stops after this track',
+          SleepMode.endOfQueue => 'Music stops after the last track',
+        };
+        void choose(int? minutes) {
+          Navigator.of(dialogContext).pop();
+          ref.read(playerProvider.notifier).setSleepTimer(minutes);
+        }
+
         return WvDialog(
           title: "Sleep Timer",
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (int i = 0; i < options.length; i++)
-                  _SleepOption(
-                    label: "${options[i]} minutes",
-                    icon: Icons.bedtime_rounded,
-                    selected: current == options[i],
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
-                      ref
-                          .read(playerProvider.notifier)
-                          .setSleepTimer(options[i]);
-                    },
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 9,
                   ),
-                _SleepOption(
-                  label: "Turn Off Timer",
-                  icon: Icons.timer_off_outlined,
-                  selected: false,
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    ref.read(playerProvider.notifier).setSleepTimer(null);
-                  },
+                  decoration: a.lcdDecoration.copyWith(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        mode == SleepMode.off
+                            ? Icons.timer_off_outlined
+                            : Icons.bedtime_rounded,
+                        size: 18,
+                        color: mode == SleepMode.off
+                            ? a.textSecondary
+                            : a.accent,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            color: a.text,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                AquaMenuGroup(
+                  margin: EdgeInsets.zero,
+                  rows: [
+                    for (final m in options)
+                      AquaMenuRow(
+                        icon: Icons.bedtime_rounded,
+                        label: '$m minutes',
+                        selected: mode == SleepMode.minutes && current == m,
+                        onTap: () => choose(m),
+                      ),
+                    AquaMenuRow(
+                      icon: Icons.music_note_rounded,
+                      label: 'End of this track',
+                      selected: mode == SleepMode.endOfTrack,
+                      onTap: () {
+                        Navigator.of(dialogContext).pop();
+                        ref
+                            .read(playerProvider.notifier)
+                            .setSleepAtEnd(SleepMode.endOfTrack);
+                      },
+                    ),
+                    AquaMenuRow(
+                      icon: Icons.queue_music_rounded,
+                      label: 'End of the queue',
+                      selected: mode == SleepMode.endOfQueue,
+                      onTap: () {
+                        Navigator.of(dialogContext).pop();
+                        ref
+                            .read(playerProvider.notifier)
+                            .setSleepAtEnd(SleepMode.endOfQueue);
+                      },
+                    ),
+                    AquaMenuRow(
+                      icon: Icons.timer_off_outlined,
+                      label: 'Turn off timer',
+                      onTap: () => choose(null),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -302,69 +350,4 @@ void openSleepTimerDialog(WidgetRef ref) {
       },
     ),
   );
-}
-
-/// Tonal squircle option row (the selected one is filled with the primary).
-class _SleepOption extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _SleepOption({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final a = Wv.of(context);
-    final bg = selected ? a.accent : a.surfaceHighest;
-    final fg = selected ? a.onAccent : a.text;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Semantics(
-        button: true,
-        selected: selected,
-        child: Material(
-          color: bg,
-          borderRadius: BorderRadius.circular(22),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 52),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Icon(icon, size: 24, color: fg),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: fg,
-                        ),
-                      ),
-                    ),
-                    if (selected)
-                      Icon(Icons.check_rounded, size: 24, color: fg),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

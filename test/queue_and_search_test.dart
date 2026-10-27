@@ -1,58 +1,15 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_audio/just_audio.dart' as audio;
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
-import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:wavvy/downloader/engine.dart';
+import 'package:wavvy/downloader/engine_provider.dart';
+import 'package:wavvy/downloader/models.dart';
+import 'package:wavvy/downloader/search_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 
-class _MemoryPlayer extends Fake implements audio.AudioPlayer {
-  final _states = StreamController<audio.PlayerState>.broadcast(sync: true);
-  final _sequences = StreamController<audio.SequenceState>.broadcast(
-    sync: true,
-  );
-  // ignore: deprecated_member_use
-  late audio.ConcatenatingAudioSource source;
-  @override
-  Stream<audio.PlayerState> get playerStateStream => _states.stream;
-  @override
-  Stream<audio.SequenceState> get sequenceStateStream => _sequences.stream;
-  @override
-  Future<Duration?> setAudioSource(
-    audio.AudioSource value, {
-    bool preload = true,
-    int? initialIndex,
-    Duration? initialPosition,
-  }) async {
-    // ignore: deprecated_member_use
-    source = value as audio.ConcatenatingAudioSource;
-    emit(initialIndex ?? 0);
-    return const Duration(minutes: 3);
-  }
-
-  void emit(int index) => _sequences.add(
-    audio.SequenceState(
-      sequence: source.sequence,
-      currentIndex: index,
-      shuffleIndices: List.generate(source.sequence.length, (i) => i),
-      shuffleModeEnabled: false,
-      loopMode: audio.LoopMode.off,
-    ),
-  );
-  @override
-  Future<void> play() async =>
-      _states.add(audio.PlayerState(true, audio.ProcessingState.ready));
-  @override
-  Future<void> stop() async =>
-      _states.add(audio.PlayerState(false, audio.ProcessingState.idle));
-  List<int> get nativeOrder =>
-      source.sequence.map((s) => (s.tag as SongModel).id).toList();
-  Future<void> close() async {
-    await _states.close();
-    await _sequences.close();
-  }
-}
+import 'helpers/fake_engine.dart';
+import 'helpers/fake_player.dart';
 
 SongModel _song(int id) => SongModel({
   '_id': id,
@@ -62,28 +19,14 @@ SongModel _song(int id) => SongModel({
   'duration': 180000,
 });
 
-class _NoEvents extends DownloadEventsNotifier {
-  @override
-  DownloadEvent? build() => null;
-}
-
-class _ControlledSearch extends YtdlpNotifier {
-  final requests = <String, Completer<List<Video>>>{};
-  @override
-  Future<void> loadExistingDownloads() async {}
-  @override
-  Future<List<Video>> searchVideos(String query) =>
-      (requests[query] = Completer<List<Video>>()).future;
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   group('live queue and audio source stay aligned', () {
-    late _MemoryPlayer player;
+    late MemoryPlayer player;
     late ProviderContainer container;
     late PlayerNotifier queue;
     setUp(() async {
-      player = _MemoryPlayer();
+      player = MemoryPlayer();
       container = ProviderContainer(
         overrides: [audioPlayerProvider.overrideWithValue(player)],
       );
@@ -120,6 +63,54 @@ void main() {
       expect(player.nativeOrder, [1, 2]);
       expect(container.read(playerProvider).queue.map((s) => s.id), [1, 2]);
     });
+    test('clear upcoming follows shuffle order, not queue order', () async {
+      // Queue is 1 2 3 4 with 2 playing; shuffle plays 2, then 4, then 1, 3.
+      player.shuffled = true;
+      player.shuffleOrder = [1, 3, 0, 2];
+      player.emit(1);
+      await queue.clearUpcoming();
+      expect(player.nativeOrder, [2]);
+      expect(container.read(playerProvider).queue.map((s) => s.id), [2]);
+    });
+    test('play next inserts after the current track', () async {
+      await queue.playNext(_song(9));
+      expect(player.nativeOrder, [1, 2, 9, 3, 4]);
+      expect(
+        container.read(playerProvider).queue.map((s) => s.id),
+        player.nativeOrder,
+      );
+    });
+    test('add to queue appends and keeps both lists aligned', () async {
+      await queue.addToQueue(_song(9));
+      expect(player.nativeOrder, [1, 2, 3, 4, 9]);
+      expect(
+        container.read(playerProvider).queue.map((s) => s.id),
+        player.nativeOrder,
+      );
+    });
+    test('a rejected change rolls the visible queue back', () async {
+      player.failNextEdit = true;
+      await queue.addToQueue(_song(9));
+      expect(player.nativeOrder, [1, 2, 3, 4]);
+      expect(container.read(playerProvider).queue.map((s) => s.id), [
+        1,
+        2,
+        3,
+        4,
+      ]);
+    });
+    test('quick successive edits are applied in order, none dropped', () async {
+      await Future.wait([
+        queue.removeFromQueue(3),
+        queue.addToQueue(_song(8)),
+        queue.addToQueue(_song(9)),
+      ]);
+      expect(player.nativeOrder, [1, 2, 3, 8, 9]);
+      expect(
+        container.read(playerProvider).queue.map((s) => s.id),
+        player.nativeOrder,
+      );
+    });
     test(
       'invalid edits are ignored and the last removal clears playback',
       () async {
@@ -137,45 +128,81 @@ void main() {
     );
   });
 
-  group('YouTube request state', () {
+  group('online search request state', () {
+    late FakeYtDlpEngine engine;
     late ProviderContainer container;
-    late _ControlledSearch search;
     setUp(() {
-      search = _ControlledSearch();
+      engine = FakeYtDlpEngine();
       container = ProviderContainer(
-        overrides: [
-          downloadEventsProvider.overrideWith(_NoEvents.new),
-          ytdlpProvider.overrideWith(() => search),
-        ],
+        overrides: [ytDlpEngineProvider.overrideWithValue(engine)],
       );
-      container.read(ytdlpProvider);
     });
     tearDown(() => container.dispose());
+
+    OnlineSearchState state() => container.read(onlineSearchProvider);
+    OnlineSearchNotifier search() =>
+        container.read(onlineSearchProvider.notifier);
+
     test('older responses cannot replace a newer request', () async {
-      final older = search.search('older');
-      final newer = search.search('newer');
-      search.requests['older']!.complete([]);
+      final first = Completer<List<MediaInfo>>();
+      engine.searchGate = first;
+      final older = search().submit('older');
+      final second = Completer<List<MediaInfo>>();
+      engine.searchGate = second;
+      final newer = search().submit('newer');
+
+      first.complete([fakeMedia('old')]);
       await older;
-      expect(container.read(ytdlpProvider).searchQuery, 'newer');
-      expect(container.read(ytdlpProvider).isSearching, isTrue);
-      search.requests['newer']!.complete([]);
+      expect(state().query, 'newer');
+      expect(state().isLoading, isTrue);
+      expect(state().results, isEmpty);
+
+      second.complete([fakeMedia('new')]);
       await newer;
-      expect(container.read(ytdlpProvider).isSearching, isFalse);
-      expect(container.read(ytdlpProvider).hasSearched, isTrue);
+      expect(state().isLoading, isFalse);
+      expect(state().results.single.id, 'new');
+      expect(state().hasSearched, isTrue);
     });
+
     test('failure leaves a retryable query and no loading state', () async {
-      final request = search.search('music');
-      search.requests['music']!.completeError(StateError('offline'));
-      await request;
-      final state = container.read(ytdlpProvider);
-      expect(state.searchError, isNotEmpty);
-      expect(state.searchQuery, 'music');
-      expect(state.isSearching, isFalse);
+      engine.lookupError = const DownloaderException('Could not reach it.');
+      await search().submit('music');
+      expect(state().error, 'Could not reach it.');
+      expect(state().query, 'music');
+      expect(state().isLoading, isFalse);
     });
+
+    test('a link is resolved; anything else is searched', () async {
+      engine.resolved = fakeMedia('abc', title: 'Linked');
+      await search().submit('https://youtu.be/abc');
+      expect(engine.resolves, ['https://youtu.be/abc']);
+      expect(engine.searches, isEmpty);
+      expect(state().results.single.title, 'Linked');
+
+      engine.searchResults = [fakeMedia('s1'), fakeMedia('s2')];
+      await search().submit('some words');
+      expect(engine.searches, ['some words']);
+      expect(state().results, hasLength(2));
+    });
+
+    test('results without an id are dropped', () async {
+      engine.searchResults = [fakeMedia('ok'), fakeMedia('')];
+      await search().submit('x');
+      expect(state().results.map((r) => r.id), ['ok']);
+    });
+
+    test('empty input does nothing', () async {
+      await search().submit('   ');
+      expect(engine.searches, isEmpty);
+      expect(state().hasSearched, isFalse);
+    });
+
     test('disposing a pending search prevents late state writes', () async {
-      final request = search.search('music');
+      final gate = Completer<List<MediaInfo>>();
+      engine.searchGate = gate;
+      final request = search().submit('music');
       container.dispose();
-      search.requests['music']!.complete([]);
+      gate.complete([fakeMedia('a')]);
       await request;
     });
   });

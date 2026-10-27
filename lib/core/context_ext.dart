@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Replacements for the GetX BuildContext shortcuts used across the UI.
+/// Shortcuts for the theme lookups used across the UI.
 extension BuildContextX on BuildContext {
   ThemeData get theme => Theme.of(this);
   TextTheme get textTheme => Theme.of(this).textTheme;

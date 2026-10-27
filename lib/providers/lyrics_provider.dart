@@ -36,8 +36,7 @@ final lyricsProvider = NotifierProvider<LyricsNotifier, LyricsState>(
   LyricsNotifier.new,
 );
 
-/// UI scroll controllers for the lyrics list (previously fields on
-/// AudioController). Created once per app.
+/// UI scroll controllers for the lyrics list. Created once per app.
 final lyricsScrollControllerProvider = Provider<ItemScrollController>(
   (ref) => ItemScrollController(),
 );
@@ -45,8 +44,8 @@ final lyricsPositionsListenerProvider = Provider<ItemPositionsListener>(
   (ref) => ItemPositionsListener.create(),
 );
 
-/// Port of fetchLyrics / _parseLrc (PlayerUtils.parseLrc) / _syncLyrics,
-/// including the stale-request guard (monotonic request id).
+/// Fetches lyrics from LRCLib (parsed by PlayerUtils.parseLrc) and tracks the
+/// active line, with a stale-request guard (monotonic request id).
 class LyricsNotifier extends Notifier<LyricsState> {
   // Monotonic id so a slow response for a previous song can't overwrite the
   // lyrics of the song that is playing now.

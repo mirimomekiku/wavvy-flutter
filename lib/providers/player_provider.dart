@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:wavvy/core/media_store.dart';
 import 'package:wavvy/instances/audio_handler.instance.dart';
+import 'package:wavvy/playback/session.dart';
 import 'package:wavvy/providers/library_provider.dart';
-import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
 /// Overridden in main() with the initialized audio handler.
@@ -21,12 +21,11 @@ final audioPlayerProvider = Provider<AudioPlayer>(
   (ref) => ref.watch(audioHandlerProvider).player,
 );
 
-final loudnessEnhancerProvider = Provider<AndroidLoudnessEnhancer>(
-  (ref) => ref.watch(audioHandlerProvider).enhancer,
-);
+/// What the sleep timer is waiting for.
+enum SleepMode { off, minutes, endOfTrack, endOfQueue }
 
-/// Playback state (replaces AudioController's queue / currentSong /
-/// currentIndex / isPlaying / shuffle / loop / sleepTimerMinutes).
+/// Playback state: queue, current song and index, play/shuffle/repeat and the
+/// sleep timer.
 class PlayerState {
   final List<SongModel> queue;
   final SongModel? currentSong;
@@ -35,6 +34,10 @@ class PlayerState {
   final bool isShuffleModeEnabled;
   final LoopMode loopMode;
   final int? sleepTimerMinutes;
+  final SleepMode sleepMode;
+
+  /// When a minutes timer will stop playback.
+  final DateTime? sleepEndsAt;
 
   const PlayerState({
     this.queue = const [],
@@ -44,6 +47,8 @@ class PlayerState {
     this.isShuffleModeEnabled = false,
     this.loopMode = LoopMode.off,
     this.sleepTimerMinutes,
+    this.sleepMode = SleepMode.off,
+    this.sleepEndsAt,
   });
 
   PlayerState copyWith({
@@ -55,6 +60,8 @@ class PlayerState {
     bool? isShuffleModeEnabled,
     LoopMode? loopMode,
     int? sleepTimerMinutes,
+    SleepMode? sleepMode,
+    DateTime? sleepEndsAt,
     bool clearSleepTimer = false,
   }) => PlayerState(
     queue: queue ?? this.queue,
@@ -66,7 +73,18 @@ class PlayerState {
     sleepTimerMinutes: clearSleepTimer
         ? null
         : (sleepTimerMinutes ?? this.sleepTimerMinutes),
+    sleepMode: clearSleepTimer ? SleepMode.off : (sleepMode ?? this.sleepMode),
+    sleepEndsAt: clearSleepTimer ? null : (sleepEndsAt ?? this.sleepEndsAt),
   );
+}
+
+/// One planned change to the queue: the queue it results in, and the call that
+/// makes the player match.
+class _QueueEdit {
+  final List<SongModel> queue;
+  final Future<void> Function() apply;
+
+  const _QueueEdit(this.queue, this.apply);
 }
 
 final playerProvider = NotifierProvider<PlayerNotifier, PlayerState>(
@@ -105,11 +123,17 @@ class DurationNotifier extends Notifier<Duration> {
   }
 }
 
-/// Port of the playback half of AudioController.
+/// Playback: the queue, transport, shuffle/repeat, sleep timer and deletion.
+///
+/// The queue is kept in the same order as the player's audio sources, so a
+/// queue index is also an audio-source index (shuffle only changes the order
+/// the player visits them in). Every queue change goes through [_edit], which
+/// runs one change at a time, updates [PlayerState.queue] first and rolls it
+/// back if the player rejects the change.
 class PlayerNotifier extends Notifier<PlayerState> {
-  // ignore: deprecated_member_use
-  ConcatenatingAudioSource? _effectivePlaylist;
+  bool _hasSources = false;
   Timer? _sleepTimer;
+  Future<void> _editTail = Future.value();
 
   AudioPlayer get _player => ref.read(audioPlayerProvider);
 
@@ -163,13 +187,12 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
       state = state.copyWith(queue: List<SongModel>.from(newQueue));
 
-      final sources = newQueue.map((s) => _createAudioSource(s)).toList();
-      // ignore: deprecated_member_use
-      final playlist = ConcatenatingAudioSource(children: sources);
-      _effectivePlaylist = playlist;
-
-      await _player.setAudioSource(playlist, initialIndex: index);
-      _player.play();
+      await _player.setAudioSources([
+        for (final s in newQueue) _createAudioSource(s),
+      ], initialIndex: index);
+      _hasSources = true;
+      // play() completes when playback stops, so it is deliberately not awaited.
+      unawaited(_player.play());
     } catch (e) {
       debugPrint("playSong failed: $e");
       AppSnackbar.showErrorSnackBar(
@@ -180,92 +203,119 @@ class PlayerNotifier extends Notifier<PlayerState> {
   }
 
   Future<void> addToQueue(SongModel song) async {
-    final playlist = _effectivePlaylist;
-    if (playlist == null) {
-      playSong(song, contextList: [song]);
+    if (!_hasSources) {
+      await playSong(song, contextList: [song]);
       return;
     }
-    state = state.copyWith(queue: [...state.queue, song]);
-    await playlist.add(_createAudioSource(song));
-
-    AppSnackbar.showSnackbar("Added to Queue", song.title);
-  }
-
-  Future<void> playNext(SongModel song) async {
-    final playlist = _effectivePlaylist;
-    if (playlist == null || state.currentIndex == -1) {
-      playSong(song, contextList: [song]);
-      return;
-    }
-
-    final insertIndex = state.currentIndex + 1;
-    final newQueue = List<SongModel>.from(state.queue)
-      ..insert(insertIndex, song);
-    state = state.copyWith(queue: newQueue);
-    await playlist.insert(insertIndex, _createAudioSource(song));
-
-    AppSnackbar.showSnackbar("Will play next", song.title);
-  }
-
-  bool _editingQueue = false;
-
-  Future<void> _editQueue(
-    List<SongModel> next,
-    Future<void> Function() mutate,
-  ) async {
-    if (_editingQueue) return;
-    _editingQueue = true;
-    final previous = state.queue;
-    state = state.copyWith(queue: next);
-    try {
-      await mutate();
-      if (next.isEmpty) {
-        await _player.stop();
-        state = state.copyWith(clearCurrentSong: true, currentIndex: -1);
-      }
-    } catch (e) {
-      state = state.copyWith(queue: previous);
-      AppSnackbar.showErrorSnackBar(
-        'Queue unchanged',
-        'Could not update the play queue.',
-      );
-    } finally {
-      _editingQueue = false;
-    }
-  }
-
-  Future<void> removeFromQueue(int index) async {
-    final playlist = _effectivePlaylist;
-    if (playlist == null || index < 0 || index >= state.queue.length) return;
-    final next = [...state.queue]..removeAt(index);
-    await _editQueue(next, () => playlist.removeAt(index));
-  }
-
-  Future<void> clearUpcoming() async {
-    final playlist = _effectivePlaylist;
-    final start = state.currentIndex + 1;
-    if (playlist == null || start <= 0 || start >= state.queue.length) return;
-    final end = state.queue.length;
-    await _editQueue(
-      state.queue.take(start).toList(),
-      () => playlist.removeRange(start, end),
+    final added = await _edit(
+      (queue) => _QueueEdit([
+        ...queue,
+        song,
+      ], () => _player.addAudioSource(_createAudioSource(song))),
     );
+    if (added) AppSnackbar.showSuccess("Added to Queue", song.title);
   }
 
-  Future<void> moveQueueItem(int from, int to) async {
-    final playlist = _effectivePlaylist;
-    if (playlist == null ||
-        from < 0 ||
-        from >= state.queue.length ||
-        to < 0 ||
-        to >= state.queue.length ||
-        from == to) {
+  /// Inserts [song] right after the current one. With shuffle on, just_audio
+  /// decides where an inserted track falls in the shuffled order, so the song
+  /// is queued but not guaranteed to be the very next to play.
+  Future<void> playNext(SongModel song) async {
+    if (!_hasSources || state.currentIndex == -1) {
+      await playSong(song, contextList: [song]);
       return;
     }
-    final next = [...state.queue];
-    next.insert(to, next.removeAt(from));
-    await _editQueue(next, () => playlist.move(from, to));
+    final added = await _edit((queue) {
+      final at = (state.currentIndex + 1).clamp(0, queue.length);
+      return _QueueEdit(
+        [...queue]..insert(at, song),
+        () => _player.insertAudioSource(at, _createAudioSource(song)),
+      );
+    });
+    if (added) AppSnackbar.showSuccess("Will play next", song.title);
   }
+
+  /// Runs queue changes one at a time. [plan] sees the queue as it is when the
+  /// change's turn comes, and returns null to do nothing. Resolves true when
+  /// the change was applied.
+  Future<bool> _edit(_QueueEdit? Function(List<SongModel> queue) plan) {
+    final done = _editTail.then((_) async {
+      final edit = plan(state.queue);
+      if (edit == null) return false;
+      final previous = state.queue;
+      state = state.copyWith(queue: edit.queue);
+      try {
+        await edit.apply();
+        if (edit.queue.isEmpty) {
+          await _player.stop();
+          _hasSources = false;
+          state = state.copyWith(clearCurrentSong: true, currentIndex: -1);
+        }
+        return true;
+      } catch (e) {
+        debugPrint("queue edit failed: $e");
+        state = state.copyWith(queue: previous);
+        AppSnackbar.showErrorSnackBar(
+          'Queue unchanged',
+          'Could not update the play queue.',
+        );
+        return false;
+      }
+    });
+    _editTail = done.then((_) {}, onError: (_) {});
+    return done;
+  }
+
+  Future<void> removeFromQueue(int index) => _edit((queue) {
+    if (!_hasSources || index < 0 || index >= queue.length) return null;
+    return _QueueEdit(
+      [...queue]..removeAt(index),
+      () => _player.removeAudioSourceAt(index),
+    );
+  });
+
+  /// Removes everything that will play after the current track, in the order
+  /// the player will visit it (which differs from queue order when shuffled).
+  Future<void> clearUpcoming() => _edit((queue) {
+    final upcoming = _upcomingIndices(queue.length);
+    if (!_hasSources || upcoming.isEmpty) return null;
+    final doomed = upcoming.toSet();
+    return _QueueEdit([
+      for (var i = 0; i < queue.length; i++)
+        if (!doomed.contains(i)) queue[i],
+    ], () => _removeIndices(upcoming));
+  });
+
+  List<int> _upcomingIndices(int length) {
+    final current = state.currentIndex;
+    if (current < 0) return const [];
+    if (!state.isShuffleModeEnabled) {
+      return [for (var i = current + 1; i < length; i++) i];
+    }
+    final order = _player.effectiveIndices;
+    final at = order.indexOf(current);
+    return at < 0 ? const [] : order.sublist(at + 1);
+  }
+
+  Future<void> _removeIndices(Iterable<int> indices) async {
+    // Highest first so earlier removals don't shift the later ones.
+    for (final i in indices.toList()..sort((a, b) => b.compareTo(a))) {
+      await _player.removeAudioSourceAt(i);
+    }
+  }
+
+  Future<void> moveQueueItem(int from, int to) => _edit((queue) {
+    if (!_hasSources ||
+        from < 0 ||
+        from >= queue.length ||
+        to < 0 ||
+        to >= queue.length ||
+        from == to) {
+      return null;
+    }
+    final next = [...queue];
+    next.insert(to, next.removeAt(from));
+    return _QueueEdit(next, () => _player.moveAudioSource(from, to));
+  });
 
   AudioSource _createAudioSource(SongModel song) {
     return AudioSource.uri(Uri.parse(song.uri!), tag: song);
@@ -273,7 +323,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
   // ---------------------------------------------------------------- Controls
 
-  void togglePlay() => state.isPlaying ? _player.pause() : _player.play();
+  void togglePlay() {
+    final handler = ref.read(audioHandlerProvider);
+    unawaited(state.isPlaying ? handler.pause() : handler.play());
+  }
 
   void next() {
     if (_player.hasNext) _player.seekToNext();
@@ -321,8 +374,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
   // ------------------------------------------------------------------ Extras
 
+  /// Stops playback after [minutes], or cancels the timer when null.
   void setSleepTimer(int? minutes) {
     _sleepTimer?.cancel();
+    _sleepFiring = false;
 
     if (minutes == null) {
       state = state.copyWith(clearSleepTimer: true);
@@ -330,70 +385,174 @@ class PlayerNotifier extends Notifier<PlayerState> {
       return;
     }
 
-    state = state.copyWith(sleepTimerMinutes: minutes);
+    state = state.copyWith(
+      sleepTimerMinutes: minutes,
+      sleepMode: SleepMode.minutes,
+      sleepEndsAt: DateTime.now().add(Duration(minutes: minutes)),
+    );
 
     AppSnackbar.showSnackbar(
       "Sleep Timer",
       "Music will stop in $minutes minutes",
     );
 
-    _sleepTimer = Timer(Duration(minutes: minutes), () {
-      _player.pause();
-      state = state.copyWith(clearSleepTimer: true);
+    _sleepTimer = Timer(Duration(minutes: minutes), () => _sleepNow());
+  }
+
+  /// Stops at the end of the current track, or of the queue.
+  void setSleepAtEnd(SleepMode mode) {
+    assert(mode == SleepMode.endOfTrack || mode == SleepMode.endOfQueue);
+    _sleepTimer?.cancel();
+    _sleepFiring = false;
+    state = state.copyWith(clearSleepTimer: true).copyWith(sleepMode: mode);
+    AppSnackbar.showSnackbar(
+      "Sleep Timer",
+      mode == SleepMode.endOfTrack
+          ? "Music will stop after this track"
+          : "Music will stop after the last track in the queue",
+    );
+  }
+
+  bool _sleepFiring = false;
+
+  /// Ends playback now with a slow fade, and clears the timer.
+  void _sleepNow({Duration fade = const Duration(seconds: 4)}) {
+    if (_sleepFiring) return;
+    _sleepFiring = true;
+    state = state.copyWith(clearSleepTimer: true);
+    unawaited(ref.read(audioHandlerProvider).fadeOutAndPause(duration: fade));
+    // Ready for the next timer.
+    Future<void>.delayed(fade + const Duration(milliseconds: 500), () {
+      _sleepFiring = false;
     });
   }
 
-  void toggleVolumeBoost() {
-    final enhancer = ref.read(loudnessEnhancerProvider);
-    if (enhancer.targetGain == 1.0) {
-      enhancer.setTargetGain(12.0);
-    } else {
-      enhancer.setTargetGain(1.0);
+  /// Whether the current track is the last one that will play: the last in the
+  /// queue, or the last in the shuffled order.
+  bool get _onLastTrack {
+    final index = state.currentIndex;
+    if (index < 0 || state.queue.isEmpty) return false;
+    if (state.isShuffleModeEnabled) {
+      final order = _player.effectiveIndices;
+      return order.isNotEmpty && order.last == index;
+    }
+    return index == state.queue.length - 1;
+  }
+
+  /// Called as playback moves, to end an "end of track" or "end of queue" sleep
+  /// timer with a fade as the track runs out. [lead] is extra time to start
+  /// early, so a crossfade that is about to begin does not get in the way.
+  void onPosition(
+    Duration position,
+    Duration duration, {
+    Duration lead = Duration.zero,
+  }) {
+    final mode = state.sleepMode;
+    if (_sleepFiring || !state.isPlaying || duration <= Duration.zero) return;
+    if (mode != SleepMode.endOfTrack && mode != SleepMode.endOfQueue) return;
+    if (mode == SleepMode.endOfQueue && !_onLastTrack) return;
+    final remaining = duration - position;
+    const fade = Duration(seconds: 4);
+    if (remaining > fade + lead) return;
+    _sleepNow(
+      fade: remaining < fade && remaining > const Duration(seconds: 1)
+          ? remaining
+          : fade,
+    );
+  }
+
+  // ----------------------------------------------------------- Last session
+
+  /// Where playback is now, for saving; null when nothing is queued.
+  PlaybackSnapshot? snapshot(Duration position) {
+    if (state.queue.isEmpty || state.currentIndex < 0) return null;
+    return PlaybackSnapshot(
+      songIds: [for (final s in state.queue) s.id],
+      index: state.currentIndex,
+      positionMs: position.inMilliseconds,
+      shuffle: state.isShuffleModeEnabled,
+      loopMode: state.loopMode.index,
+    );
+  }
+
+  /// Reopens a saved session, paused. Songs that are no longer in [library] are
+  /// dropped. Returns false when nothing could be restored.
+  Future<bool> restoreSession(
+    PlaybackSnapshot saved,
+    List<SongModel> library,
+  ) async {
+    final byId = {for (final s in library) s.id: s};
+    final queue = [
+      for (final id in saved.songIds)
+        if (byId[id] != null) byId[id]!,
+    ];
+    if (queue.isEmpty) return false;
+    final wasPlaying = saved.currentId;
+    var index = queue.indexWhere((s) => s.id == wasPlaying);
+    // The song that was playing is gone: start the next one that is left.
+    final position = index < 0
+        ? Duration.zero
+        : Duration(milliseconds: saved.positionMs);
+    if (index < 0) index = 0;
+    try {
+      state = state.copyWith(queue: List<SongModel>.from(queue));
+      await _player.setAudioSources(
+        [for (final s in queue) _createAudioSource(s)],
+        initialIndex: index,
+        initialPosition: position,
+      );
+      _hasSources = true;
+      await _player.setLoopMode(
+        LoopMode.values[saved.loopMode.clamp(0, LoopMode.values.length - 1)],
+      );
+      await _player.setShuffleModeEnabled(saved.shuffle);
+      return true;
+    } catch (e) {
+      debugPrint("restoreSession failed: $e");
+      state = state.copyWith(queue: const [], clearCurrentSong: true);
+      return false;
     }
   }
 
+  /// Deletes the file through the system's delete confirmation, then removes
+  /// the song from the queue and library. Nothing changes if the user declines.
   Future<void> deleteSong(SongModel song) async {
     try {
-      final file = File(song.data);
-      if (!await file.exists()) {
-        AppSnackbar.showErrorSnackBar(
-          "Not found",
-          "${song.title} no longer exists on the device.",
+      final deleted = await ref.read(mediaStoreProvider).deleteAudio(song.id);
+      if (!deleted) {
+        AppSnackbar.showSnackbar(
+          "Not deleted",
+          "${song.title} is still on your device.",
         );
         return;
       }
 
-      await file.delete();
-
-      // Remove from the live player queue too, so the player and the UI
+      // Drop every queue entry for the song so the player and the visible
       // queue stay in sync. Removing the playing source makes just_audio
       // advance on its own.
-      for (int i = state.queue.length - 1; i >= 0; i--) {
-        if (state.queue[i].id != song.id) continue;
-        state = state.copyWith(
-          queue: List<SongModel>.from(state.queue)..removeAt(i),
-        );
-        final playlist = _effectivePlaylist;
-        if (playlist != null && i < playlist.length) {
-          await playlist.removeAt(i);
-        }
-      }
-      if (state.queue.isEmpty) {
-        await _player.stop();
-        state = state.copyWith(clearCurrentSong: true, currentIndex: -1);
-      }
+      await _edit((queue) {
+        final doomed = [
+          for (var i = 0; i < queue.length; i++)
+            if (queue[i].id == song.id) i,
+        ];
+        if (!_hasSources || doomed.isEmpty) return null;
+        return _QueueEdit([
+          for (final s in queue)
+            if (s.id != song.id) s,
+        ], () => _removeIndices(doomed));
+      });
 
       ref.read(libraryProvider.notifier).removeSongLocally(song.id);
 
-      AppSnackbar.showSnackbar("Deleted", "${song.title} removed from device.");
+      AppSnackbar.showSuccess("Deleted", "${song.title} removed from device.");
 
       // MediaStore may keep a stale row for the deleted file.
-      await ref.read(libraryProvider.notifier).fetchAllSongs();
+      await ref.read(libraryProvider.notifier).fetchAllSongs(silent: true);
     } catch (e) {
       debugPrint("deleteSong failed: $e");
       AppSnackbar.showErrorSnackBar(
-        "Permission Denied",
-        "Cannot delete file on this Android version.",
+        "Could not delete",
+        "Android did not allow deleting ${song.title}.",
       );
     }
   }
@@ -407,17 +566,5 @@ class PlayerNotifier extends Notifier<PlayerState> {
           ? updated
           : state.currentSong,
     );
-  }
-
-  String getSongInfo(SongModel song) {
-    return """
-Title: ${song.title}
-Artist: ${song.artist ?? '<unknown>'}
-Album: ${song.album ?? '<unknown>'}
-Duration: ${PlayerUtils.formatDuration(Duration(milliseconds: song.duration ?? 0))}
-Size: ${PlayerUtils.formatBytes(song.size, 2)}
-Path: ${song.data}
-Format: ${song.fileExtension}
-    """;
   }
 }

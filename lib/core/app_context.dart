@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// App-wide keys that replace GetX's context-free navigation, dialogs and
-/// snackbars. They are wired into [MaterialApp] in main.dart.
+/// App-wide keys for context-free navigation, dialogs and snackbars. They are
+/// wired into [MaterialApp] in wavvy_app.dart.
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<ScaffoldMessengerState> messengerKey =
     GlobalKey<ScaffoldMessengerState>();

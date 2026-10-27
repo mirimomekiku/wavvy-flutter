@@ -3,20 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
-import 'package:wavvy/core/app_context.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 
-/// Album-art colors (replaces AudioController.playerColor /
-/// playerTextColor and SettingsService.dynamicAccent).
+/// Colors taken from the current song's album art.
 class PaletteState {
-  /// Tint for the player sheet / menus. Null = use theme defaults.
+  /// Dominant artwork color. Null = use the theme.
   final Color? playerColor;
   final Color playerTextColor;
 
-  /// Saturated swatch that drives the app-wide Wv accent when Dynamic
-  /// Colors is on. Null = default Blue/Graphite.
+  /// Saturated swatch that drives the app-wide accent when Album colors is on.
+  /// Null = the selected appearance's own accent.
   final Color? accent;
 
   const PaletteState({
@@ -30,40 +28,22 @@ final paletteProvider = NotifierProvider<PaletteNotifier, PaletteState>(
   PaletteNotifier.new,
 );
 
-/// Port of AudioController._updatePalette (including the stale-result guard:
-/// ignore results if playerProvider's currentSong id != songId by the time
-/// artwork/palette finish).
+/// Extracts the artwork palette for the playing song. Results that arrive
+/// after the song has changed are ignored.
 class PaletteNotifier extends Notifier<PaletteState> {
   @override
   PaletteState build() => const PaletteState();
 
-  /// Dynamic colors off: playerColor = theme surfaceContainer, text =
-  /// onSurface (use appContext for the theme), accent = null.
-  /// On: query artwork (512px JPEG via audioQueryProvider), PaletteGenerator,
-  /// playerColor = dominant ?? darkMuted ?? vibrant, text black/white by
-  /// luminance, accent = vibrant ?? lightVibrant ?? darkVibrant ?? dominant.
-  /// No artwork -> Colors.grey / white text / accent null.
+  /// Album colors off: clears the palette. On: reads the artwork (512px JPEG),
+  /// takes dominant / dark-muted / vibrant for [PaletteState.playerColor] and a
+  /// saturated swatch for [PaletteState.accent]. No artwork: grey, no accent.
   Future<void> updateForSong(int songId) async {
     // Skip results that arrive after the song has already changed.
     bool isStale() => ref.read(playerProvider).currentSong?.id != songId;
     bool dynamicOn() => ref.read(settingsProvider).enableDynamicColors;
 
     if (!dynamicOn()) {
-      final ctx = appContext;
-      final scheme = ctx == null ? null : Theme.of(ctx).colorScheme;
-      if (scheme == null) {
-        state = PaletteState(
-          playerColor: state.playerColor,
-          playerTextColor: state.playerTextColor,
-          accent: null,
-        );
-        return;
-      }
-      state = PaletteState(
-        playerColor: scheme.surfaceContainer,
-        playerTextColor: scheme.onSurface,
-        accent: null,
-      );
+      clear();
       return;
     }
 
@@ -122,7 +102,7 @@ class PaletteNotifier extends Notifier<PaletteState> {
     }
   }
 
-  /// playerColor = null, accent = null.
+  /// Drops the artwork colors, keeping the text color.
   void clear() {
     state = PaletteState(playerTextColor: state.playerTextColor);
   }

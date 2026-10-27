@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wavvy/core/app_context.dart';
 
-/// Context-free navigation (replaces Get.to / Get.toNamed / Get.back).
+/// Context-free navigation through the app's navigator key.
 class AppNav {
   AppNav._();
 

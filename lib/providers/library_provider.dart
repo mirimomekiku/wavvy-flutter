@@ -1,17 +1,14 @@
-import 'dart:io';
-
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:wavvy/core/storage_permissions.dart';
 import 'package:wavvy/providers/playlists_provider.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
 enum SortOption { titleAZ, titleZA, dateNewest, dateOldest, artistAZ }
 
-/// The device music library (replaces AudioController's songs / filteredSongs
-/// / albums / artists / currentSort).
+/// The device music library: songs, the filtered subset, albums, artists and
+/// the current sort.
 class LibraryState {
   final List<SongModel> songs;
 
@@ -23,6 +20,10 @@ class LibraryState {
 
   /// True when the last load failed because storage/audio access isn't granted.
   final bool permissionDenied;
+
+  /// True when access was refused for good: only the system settings can
+  /// grant it, so asking again does nothing.
+  final bool permissionBlocked;
   final bool isLoading;
   final String error;
 
@@ -33,6 +34,7 @@ class LibraryState {
     this.artists = const [],
     this.sort = SortOption.titleAZ,
     this.permissionDenied = false,
+    this.permissionBlocked = false,
     this.isLoading = false,
     this.error = '',
   });
@@ -44,6 +46,7 @@ class LibraryState {
     List<ArtistModel>? artists,
     SortOption? sort,
     bool? permissionDenied,
+    bool? permissionBlocked,
     bool? isLoading,
     String? error,
   }) => LibraryState(
@@ -53,6 +56,7 @@ class LibraryState {
     artists: artists ?? this.artists,
     sort: sort ?? this.sort,
     permissionDenied: permissionDenied ?? this.permissionDenied,
+    permissionBlocked: permissionBlocked ?? this.permissionBlocked,
     isLoading: isLoading ?? this.isLoading,
     error: error ?? this.error,
   );
@@ -81,10 +85,14 @@ class LibraryNotifier extends Notifier<LibraryState> {
     _fetching = true;
     state = state.copyWith(isLoading: true, error: '');
     try {
-      final hasPermission = await _checkAndRequestPermissions(request: !silent);
+      if (!silent) await StoragePermissions.requestNotifications();
+      final access = await StoragePermissions.musicLibrary(request: !silent);
 
-      if (!hasPermission) {
-        state = state.copyWith(permissionDenied: true);
+      if (!access.isGranted) {
+        state = state.copyWith(
+          permissionDenied: true,
+          permissionBlocked: access == StorageAccess.blocked,
+        );
         if (!silent) {
           AppSnackbar.showErrorSnackBar(
             "Cannot fetch songs",
@@ -109,14 +117,14 @@ class LibraryNotifier extends Notifier<LibraryState> {
         final validSongs = songsList.where((s) => s.isMusic == true).toList();
         final sorted = _sorted(validSongs, state.sort);
 
-        // Search query is not tracked: filteredSongs resets to all songs, as
-        // the GetX `ever(songs)` worker did.
+        // A reload resets the filter: filteredSongs is all songs again.
         state = state.copyWith(
           songs: sorted,
           filteredSongs: List<SongModel>.from(sorted),
           albums: albumsList,
           artists: artistsList,
           permissionDenied: false,
+          permissionBlocked: false,
         );
 
         // Smart playlists map stored song ids onto the loaded library, so
@@ -181,8 +189,7 @@ class LibraryNotifier extends Notifier<LibraryState> {
     return sortedList;
   }
 
-  /// Case-insensitive sorts, as in the GetX version. In GetX the sorted songs
-  /// re-triggered the filteredSongs worker, so filteredSongs is reset too.
+  /// Case-insensitive sort. Also resets filteredSongs to the sorted songs.
   void changeSortOption(SortOption option) {
     final sorted = _sorted(state.songs, option);
     state = state.copyWith(
@@ -217,41 +224,5 @@ class LibraryNotifier extends Notifier<LibraryState> {
       songs: state.songs.where((s) => s.id != songId).toList(),
       filteredSongs: state.filteredSongs.where((s) => s.id != songId).toList(),
     );
-  }
-
-  /// With [request] false only the current grant status is checked.
-  Future<bool> _checkAndRequestPermissions({bool request = true}) async {
-    if (!Platform.isAndroid) return true;
-
-    final androidInfo = await DeviceInfoPlugin().androidInfo;
-
-    // --- 1. Android 13+ (SDK 33+) ---
-    if (androidInfo.version.sdkInt >= 33) {
-      // Notification is optional for logic, but good for UX
-      if (request && await Permission.notification.isDenied) {
-        await Permission.notification.request();
-      }
-
-      // CRITICAL: on_audio_query crashes without this on Android 13+
-      if (request && await Permission.audio.isDenied) {
-        await Permission.audio.request();
-      }
-      return await Permission.audio.isGranted;
-    }
-
-    // --- 2. Android 11 & 12 (SDK 30-32) ---
-    if (androidInfo.version.sdkInt >= 30) {
-      // Scoped storage: plain read access is enough to list the library.
-      if (request && await Permission.storage.isDenied) {
-        await Permission.storage.request();
-      }
-      return await Permission.storage.isGranted;
-    }
-
-    // --- 3. Older Android (SDK < 30) ---
-    if (request && await Permission.storage.isDenied) {
-      await Permission.storage.request();
-    }
-    return await Permission.storage.isGranted;
   }
 }

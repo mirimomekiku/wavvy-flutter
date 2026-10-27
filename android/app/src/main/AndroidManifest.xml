@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
     
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
 
@@ -20,8 +20,7 @@
     <application
         android:label="Wavvy"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon"
-        android:requestLegacyExternalStorage="true">
+        android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -50,16 +49,6 @@
             </intent-filter>
         </service>
 
-        <provider
-        android:name="vn.hunghd.flutterdownloader.DownloadedFileProvider"
-        android:authorities="${applicationId}.flutter_downloader.provider"
-        android:exported="false"
-        android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/provider_paths"/>
-        </provider>
-
         <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver"
             android:exported="true" 
             tools:ignore="Instantiatable">
@@ -67,6 +56,19 @@
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </receiver> 
+
+        <!-- The home-screen widget. -->
+        <receiver
+            android:name="com.mirimomekiku.wavvy.widget.WavvyWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/wavvy_widget_info" />
+        </receiver>
 
         <meta-data
             android:name="flutterEmbedding"

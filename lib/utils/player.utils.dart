@@ -30,6 +30,24 @@ class PlayerUtils {
     return "$minutes:$seconds";
   }
 
+  /// The rows of the Song Details dialog.
+  static List<(String, String)> songDetails(SongModel song) => [
+    ('Title', song.title),
+    ('Artist', song.artist ?? 'Unknown'),
+    ('Album', song.album ?? 'Unknown'),
+    ('Duration', formatDuration(Duration(milliseconds: song.duration ?? 0))),
+    ('Format', song.fileExtension.toUpperCase()),
+    ('Size', formatBytes(song.size, 2)),
+    ('Path', song.data),
+  ];
+
+  /// "12 h 30 m" for a long total; "45 m" under an hour.
+  static String formatTotalTime(int milliseconds) {
+    final minutes = Duration(milliseconds: milliseconds).inMinutes;
+    final hours = minutes ~/ 60;
+    return hours > 0 ? '$hours h ${minutes % 60} m' : '$minutes m';
+  }
+
   static String formatBytes(int bytes, int decimals) {
     if (bytes <= 0) return "0 B";
     const suffixes = ["B", "KB", "MB", "GB", "TB"];

@@ -5,8 +5,7 @@ import 'package:wavvy/db/db.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
-/// Local playlists + smart playlists (replaces AudioController's
-/// localPlaylists / mostPlayedSongs / recentSongs).
+/// Local playlists plus the history-based smart lists (most played, recent).
 class PlaylistsState {
   /// Rows of the `playlists` table: {id, name, created_at}.
   final List<Map<String, dynamic>> playlists;
@@ -51,8 +50,7 @@ final playlistSongsProvider = FutureProvider.family<List<SongModel>, int>((
   return ref.read(playlistsProvider.notifier).getSongsInPlaylist(playlistId);
 });
 
-/// Port of the playlist / smart-playlist half of AudioController, using
-/// DbHelper (lib/db/db.dart, unchanged).
+/// Playlist and smart-playlist logic over DbHelper (lib/db/db.dart).
 class PlaylistsNotifier extends Notifier<PlaylistsState> {
   final DbHelper _dbHelper = DbHelper();
   bool _disposed = false;
@@ -106,7 +104,7 @@ class PlaylistsNotifier extends Notifier<PlaylistsState> {
     }, conflictAlgorithm: ConflictAlgorithm.ignore);
 
     if (rowId > 0) {
-      AppSnackbar.showSnackbar("Success", "Added to your playlist");
+      AppSnackbar.showSuccess("Success", "Added to your playlist");
     } else {
       AppSnackbar.showSnackbar("Notice", "Song is already in this playlist");
     }

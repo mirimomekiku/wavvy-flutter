@@ -30,9 +30,9 @@ final artistInfoProvider =
       ArtistInfoNotifier.new,
     );
 
-/// Port of fetchArtistInfo / _updateArtistInfo (Genius API; token from
-/// dotenv GENIUS_ACCESS_TOKEN, guarded with dotenv.isInitialized), including
-/// the stale-request guard.
+/// Artist biography and photo from the Genius API (token from the dotenv
+/// GENIUS_ACCESS_TOKEN, guarded with dotenv.isInitialized), with a
+/// stale-request guard.
 class ArtistInfoNotifier extends Notifier<ArtistInfoState> {
   // Monotonic id so a slow response for a previous artist can't overwrite the
   // data of the song that is playing now.
