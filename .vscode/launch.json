@@ -2,6 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Wavvy full (with downloader)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",
+      "args": ["--flavor", "full"]
+    },
+    {
+      "name": "Wavvy play (no downloader)",
+      "request": "launch",
+      "type": "dart",
+      "flutterMode": "debug",
+      "args": ["--flavor", "play"]
+    },
+    {
       "name": "Wavvy (Reset Data)",
       "request": "launch",
       "type": "dart",

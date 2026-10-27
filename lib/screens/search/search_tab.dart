@@ -1,33 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:wavvy/downloader/flavor.dart';
+import 'package:wavvy/downloader/models.dart';
+import 'package:wavvy/downloader/search_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/search_source_provider.dart';
 import 'package:wavvy/widgets/page_heading.dart';
-import 'package:wavvy/screens/search/downloads_list.dart';
+import 'package:wavvy/screens/downloader/downloads_sheet.dart';
 import 'package:wavvy/screens/search/library_results.dart';
-import 'package:wavvy/screens/search/tiktok_panel.dart';
-import 'package:wavvy/screens/search/youtube_results.dart';
+import 'package:wavvy/screens/search/online_results.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
+// The Online entries are behind the build flag so that the Play build contains
+// none of the downloader's code or text.
 const _labels = {
   SearchSource.library: 'Library',
-  SearchSource.youtube: 'YouTube',
-  SearchSource.tiktok: 'TikTok',
-  SearchSource.downloads: 'Downloads',
+  if (kDownloaderAvailable) SearchSource.online: 'Online',
+};
+
+const _icons = {
+  SearchSource.library: Icons.library_music_rounded,
+  if (kDownloaderAvailable) SearchSource.online: Icons.public_rounded,
 };
 
 const _hints = {
   SearchSource.library: 'Songs, albums, artists',
-  SearchSource.youtube: 'Search YouTube',
-  SearchSource.tiktok: 'Paste a TikTok link',
-  SearchSource.downloads: 'Search downloads',
+  if (kDownloaderAvailable)
+    SearchSource.online: 'Search online or paste a link',
 };
 
-/// The Search tab: local library search unified with the YouTube / TikTok
-/// downloader.
+/// The Search tab: local library search, and (in builds with the downloader)
+/// online search and downloads through yt-dlp.
 class SearchTab extends ConsumerStatefulWidget {
   const SearchTab({super.key});
 
@@ -48,7 +53,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
 
   void _select(SearchSource source) {
     if (source != _source) {
-      ref.read(searchSourceProvider.notifier).state = source;
+      ref.read(searchSourceProvider.notifier).set(source);
     }
   }
 
@@ -56,10 +61,10 @@ class _SearchTabState extends ConsumerState<SearchTab> {
     final q = value.trim();
     if (q.isEmpty) return;
     FocusScope.of(context).unfocus();
-    if (source == SearchSource.youtube) {
-      ref.read(ytdlpProvider.notifier).search(q);
-    } else if (source == SearchSource.tiktok) {
-      ref.read(tiktokProvider.notifier).fetchVideoInfo(q);
+    if (kDownloaderAvailable) {
+      if (source == SearchSource.online) {
+        ref.read(onlineSearchProvider.notifier).submit(q);
+      }
     }
   }
 
@@ -82,7 +87,7 @@ class _SearchTabState extends ConsumerState<SearchTab> {
         _select(SearchSource.library);
       }
     });
-    final sources = enabled
+    final sources = kDownloaderAvailable && enabled
         ? SearchSource.values
         : const [SearchSource.library];
     // Fall back to Library without touching any provider.
@@ -92,13 +97,32 @@ class _SearchTabState extends ConsumerState<SearchTab> {
     final query = _controller.text;
 
     return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
       slivers: [
-        const SliverToBoxAdapter(
+        SliverToBoxAdapter(
           child: WvPageHeading(
             title: 'Search',
             subtitle: 'Find music. Build your collection.',
             settings: true,
+            actions: [
+              if (kDownloaderAvailable)
+                if (enabled)
+                  IconButton(
+                    tooltip: 'Downloads',
+                    onPressed: () => showDownloadsSheet(context),
+                    icon: const Icon(Icons.download_rounded),
+                  ),
+            ],
+            // Source icons live in the heading; one source needs no chooser.
+            bottom: kDownloaderAvailable
+                ? (enabled
+                      ? WvChips(
+                          labels: [for (final s in sources) _labels[s]!],
+                          icons: [for (final s in sources) _icons[s]!],
+                          selected: sources.indexOf(source),
+                          onChanged: (i) => _select(sources[i]),
+                        )
+                      : null)
+                : null,
           ),
         ),
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -108,18 +132,21 @@ class _SearchTabState extends ConsumerState<SearchTab> {
             child: _Field(
               controller: _controller,
               hint: _hints[source]!,
-              icon: source == SearchSource.tiktok
-                  ? Icons.link_rounded
+              icon: kDownloaderAvailable
+                  ? (source == SearchSource.online &&
+                            MediaInfo.looksLikeUrl(query)
+                        ? Icons.link_rounded
+                        : Icons.search_rounded)
                   : Icons.search_rounded,
               onChanged: (_) => setState(() {}),
               onSubmitted: (v) => _submit(source, v),
               onClear: () => setState(_controller.clear),
-              onSearch:
-                  source == SearchSource.youtube ||
-                      source == SearchSource.tiktok
-                  ? () => _submit(source, _controller.text)
+              onSearch: kDownloaderAvailable
+                  ? (source == SearchSource.online
+                        ? () => _submit(source, _controller.text)
+                        : null)
                   : null,
-              onPaste: source == SearchSource.tiktok
+              onPaste: kDownloaderAvailable && source == SearchSource.online
                   ? () async {
                       final clip = await Clipboard.getData(
                         Clipboard.kTextPlain,
@@ -133,27 +160,12 @@ class _SearchTabState extends ConsumerState<SearchTab> {
             ),
           ),
         ),
-        if (enabled)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              child: WvChips(
-                labels: [for (final s in sources) _labels[s]!],
-                selected: sources.indexOf(source),
-                uppercase: true,
-                indicator: true,
-                onChanged: (i) => _select(sources[i]),
-              ),
-            ),
-          ),
         switch (source) {
           SearchSource.library => LibraryResults(query: query),
-          SearchSource.youtube => const YoutubeResults(),
-          SearchSource.tiktok => TikTokPanel(
-            onFetch: () => _submit(SearchSource.tiktok, _controller.text),
-            onDownloadStarted: () => setState(_controller.clear),
-          ),
-          SearchSource.downloads => DownloadsList(query: query),
+          SearchSource.online =>
+            kDownloaderAvailable
+                ? const OnlineResults()
+                : const SliverToBoxAdapter(),
         },
         SliverToBoxAdapter(
           child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),

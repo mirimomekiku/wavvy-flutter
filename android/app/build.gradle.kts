@@ -30,6 +30,25 @@ android {
         versionName = flutter.versionName
     }
 
+    // Two builds of the same app:
+    //  * play: no downloader, safe for the Play Store.
+    //  * full: adds the yt-dlp downloader (runs downloaded code, so sideload
+    //    only). Build with `flutter run --flavor full` / `--flavor play`.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+        }
+        create("full") {
+            dimension = "distribution"
+            versionNameSuffix = "-full"
+            // The bundled Python is arm64 only, to keep the app small.
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.
@@ -37,6 +56,25 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+// The downloader runs Python as a separate process, which needs its native
+// libraries extracted to disk. Only the full flavor pays that install size.
+androidComponents {
+    onVariants(selector().withFlavor("distribution" to "full")) { variant ->
+        variant.packaging.jniLibs.useLegacyPackaging.set(true)
+        // arm64 only: the Python library also ships armeabi-v7a, x86 and x86_64
+        // builds, which the ndk filter above does not remove from the APK.
+        variant.packaging.jniLibs.excludes.addAll(
+            listOf("**/armeabi-v7a/**", "**/x86/**", "**/x86_64/**"),
+        )
+    }
+}
+
+dependencies {
+    // yt-dlp for Android: an embedded Python plus yt-dlp, which the app updates
+    // itself from yt-dlp's releases. Not in the Play flavor.
+    "fullImplementation"("io.github.junkfood02.youtubedl-android:library:0.18.1")
 }
 
 flutter {

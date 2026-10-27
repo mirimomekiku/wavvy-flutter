@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -8,13 +7,19 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 // ignore: depend_on_referenced_packages
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
-import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:wavvy/downloader/downloads_provider.dart';
+import 'package:wavvy/downloader/engine.dart';
+import 'package:wavvy/downloader/engine_provider.dart';
+import 'package:wavvy/downloader/models.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/screens/search/search_tab.dart';
 import 'package:wavvy/theme/wavvy_theme.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+
+import 'helpers/fake_engine.dart';
 
 SongModel _song(int id, String title, String artist, String album) =>
     SongModel({
@@ -83,52 +88,26 @@ class _FakeSettings extends SettingsNotifier {
   SettingsState build() => SettingsState(enableDownloader: downloader);
 }
 
-class _FakeYt extends YtdlpNotifier {
-  final List<String> queries = [];
-
-  @override
-  YtdlpState build() => const YtdlpState(
-    taskTitles: {'y1': 'YT song'},
-    progressMap: {'y1': 40},
-    statusMap: {'y1': DownloadTaskStatus.running},
-  );
-
-  @override
-  Future<void> search(String query) async => queries.add(query);
-}
-
-class _FakeTt extends TikTokNotifier {
-  final List<String> fetched = [];
-
-  @override
-  TikTokState build() => const TikTokState(
-    taskTitles: {'t1': 'tiktok_clip'},
-    progressMap: {'t1': 100},
-    statusMap: {'t1': DownloadTaskStatus.complete},
-  );
-
-  @override
-  Future<void> fetchVideoInfo(String url) async => fetched.add(url);
-}
-
 Widget _app({
   bool downloader = true,
   bool dark = false,
   double scale = 1.0,
-  _FakeYt? yt,
-  _FakeTt? tt,
+  FakeYtDlpEngine? engine,
+  FakeDownloadStore? store,
 }) {
   return ProviderScope(
     overrides: [
       libraryProvider.overrideWith(_FakeLibrary.new),
       playerProvider.overrideWith(_FakePlayer.new),
       settingsProvider.overrideWith(() => _FakeSettings(downloader)),
-      ytdlpProvider.overrideWith(() => yt ?? _FakeYt()),
-      tiktokProvider.overrideWith(() => tt ?? _FakeTt()),
+      ytDlpEngineProvider.overrideWithValue(engine ?? FakeYtDlpEngine()),
+      downloadStoreProvider.overrideWithValue(store ?? FakeDownloadStore()),
+      downloadDirectoryProvider.overrideWithValue(() async => '/tmp/dl'),
+      tagWriterProvider.overrideWithValue((path, task) async {}),
     ],
     child: MaterialApp(
-      theme: WavvyTheme.light(WvAppearance.green),
-      darkTheme: WavvyTheme.dark(WvAppearance.red),
+      theme: WavvyTheme.light(WvAppearance.aqua),
+      darkTheme: WavvyTheme.dark(WvAppearance.aqua),
       themeMode: dark ? ThemeMode.dark : ThemeMode.light,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(
@@ -147,13 +126,26 @@ void _size(WidgetTester tester, double w, double h) {
   addTearDown(tester.view.reset);
 }
 
+/// Source chips show icons only; each is found by its tooltip.
 Future<void> _tapChip(WidgetTester tester, String label) async {
-  // The chip row scrolls horizontally on narrow phones.
-  await tester.ensureVisible(find.text(label));
+  final chip = find.byTooltip(label);
+  await tester.ensureVisible(chip);
   await tester.pump();
-  await tester.tap(find.text(label));
+  await tester.tap(chip);
   await tester.pump();
 }
+
+/// Opens the Downloads sheet from the heading icon.
+Future<void> _openDownloads(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Downloads'));
+  await tester.pumpAndSettle();
+}
+
+/// The search field inside the Downloads sheet.
+Finder get _sheetField => find.descendant(
+  of: find.byType(AquaSheet),
+  matching: find.byType(TextField),
+);
 
 void main() {
   SharedPreferencesAsyncPlatform.instance =
@@ -195,137 +187,293 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('chips switch the body and hint; submit calls the providers', (
+  testWidgets('the Online chip switches the hint and searches on submit', (
     tester,
   ) async {
     _size(tester, 411, 732);
-    final yt = _FakeYt();
-    final tt = _FakeTt();
-    await tester.pumpWidget(_app(yt: yt, tt: tt));
+    final engine = FakeYtDlpEngine()
+      ..searchResults = [fakeMedia('a', title: 'Alright')];
+    await tester.pumpWidget(_app(engine: engine));
+    await tester.pump();
 
     expect(find.text('Songs, albums, artists'), findsOneWidget);
+    await _tapChip(tester, 'Online');
+    await tester.pumpAndSettle();
+    expect(find.text('Search online or paste a link'), findsOneWidget);
+    expect(find.text('Search for music, or paste a link'), findsOneWidget);
 
-    await tester.tap(find.text('YOUTUBE'));
-    await tester.pump();
-    expect(find.text('Search YouTube'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'lofi');
+    await tester.enterText(find.byType(TextField), 'kendrick');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    expect(yt.queries, ['lofi']);
+    await tester.pumpAndSettle();
+    expect(engine.searches, ['kendrick']);
+    expect(find.text('Alright'), findsOneWidget);
 
-    await tester.tap(find.text('TIKTOK'));
+    // Library search never goes online.
+    await _tapChip(tester, 'Library');
+    await tester.enterText(find.byType(TextField), 'sunrise');
     await tester.pump();
-    expect(find.text('Paste a TikTok link'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'https://vm.tiktok.com/x');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    expect(tt.fetched, ['https://vm.tiktok.com/x']);
-    expect(tester.takeException(), isNull);
+    expect(engine.searches, ['kendrick']);
   });
 
-  testWidgets('clear button and switching source empty the field', (
+  testWidgets('a pasted link is resolved, not searched', (tester) async {
+    _size(tester, 411, 732);
+    final engine = FakeYtDlpEngine()
+      ..resolved = fakeMedia('xyz', title: 'From a link');
+    await tester.pumpWidget(_app(engine: engine));
+    await tester.pump();
+    await _tapChip(tester, 'Online');
+    await tester.enterText(
+      find.byType(TextField),
+      'https://www.youtube.com/watch?v=xyz',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(engine.resolves, ['https://www.youtube.com/watch?v=xyz']);
+    expect(engine.searches, isEmpty);
+    expect(find.text('From a link'), findsOneWidget);
+    expect(find.text('Link'), findsOneWidget);
+  });
+
+  testWidgets('a failed lookup explains itself and can be retried', (
     tester,
   ) async {
     _size(tester, 411, 732);
-    await tester.pumpWidget(_app());
-    await tester.enterText(find.byType(TextField), 'new order');
+    final engine = FakeYtDlpEngine()
+      ..lookupError = const DownloaderException('Could not reach the server.');
+    await tester.pumpWidget(_app(engine: engine));
     await tester.pump();
-    await tester.tap(find.byTooltip('Clear'));
-    await tester.pump();
-    expect(find.text('Search your library'), findsOneWidget);
+    await _tapChip(tester, 'Online');
+    await tester.enterText(find.byType(TextField), 'lofi');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(find.text('Could not reach the server.'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField), 'abc');
-    await tester.pump();
-    await tester.tap(find.text('YOUTUBE'));
-    await tester.pump();
-    expect(find.byTooltip('Clear'), findsNothing);
-    expect(tester.takeException(), isNull);
+    engine
+      ..lookupError = null
+      ..searchResults = [fakeMedia('a', title: 'Back online')];
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(find.text('Back online'), findsOneWidget);
   });
 
-  testWidgets('downloader disabled: only Library, no chips', (tester) async {
+  testWidgets('until the engine is set up, Online offers to set it up', (
+    tester,
+  ) async {
+    _size(tester, 411, 732);
+    final engine = FakeYtDlpEngine()
+      ..current = const EngineStatus(EngineState.missing);
+    await tester.pumpWidget(_app(engine: engine));
+    await tester.pump();
+    await _tapChip(tester, 'Online');
+    await tester.pumpAndSettle();
+    expect(find.text('Set up the downloader'), findsOneWidget);
+    expect(find.text('Search for music, or paste a link'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('engine_setup')));
+    await tester.pumpAndSettle();
+    expect(engine.installs, hasLength(1));
+    expect(find.text('Search for music, or paste a link'), findsOneWidget);
+    expect(find.text('Set up the downloader'), findsNothing);
+  });
+
+  testWidgets('a failed setup shows why and can be retried', (tester) async {
+    _size(tester, 411, 732);
+    final engine = FakeYtDlpEngine()
+      ..current = const EngineStatus(EngineState.missing)
+      ..installError = const DownloaderException('No connection.');
+    await tester.pumpWidget(_app(engine: engine));
+    await tester.pump();
+    await _tapChip(tester, 'Online');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('engine_setup')));
+    await tester.pumpAndSettle();
+    expect(find.text('The downloader could not be set up'), findsOneWidget);
+    expect(find.text('No connection.'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+  });
+
+  testWidgets('a result\'s download button queues it', (tester) async {
+    _size(tester, 411, 732);
+    final engine = FakeYtDlpEngine()
+      ..searchResults = [fakeMedia('a', title: 'Alright')];
+    final store = FakeDownloadStore();
+    await tester.pumpWidget(_app(engine: engine, store: store));
+    await tester.pump();
+    await _tapChip(tester, 'Online');
+    await tester.enterText(find.byType(TextField), 'alright');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Download'));
+    // The progress ring spins forever, so settle by pumping a few frames.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(engine.started, hasLength(1));
+    expect(engine.started.single.videoId, 'a');
+    expect(engine.started.single.dir, '/tmp/dl');
+    expect(store.tasks.values.single.title, 'Alright');
+    // The button now shows progress and can cancel.
+    expect(find.byTooltip('Downloading, tap to cancel'), findsOneWidget);
+  });
+
+  testWidgets('downloader disabled: only Library, no chips, no downloads', (
+    tester,
+  ) async {
     _size(tester, 411, 732);
     await tester.pumpWidget(_app(downloader: false));
     expect(find.byType(WvChips), findsNothing);
-    expect(find.text('YOUTUBE'), findsNothing);
+    expect(find.byTooltip('Online'), findsNothing);
+    expect(find.byTooltip('Downloads'), findsNothing);
     expect(find.text('Songs, albums, artists'), findsOneWidget);
   });
 
-  testWidgets('Downloads shows tasks of both providers', (tester) async {
+  testWidgets('the Downloads sheet lists tasks with the right actions', (
+    tester,
+  ) async {
     _size(tester, 411, 732);
-    await tester.pumpWidget(_app());
-    await _tapChip(tester, 'DOWNLOADS');
-    expect(find.text('YT song'), findsOneWidget);
-    expect(find.text('tiktok_clip'), findsOneWidget);
-    expect(find.text('40% · Downloading'), findsOneWidget);
-    expect(find.text('100% · Done'), findsOneWidget);
+    final store = FakeDownloadStore([
+      fakeTask(
+        '1',
+        title: 'Running one',
+        status: DownloadStatus.running,
+        progress: 40,
+      ),
+      fakeTask(
+        '2',
+        title: 'Done one',
+        status: DownloadStatus.complete,
+        mediaUri: 'content://media/external_primary/audio/media/7',
+      ),
+      fakeTask(
+        '3',
+        title: 'Broken one',
+        status: DownloadStatus.failed,
+        error: 'Could not reach the server.',
+      ),
+    ]);
+    await tester.pumpWidget(
+      _app(
+        store: store,
+        engine: FakeYtDlpEngine()
+          ..pendingWork = const PendingWork(activeIds: {'1'}),
+      ),
+    );
+    await tester.pump();
+    await _openDownloads(tester);
+
+    expect(find.text('Running one'), findsOneWidget);
+    expect(find.text('40% \u00b7 Downloading'), findsOneWidget);
+    expect(find.byTooltip('Cancel'), findsOneWidget);
+    expect(find.text('In your library'), findsOneWidget);
+    expect(find.byTooltip('Play'), findsOneWidget);
+    expect(find.text('Could not reach the server.'), findsOneWidget);
+    expect(find.byTooltip('Try again'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
   });
 
-  testWidgets('Downloads filters titles and explains no matches', (
-    tester,
-  ) async {
+  testWidgets('Downloads filters by search and by status', (tester) async {
     _size(tester, 360, 740);
-    await tester.pumpWidget(_app());
-    await _tapChip(tester, 'DOWNLOADS');
-    await tester.enterText(find.byType(TextField), 'YT');
+    final store = FakeDownloadStore([
+      fakeTask(
+        '1',
+        title: 'Running one',
+        status: DownloadStatus.running,
+        progress: 10,
+      ),
+      fakeTask('2', title: 'Done one', status: DownloadStatus.complete),
+      fakeTask('3', title: 'Broken one', status: DownloadStatus.failed),
+    ]);
+    await tester.pumpWidget(
+      _app(
+        store: store,
+        engine: FakeYtDlpEngine()
+          ..pendingWork = const PendingWork(activeIds: {'1'}),
+      ),
+    );
     await tester.pump();
-    expect(find.text('YT song'), findsOneWidget);
-    expect(find.text('tiktok_clip'), findsNothing);
-    await tester.enterText(find.byType(TextField), 'missing');
+    await _openDownloads(tester);
+
+    await tester.enterText(_sheetField, 'Done');
+    await tester.pump();
+    expect(find.text('Done one'), findsOneWidget);
+    expect(find.text('Running one'), findsNothing);
+    await tester.enterText(_sheetField, 'missing');
     await tester.pump();
     expect(find.text('No matching downloads'), findsOneWidget);
+    await tester.enterText(_sheetField, '');
+    await tester.pump();
+
+    await tester.ensureVisible(find.text('Active'));
+    await tester.pump();
+    await tester.tap(find.text('Active'));
+    await tester.pump();
+    expect(find.text('Running one'), findsOneWidget);
+    expect(find.text('Done one'), findsNothing);
+    await tester.ensureVisible(find.text('Completed'));
+    await tester.pump();
+    await tester.tap(find.text('Completed'));
+    await tester.pump();
+    expect(find.text('Done one'), findsOneWidget);
+    await tester.ensureVisible(find.text('Failed'));
+    await tester.pump();
+    await tester.tap(find.text('Failed'));
+    await tester.pump();
+    expect(find.text('Broken one'), findsOneWidget);
+    expect(find.text('Done one'), findsNothing);
   });
 
   testWidgets('source switches restore each search draft', (tester) async {
     _size(tester, 360, 740);
     await tester.pumpWidget(_app());
+    await tester.pump();
     await tester.enterText(find.byType(TextField), 'new order');
-    await _tapChip(tester, 'YOUTUBE');
+    await _tapChip(tester, 'Online');
     await tester.enterText(find.byType(TextField), 'instrumentals');
-    await _tapChip(tester, 'LIBRARY');
+    await _tapChip(tester, 'Library');
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'new order',
     );
-    await _tapChip(tester, 'YOUTUBE');
+    await _tapChip(tester, 'Online');
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'instrumentals',
     );
-  });
-  testWidgets('download status views separate active and completed files', (
-    tester,
-  ) async {
-    _size(tester, 360, 740);
-    await tester.pumpWidget(_app());
-    await _tapChip(tester, 'DOWNLOADS');
-    await tester.tap(find.text('Active'));
-    await tester.pump();
-    expect(find.text('YT song'), findsOneWidget);
-    expect(find.text('tiktok_clip'), findsNothing);
-    await tester.tap(find.text('Completed'));
-    await tester.pump();
-    expect(find.text('YT song'), findsNothing);
-    expect(find.text('tiktok_clip'), findsOneWidget);
   });
 
   for (final size in const [Size(411, 732), Size(360, 740)]) {
     for (final scale in const [1.0, 1.5]) {
       for (final dark in const [false, true]) {
         testWidgets(
-          'renders every source at ${size.width.toInt()}x${size.height.toInt()} '
+          'renders both sources at ${size.width.toInt()}x${size.height.toInt()} '
           'x$scale ${dark ? 'dark' : 'light'}',
           (tester) async {
             _size(tester, size.width, size.height);
-            await tester.pumpWidget(_app(dark: dark, scale: scale));
+            final engine = FakeYtDlpEngine()
+              ..searchResults = [
+                fakeMedia(
+                  'a',
+                  title:
+                      'A very long title that has to wrap across several lines on a narrow phone',
+                ),
+              ];
+            await tester.pumpWidget(
+              _app(dark: dark, scale: scale, engine: engine),
+            );
+            await tester.pump();
             await tester.enterText(find.byType(TextField), 'e');
             await tester.pump();
             expect(tester.takeException(), isNull);
 
-            for (final chip in ['YOUTUBE', 'TIKTOK', 'DOWNLOADS', 'LIBRARY']) {
-              await _tapChip(tester, chip);
-              expect(tester.takeException(), isNull, reason: chip);
-            }
+            await _tapChip(tester, 'Online');
+            await tester.enterText(find.byType(TextField), 'e');
+            await tester.testTextInput.receiveAction(TextInputAction.search);
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull, reason: 'online');
+
+            await _tapChip(tester, 'Library');
+            await _openDownloads(tester);
+            expect(tester.takeException(), isNull, reason: 'downloads');
           },
         );
       }

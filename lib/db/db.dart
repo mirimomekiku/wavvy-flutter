@@ -8,7 +8,7 @@ class DbHelper {
 
   static Database? _db;
 
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 5;
 
   Future<Database> get db async {
     if (_db != null) return _db!;
@@ -33,6 +33,8 @@ class DbHelper {
       onCreate: (db, version) async {
         await _createPlaylistTables(db);
         await _createStatsTable(db);
+        await _createDownloadsTable(db);
+        await _createFavoritesTable(db);
       },
 
       // For EXISTING users (Runs if they have Ver 1 and upgrade to Ver 2)
@@ -42,6 +44,12 @@ class DbHelper {
         }
         if (oldVersion < 3) {
           await _dedupePlaylistSongs(db);
+        }
+        if (oldVersion < 4) {
+          await _createDownloadsTable(db);
+        }
+        if (oldVersion < 5) {
+          await _createFavoritesTable(db);
         }
       },
     );
@@ -83,6 +91,37 @@ class DbHelper {
     );
   }
 
+  /// Songs the user marked as favorites.
+  Future<void> _createFavoritesTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS favorites (
+        song_id INTEGER PRIMARY KEY,
+        added_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
+  /// The downloader's task list (see lib/downloader/).
+  Future<void> _createDownloadsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS downloads (
+        id TEXT PRIMARY KEY,
+        url TEXT NOT NULL,
+        video_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT,
+        thumbnail TEXT,
+        duration INTEGER,
+        status TEXT NOT NULL,
+        progress INTEGER NOT NULL DEFAULT 0,
+        error TEXT,
+        file_path TEXT,
+        media_uri TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+  }
+
   Future<void> _createStatsTable(Database db) async {
     await db.execute('''
       CREATE TABLE IF NOT EXISTS song_stats (
@@ -91,6 +130,49 @@ class DbHelper {
         last_played INTEGER
       )
     ''');
+  }
+
+  // --- FAVORITES ---
+
+  /// song id -> when it was added.
+  Future<Map<int, int>> favoriteRows() async {
+    final db = await this.db;
+    final rows = await db.query('favorites', orderBy: 'added_at DESC');
+    return {for (final r in rows) r['song_id'] as int: r['added_at'] as int};
+  }
+
+  Future<void> addFavorite(int songId, int addedAt) async {
+    final db = await this.db;
+    await db.insert('favorites', {
+      'song_id': songId,
+      'added_at': addedAt,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<void> removeFavorite(int songId) async {
+    final db = await this.db;
+    await db.delete('favorites', where: 'song_id = ?', whereArgs: [songId]);
+  }
+
+  // --- DOWNLOADS ---
+
+  Future<List<Map<String, Object?>>> downloadRows() async {
+    final db = await this.db;
+    return db.query('downloads', orderBy: 'created_at DESC');
+  }
+
+  Future<void> saveDownload(Map<String, Object?> row) async {
+    final db = await this.db;
+    await db.insert(
+      'downloads',
+      row,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteDownload(String id) async {
+    final db = await this.db;
+    await db.delete('downloads', where: 'id = ?', whereArgs: [id]);
   }
 
   // --- QUERY METHODS ---
