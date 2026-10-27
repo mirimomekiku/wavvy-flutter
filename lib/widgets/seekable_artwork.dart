@@ -1,35 +1,33 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/player_sheets/full_player_sheet.controller.dart';
-import 'package:wavvy/service/settings.service.dart';
+import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 
-class AnimatedSeekableArtwork extends StatefulWidget {
+class AnimatedSeekableArtwork extends ConsumerStatefulWidget {
   final SongModel song;
   final double size;
   final Color iconColor;
-  final FullPlayerSheetController controller;
 
   const AnimatedSeekableArtwork({
     super.key,
     required this.song,
     required this.size,
     required this.iconColor,
-    required this.controller,
   });
 
   @override
-  State<AnimatedSeekableArtwork> createState() =>
+  ConsumerState<AnimatedSeekableArtwork> createState() =>
       _AnimatedSeekableArtworkState();
 }
 
-class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
+class _AnimatedSeekableArtworkState extends ConsumerState<AnimatedSeekableArtwork> {
   bool _showForward = false;
   bool _showRewind = false;
   Timer? _timer;
-  final SettingsService _settings = Get.find();
 
   @override
   void dispose() {
@@ -62,6 +60,7 @@ class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
 
   @override
   Widget build(BuildContext context) {
+    final a = Aqua.of(context);
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -69,18 +68,19 @@ class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
           id: widget.song.id,
           type: ArtworkType.AUDIO,
           artworkFit: BoxFit.cover,
-          artworkBorder: BorderRadius.circular(12),
+          artworkBorder: BorderRadius.zero,
           artworkWidth: widget.size,
           artworkHeight: widget.size,
           size: 1000,
           nullArtworkWidget: Container(
             width: widget.size,
             height: widget.size,
-            decoration: BoxDecoration(
-              color: Colors.grey[900],
-              borderRadius: BorderRadius.circular(12),
+            color: a.stripe,
+            child: Icon(
+              Icons.music_note,
+              size: 80,
+              color: a.textSecondary,
             ),
-            child: Icon(Icons.music_note, size: 80, color: widget.iconColor),
           ),
         ),
 
@@ -104,7 +104,9 @@ class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
           ),
         ),
 
-        if (_settings.enableDoubleTapSeek.value)
+        if (ref.watch(
+          settingsProvider.select((s) => s.enableDoubleTapSeek),
+        ))
           Positioned.fill(
             child: Row(
               children: [
@@ -114,7 +116,7 @@ class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
                     behavior: HitTestBehavior.translucent,
                     onDoubleTap: () {
                       _triggerOverlay(forward: false);
-                      widget.controller.audioController.seek(
+                      ref.read(playerProvider.notifier).seek(
                         const Duration(seconds: -10),
                         relative: true,
                       );
@@ -129,7 +131,7 @@ class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
                     behavior: HitTestBehavior.translucent,
                     onDoubleTap: () {
                       _triggerOverlay(forward: true);
-                      widget.controller.audioController.seek(
+                      ref.read(playerProvider.notifier).seek(
                         const Duration(seconds: 10),
                         relative: true,
                       );
@@ -157,10 +159,9 @@ class _AnimatedSeekableArtworkState extends State<AnimatedSeekableArtwork> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(
-              alpha: 0.6,
-            ), // Translucent dark background
+            color: Colors.black.withValues(alpha: 0.6),
             shape: BoxShape.circle,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.5)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

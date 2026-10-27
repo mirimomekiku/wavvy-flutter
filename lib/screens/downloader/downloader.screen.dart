@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/screens/downloader/tiktok/tiktok.screen.dart';
 import 'package:wavvy/screens/downloader/youtube/ytdlp.screen.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 
 class DownloaderHubScreen extends StatelessWidget {
   const DownloaderHubScreen({super.key});
@@ -10,23 +11,29 @@ class DownloaderHubScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         children: [
-          _buildNavTile(
-            context,
-            title: "YouTube Downloader",
-            subtitle: "Search and download music/video",
-            icon: Icons.play_circle_fill,
-            color: Colors.red,
-            onTap: () => Get.to(() => YtdlpSearchScreen()),
-          ),
-          _buildNavTile(
-            context,
-            title: "TikTok Downloader",
-            subtitle: "Download without watermark",
-            icon: Icons.music_note,
-            color: Colors.red,
-            onTap: () => Get.to(() => TikTokSearchScreen()),
+          const GroupHeader("Sources"),
+          InsetGroup(
+            dividerIndent: 58,
+            children: [
+              _buildNavTile(
+                context,
+                title: "YouTube Downloader",
+                subtitle: "Search and download music/video",
+                icon: Icons.play_arrow_rounded,
+                color: const Color(0xFFD32F2F),
+                onTap: () => AppNav.push(const YtdlpSearchScreen()),
+              ),
+              _buildNavTile(
+                context,
+                title: "TikTok Downloader",
+                subtitle: "Download without watermark",
+                icon: Icons.music_note_rounded,
+                color: const Color(0xFF2B2B2B),
+                onTap: () => AppNav.push(const TikTokSearchScreen()),
+              ),
+            ],
           ),
         ],
       ),
@@ -41,30 +48,47 @@ class DownloaderHubScreen extends StatelessWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
+    final a = Aqua.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              IconBadge(icon: icon, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: a.text,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 12, color: a.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 22,
+                color: a.textSecondary,
+              ),
+            ],
           ),
-          child: Icon(icon, color: color, size: 28),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        subtitle: Text(subtitle),
-        trailing: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Colors.grey,
-        ),
-        onTap: onTap,
       ),
     );
   }

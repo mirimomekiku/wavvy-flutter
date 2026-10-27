@@ -1,365 +1,210 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/screens/home/home.controller.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/providers/playlists_provider.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
 import 'package:wavvy/screens/library/playlists/view/playlist.screen.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 
-class LibraryView extends GetView<HomeController> {
+/// Library as photo-framed grids under Aqua section bars.
+class LibraryView extends ConsumerWidget {
   const LibraryView({super.key});
 
+  static const int _previewCount = 4;
+
   @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final albums = controller.audioController.albums;
-      final artists = controller.audioController.artists;
-      final playlists = controller.audioController.localPlaylists;
+  Widget build(BuildContext context, WidgetRef ref) {
+    {
+      final albums = ref.watch(libraryProvider.select((s) => s.albums));
+      final artists = ref.watch(libraryProvider.select((s) => s.artists));
+      final playlists = ref.watch(playlistsProvider.select((s) => s.playlists));
+      final a = Aqua.of(context);
 
       return CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          // ---------------------------------------------------------
-          // ALBUMS SECTION
-          // ---------------------------------------------------------
           if (albums.isNotEmpty) ...[
-            _LibrarySectionHeader(
-              title: "Albums",
-              onTap: () => Get.toNamed("/albums"),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 220,
-                  childAspectRatio: 0.75,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 20,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final album = controller.audioController.albums[index];
-                    return GestureDetector(
-                      onTap: () =>
-                          Get.to(() => AlbumDetailScreen(album: album)),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: context.isDarkMode
-                              ? Colors.grey[900]
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.05),
-                              blurRadius: 15,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(24)),
-                                  color: context.isDarkMode
-                                      ? Colors.grey[800]
-                                      : Colors.grey[100],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(24)),
-                                  child: QueryArtworkWidget(
-                                    id: album.id,
-                                    type: ArtworkType.ALBUM,
-                                    artworkFit: BoxFit.cover,
-                                    nullArtworkWidget: const Icon(
-                                      Icons.album_rounded,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    album.album,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    "${album.numOfSongs} Songs",
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: context.theme.textTheme.bodyMedium?.color
-                                          ?.withValues(alpha: 0.6),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                  childCount: controller.audioController.albums.length > 4
-                      ? 4
-                      : controller.audioController.albums.length,
-                ),
-              ),
+            _sectionBar("Albums", () => AppNav.pushNamed("/albums"), a),
+            _grid(
+              maxExtent: 190,
+              count: albums.length.clamp(0, _previewCount),
+              builder: (context, index) {
+                final album = albums[index];
+                return _LibraryTile(
+                  label: album.album,
+                  sublabel: "${album.numOfSongs} songs",
+                  onTap: () => AppNav.push(AlbumDetailScreen(album: album)),
+                  artwork: QueryArtworkWidget(
+                    id: album.id,
+                    type: ArtworkType.ALBUM,
+                    artworkFit: BoxFit.cover,
+                    artworkBorder: BorderRadius.zero,
+                    nullArtworkWidget: _placeholder(a, Icons.album_rounded),
+                  ),
+                );
+              },
             ),
           ],
-
-          // ---------------------------------------------------------
-          // ARTISTS SECTION
-          // ---------------------------------------------------------
           if (artists.isNotEmpty) ...[
-            _LibrarySectionHeader(
-              title: "Artists",
-              onTap: () => Get.toNamed("/artists"),
-            ),
-
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 180,
-                  childAspectRatio: 0.8,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 20,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final artist = controller.audioController.artists[index];
-                    return GestureDetector(
-                      onTap: () =>
-                          Get.to(() => ArtistDetailScreen(artist: artist)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.1),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipOval(
-                                  child: Container(
-                                    color: context.isDarkMode
-                                        ? Colors.grey[800]
-                                        : Colors.grey[100],
-                                    child: QueryArtworkWidget(
-                                      id: artist.id,
-                                      type: ArtworkType.ARTIST,
-                                      artworkFit: BoxFit.cover,
-                                      nullArtworkWidget: const Icon(
-                                        Icons.person_rounded,
-                                        size: 48,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            artist.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  childCount: controller.audioController.artists.length > 4
-                      ? 4
-                      : controller.audioController.artists.length,
-                ),
-              ),
+            _sectionBar("Artists", () => AppNav.pushNamed("/artists"), a),
+            _grid(
+              maxExtent: 170,
+              count: artists.length.clamp(0, _previewCount),
+              builder: (context, index) {
+                final artist = artists[index];
+                return _LibraryTile(
+                  label: artist.artist,
+                  circular: true,
+                  onTap: () => AppNav.push(ArtistDetailScreen(artist: artist)),
+                  artwork: QueryArtworkWidget(
+                    id: artist.id,
+                    type: ArtworkType.ARTIST,
+                    artworkFit: BoxFit.cover,
+                    artworkBorder: BorderRadius.zero,
+                    nullArtworkWidget: _placeholder(a, Icons.person_rounded),
+                  ),
+                );
+              },
             ),
           ],
-
-          // ---------------------------------------------------------
-          // PLAYLISTS SECTION
-          // ---------------------------------------------------------
-          _LibrarySectionHeader(
-            title: "Playlists",
-            onTap: () => Get.toNamed("/playlists"),
-          ),
-
-          if (playlists.isNotEmpty) ...[
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 180,
-                  childAspectRatio: 0.8,
-                  crossAxisSpacing: 20,
-                  mainAxisSpacing: 20,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final playlist =
-                        controller.audioController.localPlaylists[index];
-
-                    return GestureDetector(
-                      onTap: () => Get.to(
-                        () => PlaylistDetailScreen(
-                          playlistId: playlist['id'],
-                          playlistName: playlist['name'],
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: context.isDarkMode
-                                        ? [
-                                            Colors.grey[800]!,
-                                            Colors.grey[900]!
-                                          ]
-                                        : [
-                                            Colors.grey[100]!,
-                                            Colors.grey[300]!
-                                          ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.08),
-                                      blurRadius: 15,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Icon(
-                                    Icons.queue_music_rounded,
-                                    size: 48,
-                                    color: context.isDarkMode
-                                        ? Colors.white54
-                                        : Colors.grey[700],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            playlist['name'],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  childCount:
-                      controller.audioController.localPlaylists.length > 4
-                      ? 4
-                      : controller.audioController.localPlaylists.length,
-                ),
-              ),
+          _sectionBar("Playlists", () => AppNav.pushNamed("/playlists"), a),
+          if (playlists.isNotEmpty)
+            _grid(
+              maxExtent: 170,
+              count: playlists.length.clamp(0, _previewCount),
+              builder: (context, index) {
+                final playlist = playlists[index];
+                return _LibraryTile(
+                  label: playlist['name'],
+                  onTap: () => AppNav.push(
+                    PlaylistDetailScreen(
+                      playlistId: playlist['id'],
+                      playlistName: playlist['name'],
+                    ),
+                  ),
+                  artwork: _placeholder(a, Icons.queue_music_rounded),
+                );
+              },
             ),
-          ],
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
         ],
       );
-    });
+    }
+  }
+
+  Widget _placeholder(AquaPalette a, IconData icon) {
+    return Container(
+      color: a.stripe,
+      child: Center(child: Icon(icon, size: 44, color: a.textSecondary)),
+    );
+  }
+
+  Widget _sectionBar(String title, VoidCallback onTap, AquaPalette a) {
+    return SliverToBoxAdapter(
+      child: AquaSectionBar(
+        title: title,
+        trailing: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  "See All",
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: a.accent,
+                    decoration: TextDecoration.underline,
+                    decorationColor: a.accent,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _grid({
+    required double maxExtent,
+    required int count,
+    required IndexedWidgetBuilder builder,
+  }) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      sliver: SliverGrid(
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: maxExtent,
+          childAspectRatio: 0.8,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+        ),
+        delegate: SliverChildBuilderDelegate(builder, childCount: count),
+      ),
+    );
   }
 }
 
-class _LibrarySectionHeader extends StatelessWidget {
-  final String title;
+/// Photo-framed artwork with a centered caption.
+class _LibraryTile extends StatelessWidget {
+  final Widget artwork;
+  final String label;
+  final String? sublabel;
+  final bool circular;
   final VoidCallback onTap;
 
-  const _LibrarySectionHeader({required this.title, required this.onTap});
+  const _LibraryTile({
+    required this.artwork,
+    required this.label,
+    required this.onTap,
+    this.sublabel,
+    this.circular = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
+    final a = Aqua.of(context);
+
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Column(
           children: [
+            Expanded(
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: AquaPhotoFrame(circular: circular, child: artwork),
+              ),
+            ),
+            const SizedBox(height: 8),
             Text(
-              title,
-              style: context.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+                color: a.text,
               ),
             ),
-            InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(20),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                child: Row(
-                  children: [
-                    Text(
-                      "See all",
-                      style: TextStyle(
-                        color: context.theme.primaryColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: context.theme.primaryColor,
-                    ),
-                  ],
-                ),
+            if (sublabel != null)
+              Text(
+                sublabel!,
+                maxLines: 1,
+                style: TextStyle(fontSize: 11.5, color: a.textSecondary),
               ),
-            ),
           ],
         ),
       ),

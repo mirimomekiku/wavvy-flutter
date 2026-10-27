@@ -1,78 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:mini_music_visualizer/mini_music_visualizer.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/screens/home/home.controller.dart';
+import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 
-class SongsView extends GetView<HomeController> {
+/// iTunes-style song table: sortable column header, striped rows, and a
+/// blue gel highlight on the playing row.
+class SongsView extends ConsumerWidget {
   const SongsView({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final songs = controller.audioController.songs;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songs = ref.watch(libraryProvider.select((s) => s.songs));
 
-      if (songs.isEmpty) {
-        return _buildEmptyState(context);
-      }
+    if (songs.isEmpty) {
+      return _buildEmptyState(context);
+    }
 
-      return ListView.builder(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        itemCount: songs.length,
-        itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _SongTile(song: songs[index], controller: controller),
-          );
-        },
-      );
-    });
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverPersistentHeader(pinned: true, delegate: _ColumnHeaderDelegate()),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _SongRow(song: songs[index], index: index),
+            childCount: songs.length,
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final color = context.theme.disabledColor;
+    final a = Aqua.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(40),
-            decoration: BoxDecoration(
-              color: context.theme.primaryColor.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: context.theme.primaryColor.withValues(alpha: 0.2),
-                  blurRadius: 40,
-                  spreadRadius: 10,
-                ),
-              ],
-            ),
-            child: Icon(
-              Icons.music_off_rounded,
-              size: 80,
-              color: context.theme.primaryColor.withValues(alpha: 0.7),
+          GelButton(
+            circular: true,
+            size: 72,
+            onPressed: null,
+            child: const Icon(Icons.music_off_rounded),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "No Songs",
+            style: TextStyle(
+              color: a.text,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 6),
           Text(
-            "No songs found",
-            style: TextStyle(
-              color: context.theme.textTheme.bodyLarge?.color,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "Add some music to get started",
-            style: TextStyle(
-              color: color.withValues(alpha: 0.8),
-              fontSize: 16,
-            ),
+            "Add music to your device to get started",
+            style: TextStyle(color: a.textSecondary, fontSize: 13),
           ),
         ],
       ),
@@ -80,170 +67,313 @@ class SongsView extends GetView<HomeController> {
   }
 }
 
-class _SongTile extends StatelessWidget {
-  final SongModel song;
-  final HomeController controller;
+// ----------------------------------------------------------------------
+// Column header
+// ----------------------------------------------------------------------
 
-  const _SongTile({required this.song, required this.controller});
+class _ColumnHeaderDelegate extends SliverPersistentHeaderDelegate {
+  @override
+  double get minExtent => 30;
+  @override
+  double get maxExtent => 30;
+
+  @override
+  bool shouldRebuild(covariant _ColumnHeaderDelegate oldDelegate) => false;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final a = Aqua.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: a.header,
+        ),
+        border: Border(
+          top: BorderSide(color: a.headerBorder),
+          bottom: BorderSide(color: a.headerBorder),
+        ),
+      ),
+      child: Consumer(
+        builder: (context, ref, child) {
+          final sort = ref.watch(libraryProvider.select((s) => s.sort));
+          final nameAsc = sort == SortOption.titleAZ;
+          final nameActive = nameAsc || sort == SortOption.titleZA;
+          final artistActive = sort == SortOption.artistAZ;
+
+          return Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: _HeaderCell(
+                  label: "Name",
+                  active: nameActive,
+                  ascending: nameAsc,
+                  onTap: () => ref
+                      .read(libraryProvider.notifier)
+                      .changeSortOption(
+                        nameAsc ? SortOption.titleZA : SortOption.titleAZ,
+                      ),
+                ),
+              ),
+              _divider(a),
+              Expanded(
+                flex: 3,
+                child: _HeaderCell(
+                  label: "Artist",
+                  active: artistActive,
+                  ascending: true,
+                  onTap: () => ref
+                      .read(libraryProvider.notifier)
+                      .changeSortOption(SortOption.artistAZ),
+                ),
+              ),
+              _divider(a),
+              const SizedBox(
+                width: 52,
+                child: _HeaderCell(label: "Time", alignEnd: true),
+              ),
+              const SizedBox(width: 44),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _divider(AquaPalette a) =>
+      Container(width: 1, height: 18, color: a.headerBorder);
+}
+
+class _HeaderCell extends StatelessWidget {
+  final String label;
+  final bool active;
+  final bool ascending;
+  final bool alignEnd;
+  final VoidCallback? onTap;
+
+  const _HeaderCell({
+    required this.label,
+    this.active = false,
+    this.ascending = true,
+    this.alignEnd = false,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final currentSong = controller.audioController.currentSong.value;
-      final isPlaying = currentSong?.id == song.id;
-      final isMusicPlaying = controller.audioController.isPlaying.value;
+    final a = Aqua.of(context);
 
-      final theme = context.theme;
-      final primaryColor = theme.primaryColor;
-
-      final titleStyle = TextStyle(
-        fontWeight: FontWeight.w700,
-        fontSize: 16,
-        color: isPlaying ? primaryColor : theme.textTheme.bodyLarge?.color,
-      );
-
-      final subtitleStyle = TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6),
-      );
-
-      return AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        decoration: BoxDecoration(
-          color: isPlaying
-              ? primaryColor.withValues(alpha: 0.08)
-              : (context.isDarkMode ? Colors.grey[900] : Colors.white),
-          borderRadius: BorderRadius.circular(20),
-          border: isPlaying
-              ? Border.all(color: primaryColor.withValues(alpha: 0.3), width: 1)
-              : Border.all(color: Colors.transparent, width: 1),
-          boxShadow: [
-            if (!isPlaying)
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          mainAxisAlignment: alignEnd
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                  color: a.text,
+                ),
+              ),
+            ),
+            if (active)
+              Icon(
+                ascending
+                    ? Icons.arrow_drop_up_rounded
+                    : Icons.arrow_drop_down_rounded,
+                size: 20,
+                color: a.textSecondary,
               ),
           ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => controller.audioController.playSong(
-              song,
-              contextList: controller.audioController.songs,
-            ),
-            borderRadius: BorderRadius.circular(20),
-            splashColor: primaryColor.withValues(alpha: 0.1),
-            highlightColor: primaryColor.withValues(alpha: 0.05),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: QueryArtworkWidget(
-                            id: song.id,
-                            type: ArtworkType.AUDIO,
-                            artworkFit: BoxFit.cover,
-                            artworkQuality: FilterQuality.high,
-                            artworkWidth: 60,
-                            artworkHeight: 60,
-                            nullArtworkWidget: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                color: theme.cardColor,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: theme.dividerColor.withValues(alpha: 0.05),
-                                ),
-                              ),
-                              child: Icon(
-                                Icons.music_note_rounded,
-                                color: theme.disabledColor,
-                                size: 30,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (isPlaying)
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: primaryColor.withValues(alpha: 0.6),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: isMusicPlaying
-                                ? const Center(
-                                    child: MiniMusicVisualizer(
-                                      color: Colors.white,
-                                      width: 4,
-                                      height: 16,
-                                      radius: 2,
-                                      animate: true,
-                                    ),
-                                  )
-                                : const Icon(Icons.pause_rounded, color: Colors.white, size: 28),
-                          ),
-                      ],
-                    ),
-                  ),
+      ),
+    );
+  }
+}
 
-                  const SizedBox(width: 16),
+// ----------------------------------------------------------------------
+// Row
+// ----------------------------------------------------------------------
 
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+class _SongRow extends ConsumerWidget {
+  final SongModel song;
+  final int index;
+
+  const _SongRow({required this.song, required this.index});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = Aqua.of(context);
+
+    {
+      final isCurrent = ref.watch(
+        playerProvider.select((s) => s.currentSong?.id == song.id),
+      );
+      final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+
+      final Color primaryText = isCurrent ? Colors.white : a.text;
+      final Color secondaryText = isCurrent
+          ? Colors.white.withValues(alpha: 0.85)
+          : a.textSecondary;
+
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => ref
+            .read(playerProvider.notifier)
+            .playSong(song, contextList: ref.read(libraryProvider).songs),
+        onLongPress: () => SongMenuHelper.show(
+          context,
+          ref,
+          song,
+          options: const SongMenuOptions(showDelete: true),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          decoration: BoxDecoration(
+            color: isCurrent ? null : (index.isEven ? a.background : a.stripe),
+            gradient: isCurrent
+                ? LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: a.selection,
+                  )
+                : null,
+            border: isCurrent
+                ? Border(top: BorderSide(color: a.selectionBorder))
+                : null,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+                  child: Row(
+                    children: [
+                      _Thumb(songId: song.id),
+                      const SizedBox(width: 10),
+                      if (isCurrent) ...[
+                        Icon(
+                          isPlaying
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_mute_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
                           song.title,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: titleStyle,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
+                            color: primaryText,
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          song.artist ?? "Unknown Artist",
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: subtitleStyle,
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-
-                  IconButton(
-                    icon: Icon(
-                      Icons.more_horiz_rounded,
-                      color: isPlaying 
-                          ? primaryColor 
-                          : theme.iconTheme.color?.withValues(alpha: 0.5),
-                    ),
-                    onPressed: () => SongMenuHelper.show(context, song),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Expanded(
+                flex: 3,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    song.artist ?? "Unknown Artist",
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12.5, color: secondaryText),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 52,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Text(
+                    PlayerUtils.formatDurationInt(song.duration),
+                    textAlign: TextAlign.end,
+                    style: TextStyle(fontSize: 12.5, color: secondaryText),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 44,
+                child: IconButton(
+                  tooltip: "More options",
+                  padding: EdgeInsets.zero,
+                  icon: Icon(Icons.more_horiz_rounded, color: secondaryText),
+                  onPressed: () => SongMenuHelper.show(
+                    context,
+                    ref,
+                    song,
+                    options: const SongMenuOptions(showDelete: true),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       );
-    });
+    }
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  final int songId;
+
+  const _Thumb({required this.songId});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Aqua.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: a.frameBorder),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(1),
+        child: QueryArtworkWidget(
+          id: songId,
+          type: ArtworkType.AUDIO,
+          artworkFit: BoxFit.cover,
+          artworkWidth: 34,
+          artworkHeight: 34,
+          artworkBorder: BorderRadius.zero,
+          nullArtworkWidget: Container(
+            width: 34,
+            height: 34,
+            color: a.stripe,
+            child: Icon(
+              Icons.music_note_rounded,
+              size: 18,
+              color: a.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

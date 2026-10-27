@@ -1,28 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
-import 'package:get/get.dart';
-import 'tiktok.controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:wavvy/screens/downloader/downloader_dialogs.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/floating_app_bar.dart';
 
-class TikTokSearchScreen extends StatelessWidget {
-  final TikTokController ttController = Get.find();
+class TikTokSearchScreen extends ConsumerStatefulWidget {
+  const TikTokSearchScreen({super.key});
 
-  TikTokSearchScreen({super.key});
+  @override
+  ConsumerState<TikTokSearchScreen> createState() => _TikTokSearchScreenState();
+}
+
+class _TikTokSearchScreenState extends ConsumerState<TikTokSearchScreen> {
+  final TextEditingController _urlController = TextEditingController();
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text("TikTok Downloader"),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.link), text: "Paste Link"),
-              Tab(icon: Icon(Icons.download_for_offline), text: "Downloads"),
-            ],
-          ),
+        body: Column(
+          children: [
+            FloatingAppBar(
+              title: "TikTok Downloader",
+              showSearch: false,
+              leading: GelButton(
+                circular: true,
+                tooltip: "Back",
+                onPressed: () => AppNav.pop(),
+                child: const Icon(Icons.arrow_back_rounded),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: _AquaTabs(labels: ["Paste Link", "Downloads"]),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [_buildSearchView(), _buildDownloadsView()],
+              ),
+            ),
+          ],
         ),
-        body: TabBarView(children: [_buildSearchView(), _buildDownloadsView()]),
       ),
     );
   }
@@ -32,139 +60,181 @@ class TikTokSearchScreen extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              TextField(
-                controller: ttController.urlController,
-                decoration: InputDecoration(
-                  hintText: 'Paste TikTok Link...',
-                  prefixIcon: const Icon(Icons.tiktok),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: () => ttController.fetchVideoInfo(
-                      ttController.urlController.text,
-                    ),
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Builder(
+            builder: (context) {
+              final a = Aqua.of(context);
+              return Container(
+                height: 48,
+                padding: const EdgeInsets.only(left: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: a.gelBorder),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: a.dark
+                        ? const [Color(0xFF0C0C0C), Color(0xFF222222)]
+                        : const [Color(0xFFD6D6D6), Color(0xFFFFFFFF)],
+                    stops: const [0.0, 0.4],
                   ),
                 ),
-                onSubmitted: (val) => ttController.fetchVideoInfo(val),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: Obx(() {
-            if (ttController.isLoading.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final video = ttController.fetchedVideo.value;
-
-            // Empty State
-            if (video == null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.copy, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      "Copy a link from TikTok and paste it here",
-                      style: TextStyle(color: Colors.grey),
+                child: Row(
+                  children: [
+                    Icon(Icons.link_rounded, size: 18, color: a.textSecondary),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: TextField(
+                        controller: _urlController,
+                        style: TextStyle(fontSize: 14, color: a.text),
+                        cursorColor: a.accent,
+                        decoration: InputDecoration(
+                          hintText: 'Paste TikTok Link...',
+                          hintStyle: TextStyle(
+                            fontSize: 14,
+                            color: a.textSecondary,
+                          ),
+                          isDense: true,
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                        ),
+                        onSubmitted: (val) =>
+                            ref.read(tiktokProvider.notifier).fetchVideoInfo(val),
+                      ),
+                    ),
+                    GelButton(
+                      circular: true,
+                      primary: true,
+                      size: 28,
+                      tooltip: "Fetch video",
+                      onPressed: () => ref
+                          .read(tiktokProvider.notifier)
+                          .fetchVideoInfo(_urlController.text),
+                      child: const Icon(Icons.arrow_forward_rounded),
                     ),
                   ],
                 ),
               );
+            },
+          ),
+        ),
+        Expanded(
+          child: Consumer(builder: (context, ref, _) {
+            if (ref.watch(tiktokProvider.select((s) => s.isLoading))) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final video = ref.watch(
+              tiktokProvider.select((s) => s.fetchedVideo),
+            );
+
+            // Empty State
+            if (video == null) {
+              return Builder(
+                builder: (context) {
+                  final a = Aqua.of(context);
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.copy, size: 64, color: a.textSecondary),
+                        const SizedBox(height: 16),
+                        Text(
+                          "Copy a link from TikTok and paste it here",
+                          style: TextStyle(color: a.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
             }
 
             // Result State (Found Video)
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Cover Image
-                    if (video['cover'] != null)
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                        child: Image.network(
-                          video['cover'],
-                          height: 250,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            height: 250,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.broken_image),
+            return Builder(
+              builder: (context) {
+                final a = Aqua.of(context);
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Cover Image
+                      if (video['cover'] != null)
+                        Center(
+                          child: AquaPhotoFrame(
+                            child: Image.network(
+                              video['cover'],
+                              height: 250,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, _, _) => Container(
+                                height: 250,
+                                width: 180,
+                                color: a.stripe,
+                                child: Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: a.textSecondary,
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
+                        ),
+                      const SizedBox(height: 16),
+                      Text(
+                        video['title'] ?? "No Title",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: a.text,
                         ),
                       ),
-
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      const SizedBox(height: 8),
+                      Row(
                         children: [
-                          Text(
-                            video['title'] ?? "No Title",
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const CircleAvatar(
-                                radius: 12,
-                                child: Icon(Icons.person, size: 16),
+                          Icon(Icons.person, size: 16, color: a.textSecondary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              "@${video['author']}",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                color: a.textSecondary,
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "@${video['author']}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.download),
-                              label: const Text("Download Video"),
-                              style: ElevatedButton.styleFrom(
-                                elevation: 0,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: () =>
-                                  ttController.downloadVideo(video),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: GelButton(
+                          primary: true,
+                          size: 34,
+                          width: 190,
+                          tooltip: "Download Video",
+                          onPressed: () async {
+                            final started = await ref
+                                .read(tiktokProvider.notifier)
+                                .downloadVideo(video);
+                            if (started) _urlController.clear();
+                          },
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.download_rounded),
+                              SizedBox(width: 6),
+                              Text("Download Video"),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             );
           }),
         ),
@@ -174,76 +244,106 @@ class TikTokSearchScreen extends StatelessWidget {
 
   // --- DOWNLOADS TAB ---
   Widget _buildDownloadsView() {
-    return Obx(() {
-      if (ttController.taskTitles.isEmpty) {
-        return const Center(child: Text("No active downloads"));
+    return Consumer(builder: (context, ref, _) {
+      final taskTitles = ref.watch(tiktokProvider.select((s) => s.taskTitles));
+      if (taskTitles.isEmpty) {
+        return Builder(
+          builder: (context) => Center(
+            child: Text(
+              "No active downloads",
+              style: TextStyle(color: Aqua.of(context).textSecondary),
+            ),
+          ),
+        );
       }
 
-      final taskIds = ttController.taskTitles.keys.toList();
+      final taskIds = taskTitles.keys.toList();
 
       return ListView.builder(
         itemCount: taskIds.length,
         itemBuilder: (context, index) {
           final taskId = taskIds[index];
 
-          return Obx(() {
-            final displayTitle = ttController.taskTitles[taskId] ?? "Unknown";
-            final progress = ttController.progressMap[taskId] ?? 0;
-            final status =
-                ttController.statusMap[taskId] ?? DownloadTaskStatus.undefined;
+          return Consumer(builder: (context, ref, _) {
+            final a = Aqua.of(context);
+            final displayTitle = taskTitles[taskId] ?? "Unknown";
+            final progress = ref.watch(
+              tiktokProvider.select((s) => s.progressMap[taskId] ?? 0),
+            );
+            final status = ref.watch(
+              tiktokProvider.select(
+                (s) => s.statusMap[taskId] ?? DownloadTaskStatus.undefined,
+              ),
+            );
 
             final isComplete = status == DownloadTaskStatus.complete;
-            final isRunning = status == DownloadTaskStatus.running;
 
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              elevation: 0,
-              child: ListTile(
-                leading: Icon(
-                  isComplete ? Icons.video_file : Icons.downloading,
-                  color: isComplete ? Colors.green : Colors.blue,
-                ),
-                title: Text(
-                  displayTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    if (!isComplete) ...[
-                      LinearProgressIndicator(
-                        value: progress / 100,
-                        backgroundColor: Colors.grey[300],
-                        color: Colors.blueAccent,
+            return ColoredBox(
+              color: index.isEven ? a.background : a.stripe,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 64),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isComplete ? Icons.video_file : Icons.downloading,
+                        color: isComplete ? a.accent : a.textSecondary,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                displayTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: a.text,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              if (!isComplete) ...[
+                                _GelProgress(value: progress / 100),
+                                const SizedBox(height: 4),
+                              ],
+                              Text(
+                                "$progress% - ${_getStatusString(status)}",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: a.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (isComplete)
+                        GelButton(
+                          circular: true,
+                          primary: true,
+                          tooltip: "Open",
+                          onPressed: () =>
+                              FlutterDownloader.open(taskId: taskId),
+                          child: const Icon(Icons.play_arrow_rounded),
+                        ),
+                      GelButton(
+                        circular: true,
+                        tooltip: "Delete",
+                        onPressed: () => confirmDeleteTikTokDownload(ref, taskId),
+                        child: Icon(
+                          Icons.delete_outline_rounded,
+                          color: Colors.red.shade700,
+                        ),
+                      ),
                     ],
-                    Text(
-                      "$progress% - ${_getStatusString(status)}",
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ],
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isComplete)
-                      IconButton(
-                        icon: const Icon(Icons.play_circle_fill),
-                        color: Colors.green,
-                        onPressed: () => FlutterDownloader.open(taskId: taskId),
-                      ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.redAccent,
-                      ),
-                      onPressed: () => ttController.confirmDelete(taskId),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             );
@@ -259,5 +359,66 @@ class TikTokSearchScreen extends StatelessWidget {
     if (status == DownloadTaskStatus.complete) return "Done";
     if (status == DownloadTaskStatus.failed) return "Failed";
     return "Pending";
+  }
+}
+
+/// Segmented gel control bound to the surrounding [DefaultTabController].
+class _AquaTabs extends StatelessWidget {
+  final List<String> labels;
+
+  const _AquaTabs({required this.labels});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = DefaultTabController.of(context);
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) => AquaSegmented(
+        labels: labels,
+        selected: controller.index,
+        onChanged: controller.animateTo,
+      ),
+    );
+  }
+}
+
+/// Slim gel progress bar: bordered track with a blue gel fill.
+class _GelProgress extends StatelessWidget {
+  final double value;
+
+  const _GelProgress({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Aqua.of(context);
+    final v = value.clamp(0.0, 1.0);
+
+    return Container(
+      height: 8,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: a.gelBorder, width: 0.8),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: a.dark
+              ? const [Color(0xFF0F0F0F), Color(0xFF3A3A3A)]
+              : const [Color(0xFF9E9E9E), Color(0xFFE2E2E2)],
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FractionallySizedBox(
+            widthFactor: v,
+            heightFactor: 1,
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: Aqua.gel(a.gelBlue)),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

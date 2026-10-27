@@ -1,257 +1,307 @@
-import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/controllers/audio.controller.dart';
-import 'package:wavvy/player_sheets/full_player_sheet.controller.dart';
 import 'package:wavvy/player_sheets/full_player_sheet.dart';
-import 'package:wavvy/service/settings.service.dart';
+import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/providers/player_sheet_provider.dart';
+import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 
-class BottomMiniPlayer extends GetView<AudioController> {
+/// iTunes-style bottom area: a brushed-metal player bar (transport gel
+/// buttons + LCD now-playing display) over an Aqua tab bar.
+class BottomMiniPlayer extends ConsumerWidget {
   final bool showTabView;
 
-  BottomMiniPlayer({super.key, this.showTabView = true});
-  final FullPlayerSheetController sheetController = Get.find();
+  const BottomMiniPlayer({super.key, this.showTabView = true});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final double bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
-    final SettingsService _settings = Get.find();
+    final a = Aqua.of(context);
 
-    return Obx(() {
-      final song = controller.currentSong.value;
+    {
+      final song = ref.watch(playerProvider.select((s) => s.currentSong));
+      final bool showTabs = showTabView;
 
-      final backgroundColor = controller.playerColor.value ?? 
-          (context.isDarkMode ? Colors.grey[900]! : Colors.white);
-
-      final textColor = controller.playerColor.value != null
-          ? controller.playerTextColor.value
-          : context.theme.colorScheme.onSurfaceVariant;
-
-      final subTextColor = textColor.withValues(alpha: 0.7);
-
-      final double totalHeight;
-      if (song != null) {
-        totalHeight = (showTabView ? 140 : 88) + bottomPadding;
-      } else {
-        totalHeight = (showTabView ? 60 : 0) + bottomPadding;
+      if (song == null && !showTabs) {
+        return SizedBox(height: bottomPadding);
       }
 
-      return GestureDetector(
-        onTap: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: false,
-            backgroundColor: Colors.transparent,
-            builder: (context) {
-              sheetController.updateSheetPageIndex(0);
-              return FullPlayerSheet();
-            },
-          );
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: EdgeInsets.only(
-            left: 12, 
-            right: 12, 
-            bottom: bottomPadding > 0 ? bottomPadding : 12
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: a.toolbar,
           ),
-          height: song != null ? totalHeight - bottomPadding : (showTabView ? 60 : 0),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // --- (Only if song exists) ---
-              if (song != null) ...[
-                const SizedBox(height: 8),
-                Obx(() {
-                  final max = controller.totalDuration.value.inMilliseconds.toDouble();
-                  final current = controller.currentPosition.value.inMilliseconds.toDouble();
-                  final value = (max > 0) ? (current / max).clamp(0.0, 1.0) : 0.0;
-
-                  return Container(
-                    height: 4,
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: value,
-                        backgroundColor: textColor.withValues(alpha: 0.1),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          controller.playerColor.value != null 
-                             ? backgroundColor.lighten(30) 
-                             : context.theme.primaryColor,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                
-                const SizedBox(height: 8),
-
-                SizedBox(
-                  height: 64,
-                  child: Row(
-                    children: [
-                      // Artwork
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              )
-                            ]
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: QueryArtworkWidget(
-                              id: song.id,
-                              type: ArtworkType.AUDIO,
-                              artworkFit: BoxFit.cover,
-                              artworkWidth: 52,
-                              artworkHeight: 52,
-                              nullArtworkWidget: Container(
-                                width: 52,
-                                height: 52,
-                                color: textColor.withValues(alpha: 0.05),
-                                child: Icon(Icons.music_note_rounded, color: textColor),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Texts
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: textColor,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              song.artist ?? "Unknown",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: subTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Controls
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(
-                                Icons.skip_previous_rounded,
-                                color: textColor,
-                                size: 30,
-                              ),
-                              onPressed: controller.previous,
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: textColor.withValues(alpha: 0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: IconButton(
-                                icon: Icon(
-                                  controller.isPlaying.value
-                                      ? Icons.pause_rounded
-                                      : Icons.play_arrow_rounded,
-                                  color: textColor,
-                                  size: 30,
-                                ),
-                                onPressed: controller.togglePlay,
-                              ),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                Icons.skip_next_rounded,
-                                color: textColor,
-                                size: 30,
-                              ),
-                              onPressed: controller.next,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+          border: Border(top: BorderSide(color: a.toolbarBorder)),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (song != null) _buildPlayerBar(context, ref, song, a),
+                if (song != null && showTabs)
+                  Container(height: 1, color: a.toolbarHighlight),
+                if (showTabs) const _AquaTabBar(),
               ],
-
-              // --- (Only if showTabView) ---
-              if (showTabView) ...[
-                if (song != null) const SizedBox(height: 4),
-                SizedBox(
-                  height: 48,
-                  child: TabBar(
-                    dividerColor: Colors.transparent,
-                    labelColor: controller.playerColor.value != null 
-                        ? textColor 
-                        : context.theme.primaryColor,
-                    unselectedLabelColor: subTextColor.withValues(alpha: 0.5),
-                    indicatorColor: Colors.transparent, // Handle indication via tab style, or keep line
-                    // Custom indicator
-                    indicator: UnderlineTabIndicator(
-                      borderSide: BorderSide(
-                        width: 3, 
-                        color: controller.playerColor.value != null 
-                            ? backgroundColor.lighten(30) 
-                            : context.theme.primaryColor
-                      ),
-                      insets: const EdgeInsets.symmetric(horizontal: 32),
-                    ),
-                    indicatorSize: TabBarIndicatorSize.tab,
-                    tabs: [
-                      Tab(icon: Icon(Icons.music_note_rounded)),
-                      Tab(icon: Icon(Icons.library_books_rounded)),
-                      if (_settings.enableDownloader.value)
-                        Tab(icon: Icon(Icons.downloading_rounded)),
-                    ],
-                  ),
-                ),
-                if (song == null) const Spacer(),
-              ]
-            ],
+            ),
           ),
         ),
       );
-    });
+    }
+  }
+
+  void _openPlayer(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        ref.read(sheetPageIndexProvider.notifier).set(0);
+        return FullPlayerSheet();
+      },
+    );
+  }
+
+  Widget _buildPlayerBar(
+    BuildContext context,
+    WidgetRef ref,
+    SongModel song,
+    AquaPalette a,
+  ) {
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final player = ref.read(playerProvider.notifier);
+
+    return SizedBox(
+      height: 64,
+      child: Row(
+        children: [
+          const SizedBox(width: 4),
+          GelButton(
+            circular: true,
+            size: 30,
+            tooltip: "Previous",
+            onPressed: player.previous,
+            child: const Icon(Icons.skip_previous_rounded),
+          ),
+          GelButton(
+            circular: true,
+            primary: true,
+            size: 40,
+            tooltip: isPlaying ? "Pause" : "Play",
+            onPressed: player.togglePlay,
+            child: Icon(
+              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            ),
+          ),
+          GelButton(
+            circular: true,
+            size: 30,
+            tooltip: "Next",
+            onPressed: player.next,
+            child: const Icon(Icons.skip_next_rounded),
+          ),
+          const SizedBox(width: 2),
+          // LCD display; tap to open the full player.
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openPlayer(context, ref),
+              child: AquaLcd(
+                child: Row(
+                  children: [
+                    _LcdArtwork(songId: song.id, fallback: a.textSecondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: a.text,
+                            ),
+                          ),
+                          Text(
+                            song.artist ?? "Unknown",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: a.textSecondary,
+                            ),
+                          ),
+                          Consumer(
+                            builder: (context, ref, child) {
+                              final max = ref
+                                  .watch(durationProvider)
+                                  .inMilliseconds
+                                  .toDouble();
+                              final current = ref
+                                  .watch(positionProvider)
+                                  .inMilliseconds
+                                  .toDouble();
+                              return AquaScrubber(
+                                value: max > 0 ? current / max : 0,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tiny bordered artwork thumbnail for the LCD.
+class _LcdArtwork extends StatelessWidget {
+  final int songId;
+  final Color fallback;
+
+  const _LcdArtwork({required this.songId, required this.fallback});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Aqua.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: a.lcdBorder),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(1),
+        child: QueryArtworkWidget(
+          id: songId,
+          type: ArtworkType.AUDIO,
+          artworkFit: BoxFit.cover,
+          artworkWidth: 36,
+          artworkHeight: 36,
+          artworkBorder: BorderRadius.zero,
+          nullArtworkWidget: SizedBox(
+            width: 36,
+            height: 36,
+            child: Icon(Icons.music_note_rounded, size: 20, color: fallback),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AquaTabBar extends ConsumerWidget {
+  const _AquaTabBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tabController = DefaultTabController.maybeOf(context);
+    if (tabController == null) return const SizedBox.shrink();
+
+    // Watching so toggling the downloader setting rebuilds the tab list.
+    {
+      final enableDownloader = ref.watch(
+        settingsProvider.select((s) => s.enableDownloader),
+      );
+      final tabs = <(IconData, String)>[
+        (Icons.music_note_rounded, "Songs"),
+        (Icons.library_music_rounded, "Library"),
+        if (enableDownloader) (Icons.download_rounded, "Downloads"),
+      ];
+
+      return AnimatedBuilder(
+        animation: tabController,
+        builder: (context, _) {
+          return SizedBox(
+            height: 56,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                children: [
+                  for (int i = 0; i < tabs.length; i++)
+                    Expanded(
+                      child: _TabItem(
+                        icon: tabs[i].$1,
+                        label: tabs[i].$2,
+                        selected: tabController.index == i,
+                        onTap: () => tabController.animateTo(i),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+  }
+}
+
+class _TabItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TabItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Aqua.of(context);
+    final Color fg = selected ? Colors.white : a.glyph;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: Ds.fast,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Ds.radiusM),
+            gradient: selected ? Aqua.gel(a.gelBlue) : null,
+            border: selected ? Border.all(color: a.gelBlueBorder) : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 22, color: fg),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

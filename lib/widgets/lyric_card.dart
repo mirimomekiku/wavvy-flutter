@@ -2,16 +2,17 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:wavvy/models/lyric.dart';
-import 'package:wavvy/controllers/audio.controller.dart';
+import 'package:wavvy/providers/lyrics_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
-class LyricCardGenerator extends StatefulWidget {
+class LyricCardGenerator extends ConsumerStatefulWidget {
   final SongModel song;
   final List<Lyric> lyrics;
   final Color themeColor;
@@ -24,15 +25,14 @@ class LyricCardGenerator extends StatefulWidget {
   });
 
   @override
-  State<LyricCardGenerator> createState() => _LyricCardGeneratorState();
+  ConsumerState<LyricCardGenerator> createState() => _LyricCardGeneratorState();
 }
 
-class _LyricCardGeneratorState extends State<LyricCardGenerator> {
+class _LyricCardGeneratorState extends ConsumerState<LyricCardGenerator> {
   final ScreenshotController _screenshotController = ScreenshotController();
   final Set<int> _selectedIndices = {}; // Track selected lines
   final int _maxLines = 1; // Increased limit slightly for better cards
   Uint8List? _artworkBytes;
-  bool _isLoadingArt = true;
 
   @override
   void initState() {
@@ -40,11 +40,9 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
     _loadArtwork();
     // Auto-select current line
     try {
-      if (Get.isRegistered<AudioController>()) {
-        final currentIdx = Get.find<AudioController>().currentLyricIndex.value;
-        if (currentIdx != -1 && currentIdx < widget.lyrics.length) {
-          _selectedIndices.add(currentIdx);
-        }
+      final currentIdx = ref.read(lyricsProvider).currentIndex;
+      if (currentIdx != -1 && currentIdx < widget.lyrics.length) {
+        _selectedIndices.add(currentIdx);
       }
     } catch (_) {}
   }
@@ -62,11 +60,10 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
       if (mounted) {
         setState(() {
           _artworkBytes = bytes;
-          _isLoadingArt = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _isLoadingArt = false);
+      debugPrint("Could not load artwork for share card: $e");
     }
   }
 
@@ -106,26 +103,46 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
   Widget build(BuildContext context) {
     final sortedIndices = _selectedIndices.toList()..sort();
     final selectedLyrics = sortedIndices.map((i) => widget.lyrics[i]).toList();
+    final a = Aqua.of(context);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: a.background,
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Colors.white),
+        flexibleSpace: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: a.toolbar,
+            ),
+            border: Border(bottom: BorderSide(color: a.toolbarBorder)),
+          ),
+        ),
+        leading: GelButton(
+          circular: true,
+          size: 32,
+          tooltip: "Back",
+          onPressed: () => Navigator.maybePop(context),
+          child: const Icon(Icons.arrow_back_rounded),
+        ),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: FilledButton.icon(
+            padding: const EdgeInsets.only(right: 12.0),
+            child: GelButton(
+              primary: true,
+              size: 32,
+              width: 92,
+              tooltip: "Share",
               onPressed: sortedIndices.isEmpty ? null : _shareCard,
-              icon: const Icon(Icons.ios_share, size: 18),
-              label: const Text("Share"),
-              style: FilledButton.styleFrom(
-                backgroundColor: widget.themeColor,
-                foregroundColor: widget.themeColor.computeLuminance() > 0.5
-                    ? Colors.black
-                    : Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.ios_share, size: 16),
+                  SizedBox(width: 4),
+                  Text("Share"),
+                ],
               ),
             ),
           ),
@@ -157,39 +174,27 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
             flex: 4,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.grey[900],
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(24),
-                ),
+                color: a.background,
+                border: Border(top: BorderSide(color: a.border)),
               ),
               child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          "Select Lyrics",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                  AquaSectionBar(
+                    title: "Select Lyrics",
+                    trailing: Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: Text(
+                        "${_selectedIndices.length}/$_maxLines lines",
+                        style: TextStyle(
+                          color: a.textSecondary,
+                          fontSize: 12,
                         ),
-                        Text(
-                          "${_selectedIndices.length}/$_maxLines lines",
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                   Expanded(
                     child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      padding: EdgeInsets.zero,
                       itemCount: widget.lyrics.length,
                       itemBuilder: (context, index) {
                         final line = widget.lyrics[index];
@@ -198,23 +203,23 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
                         return GestureDetector(
                           onTap: () => _toggleSelection(index),
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            margin: const EdgeInsets.only(bottom: 8),
+                            duration: Ds.fast,
+                            constraints: const BoxConstraints(minHeight: 48),
                             padding: const EdgeInsets.symmetric(
-                              vertical: 12,
+                              vertical: 10,
                               horizontal: 16,
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? widget.themeColor.withValues(alpha: 0.2)
-                                  : Colors.black26,
-                              border: Border.all(
-                                color: isSelected
-                                    ? widget.themeColor
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
+                                  ? null
+                                  : (index.isEven ? a.background : a.stripe),
+                              gradient: isSelected
+                                  ? LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: a.selection,
+                                    )
+                                  : null,
                             ),
                             child: Row(
                               children: [
@@ -222,9 +227,7 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
                                   child: Text(
                                     line.text,
                                     style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.grey[400],
+                                      color: isSelected ? Colors.white : a.text,
                                       fontWeight: isSelected
                                           ? FontWeight.w600
                                           : FontWeight.normal,
@@ -233,9 +236,9 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
                                   ),
                                 ),
                                 if (isSelected)
-                                  Icon(
-                                    Icons.check_circle_rounded,
-                                    color: widget.themeColor,
+                                  const Icon(
+                                    Icons.check_rounded,
+                                    color: Colors.white,
                                     size: 20,
                                   ),
                               ],
@@ -260,7 +263,7 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
       aspectRatio: 4 / 5, // Standard Social Media Portrait
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(Ds.radiusL),
           color: Colors.grey[900],
           image: _artworkBytes != null
               ? DecorationImage(
@@ -270,7 +273,7 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
               : null,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(Ds.radiusL),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -307,12 +310,13 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(Ds.radiusS),
+                          border: Border.all(color: Colors.white, width: 3),
                           boxShadow: const [
                             BoxShadow(
                               color: Colors.black45,
-                              blurRadius: 20,
-                              offset: Offset(0, 8),
+                              blurRadius: 5,
+                              offset: Offset(0, 2),
                             ),
                           ],
                           image: DecorationImage(
@@ -369,9 +373,9 @@ class _LyricCardGeneratorState extends State<LyricCardGenerator> {
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(50),
+                        borderRadius: BorderRadius.circular(Ds.radiusM),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: Colors.white.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(

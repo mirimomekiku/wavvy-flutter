@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 
-class FloatingAppBar extends StatelessWidget {
+/// Aqua unified toolbar: brushed-metal gradient, centered embossed title,
+/// gel buttons on the sides and an inset search field underneath.
+/// Public API is unchanged.
+class FloatingAppBar extends ConsumerWidget {
   final String title;
   final bool showSearch;
   final bool showThemeToggle;
@@ -20,91 +26,83 @@ class FloatingAppBar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final textColor = context.theme.textTheme.bodyLarge?.color;
-    final bgColor = context.isDarkMode ? Colors.grey[900] : Colors.white;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = Aqua.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return SafeArea(
-      bottom: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 15,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    final trailing = <Widget>[
+      ...?actions,
+      if (showThemeToggle)
+        GelButton(
+          circular: true,
+          tooltip: "Toggle theme",
+          onPressed: () =>
+              ref.read(settingsProvider.notifier).toggleDarkMode(!isDark),
+          child: Icon(
+            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+          ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // --- LEFT SIDE (Leading + Title) ---
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (leading != null) ...[leading!, const SizedBox(width: 8)],
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                    color: textColor,
+    ];
+
+    return AquaBar(
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 52,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 56),
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: a.text,
+                          // Embossed title.
+                          shadows: [
+                            Shadow(
+                              color: a.dark
+                                  ? Colors.black.withValues(alpha: 0.8)
+                                  : Colors.white.withValues(alpha: 0.85),
+                              offset: Offset(0, a.dark ? -1 : 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (leading != null)
+                      Align(alignment: Alignment.centerLeft, child: leading!),
+                    if (trailing.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: trailing,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (showSearch)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: AquaSearchField(
+                    hint: "Search songs, artists",
+                    onTap: onSearchTap ?? () => AppNav.pushNamed("/search"),
                   ),
                 ),
-              ],
-            ),
-
-            // --- RIGHT SIDE (Actions) ---
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (actions != null) ...actions!,
-
-                if (showSearch) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: onSearchTap ?? () => Get.toNamed("/search"),
-                    icon: Icon(Icons.search_rounded, size: 24, color: textColor),
-                    tooltip: "Search",
-                    style: IconButton.styleFrom(
-                      backgroundColor: context.theme.scaffoldBackgroundColor,
-                    ),
-                  ),
-                ],
-
-                if (showThemeToggle) ...[
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: () {
-                      if (Get.isDarkMode) {
-                        Get.changeThemeMode(ThemeMode.light);
-                      } else {
-                        Get.changeThemeMode(ThemeMode.dark);
-                      }
-                    },
-                    icon: Icon(
-                      context.isDarkMode
-                          ? Icons.light_mode_rounded
-                          : Icons.dark_mode_rounded,
-                      size: 24,
-                      color: textColor,
-                    ),
-                    tooltip: "Toggle Theme",
-                    style: IconButton.styleFrom(
-                      backgroundColor: context.theme.scaffoldBackgroundColor,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
+              if (showSearch) const SizedBox(height: 2),
+            ],
+          ),
         ),
       ),
     );

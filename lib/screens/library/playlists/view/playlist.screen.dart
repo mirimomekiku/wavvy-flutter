@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:get/get.dart';
-import 'package:mini_music_visualizer/mini_music_visualizer.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/screens/library/playlists/playlists.controller.dart';
+import 'package:wavvy/core/context_ext.dart';
+import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/providers/playlists_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/aqua_song_list.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
+import 'package:wavvy/widgets/floating_app_bar.dart';
+import 'package:wavvy/widgets/playlist_dialogs.dart';
 
-class PlaylistDetailScreen extends GetView<PlaylistsController> {
+class PlaylistDetailScreen extends ConsumerWidget {
   final int playlistId;
   final String playlistName;
 
@@ -17,8 +22,9 @@ class PlaylistDetailScreen extends GetView<PlaylistsController> {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final primaryColor = context.theme.primaryColor;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songsAsync = ref.watch(playlistSongsProvider(playlistId));
+    final a = Aqua.of(context);
 
     final navBarColor =
         context.theme.navigationBarTheme.backgroundColor ??
@@ -33,92 +39,96 @@ class PlaylistDetailScreen extends GetView<PlaylistsController> {
             : Brightness.dark,
       ),
       child: Scaffold(
+        backgroundColor: context.theme.scaffoldBackgroundColor,
         bottomNavigationBar: BottomMiniPlayer(showTabView: false),
-        body: FutureBuilder<List<SongModel>>(
-          future: controller.audioController.getSongsInPlaylist(playlistId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        body: Column(
+          children: [
+            FloatingAppBar(
+              title: playlistName,
+              showSearch: false,
+              leading: aquaBackButton(),
+            ),
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  if (songsAsync.isLoading && !songsAsync.hasValue) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-            final playlistSongs = snapshot.data ?? [];
+                  final playlistSongs = songsAsync.valueOrNull ?? [];
 
-            return CustomScrollView(
-              slivers: [
-                // --- HEADER ---
-                SliverAppBar(
-                  expandedHeight: 200,
-                  pinned: true,
-                  flexibleSpace: FlexibleSpaceBar(
-                    title: Text(
-                      playlistName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    background: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            primaryColor.withValues(alpha: 0.6),
-                            context.theme.scaffoldBackgroundColor,
-                          ],
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.queue_music_rounded,
-                        size: 80,
-                        color: primaryColor,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // --- ACTIONS ---
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      children: [
-                        Text(
-                          "${playlistSongs.length} Songs",
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const Spacer(),
-                        if (playlistSongs.isNotEmpty)
-                          FilledButton.icon(
-                            onPressed: () =>
-                                controller.audioController.playSong(
+                  return CustomScrollView(
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: AquaDetailHeader(
+                          artwork: Container(
+                            decoration: BoxDecoration(
+                              gradient: Aqua.gel(a.gelBlue),
+                            ),
+                            child: const Icon(
+                              Icons.queue_music_rounded,
+                              size: 52,
+                              color: Colors.white,
+                            ),
+                          ),
+                          title: playlistName,
+                          subtitle: "Playlist",
+                          detail: "${playlistSongs.length} Songs",
+                          onPlay: playlistSongs.isEmpty
+                              ? null
+                              : () => ref.read(playerProvider.notifier).playSong(
                                   playlistSongs.first,
                                   contextList: playlistSongs,
                                 ),
-                            icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text("Play All"),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // --- LIST ---
-                playlistSongs.isEmpty
-                    ? const SliverFillRemaining(
-                        child: Center(child: Text("No songs in this playlist")),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final song = playlistSongs[index];
-                          return _buildSongTile(
-                            context,
-                            song,
-                            playlistSongs,
-                            primaryColor,
-                          );
-                        }, childCount: playlistSongs.length),
+                          onShuffle: playlistSongs.isEmpty
+                              ? null
+                              : () {
+                                  final shuffled = [...playlistSongs]
+                                    ..shuffle();
+                                  ref.read(playerProvider.notifier).playSong(
+                                    shuffled.first,
+                                    contextList: shuffled,
+                                  );
+                                },
+                        ),
                       ),
-              ],
-            );
-          },
+                      if (playlistSongs.isEmpty)
+                        const SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: AquaEmptyMessage(
+                            message: "No songs in this playlist",
+                          ),
+                        )
+                      else ...[
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: AquaColumnHeaderDelegate(
+                            secondaryLabel: "Artist",
+                          ),
+                        ),
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final song = playlistSongs[index];
+                            return _buildSongTile(
+                              context,
+                              ref,
+                              song,
+                              index,
+                              playlistSongs,
+                            );
+                          }, childCount: playlistSongs.length),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -126,60 +136,28 @@ class PlaylistDetailScreen extends GetView<PlaylistsController> {
 
   Widget _buildSongTile(
     BuildContext context,
+    WidgetRef ref,
     SongModel song,
+    int index,
     List<SongModel> list,
-    Color primaryColor,
   ) {
-    return Obx(() {
-      final isPlaying =
-          controller.audioController.currentSong.value?.id == song.id;
-      return ListTile(
-        leading: QueryArtworkWidget(
-          id: song.id,
-          type: ArtworkType.AUDIO,
-          artworkBorder: BorderRadius.circular(8),
-          nullArtworkWidget: const Icon(Icons.music_note),
-        ),
-        title: Text(
-          song.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: isPlaying ? primaryColor : null,
-            fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-        subtitle: Text(
-          song.artist ?? "Unknown",
-          style: const TextStyle(fontSize: 12),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isPlaying)
-              Padding(
-                padding: EdgeInsets.only(right: 12.0),
-                child: MiniMusicVisualizer(
-                  color: context.theme.colorScheme.primary,
-                  width: 4,
-                  height: 16,
-                  radius: 4,
-                  animate: true,
-                ),
-              ),
+    return Consumer(builder: (context, ref, child) {
+      final isCurrent = ref.watch(
+        playerProvider.select((s) => s.currentSong?.id == song.id),
+      );
+      final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
 
-            IconButton(
-              icon: const Icon(
-                Icons.remove_circle_outline,
-                size: 20,
-                color: Colors.redAccent,
-              ),
-              onPressed: () => controller.showRemoveDialog(playlistId, song.id),
-            ),
-          ],
-        ),
+      return AquaSongRow(
+        song: song,
+        index: index,
+        isCurrent: isCurrent,
+        isPlaying: isPlaying,
+        secondary: song.artist ?? "Unknown",
         onTap: () =>
-            controller.audioController.playSong(song, contextList: list),
+            ref.read(playerProvider.notifier).playSong(song, contextList: list),
+        actionIcon: Icons.remove_circle_outline_rounded,
+        actionTooltip: "Remove from playlist",
+        onAction: () => showRemoveFromPlaylistDialog(ref, playlistId, song.id),
       );
     });
   }

@@ -1,110 +1,96 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:wavvy/screens/library/playlists/playlists.controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/playlists_provider.dart';
 import 'package:wavvy/screens/library/playlists/view/playlist.screen.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/aqua_song_list.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
+import 'package:wavvy/widgets/floating_app_bar.dart';
+import 'package:wavvy/widgets/playlist_dialogs.dart';
 
-class AllLocalPlaylistsScreen extends GetView<PlaylistsController> {
+class AllLocalPlaylistsScreen extends ConsumerWidget {
   const AllLocalPlaylistsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playlists = ref.watch(playlistsProvider.select((s) => s.playlists));
     return Scaffold(
-      backgroundColor: context.theme.scaffoldBackgroundColor,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       bottomNavigationBar: BottomMiniPlayer(showTabView: false),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: controller.showNewPlaylistDialog,
-        icon: const Icon(Icons.add),
-        label: const Text("New Playlist"),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildAppBar(context),
-            Expanded(
-              child: Obx(() {
-                if (controller.audioController.localPlaylists.isEmpty) {
-                  return const Center(child: Text("No custom playlists yet."));
-                }
-                return GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.85,
-                  ),
-                  itemCount: controller.audioController.localPlaylists.length,
-                  itemBuilder: (context, index) {
-                    final playlist =
-                        controller.audioController.localPlaylists[index];
-                    return _buildPlaylistCard(context, playlist);
-                  },
+      body: Column(
+        children: [
+          FloatingAppBar(
+            title: "My Playlists",
+            showSearch: false,
+            leading: aquaBackButton(),
+            actions: [
+              GelButton(
+                circular: true,
+                tooltip: "New Playlist",
+                onPressed: () => showNewPlaylistDialog(ref),
+                child: const Icon(Icons.add_rounded),
+              ),
+            ],
+          ),
+          Expanded(
+            child: Builder(builder: (context) {
+              if (playlists.isEmpty) {
+                return const AquaEmptyMessage(
+                  message: "No custom playlists yet.",
+                  icon: Icons.queue_music_rounded,
                 );
-              }),
-            ),
-          ],
-        ),
+              }
+              return GridView.builder(
+                padding: const EdgeInsets.all(16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.85,
+                ),
+                itemCount: playlists.length,
+                itemBuilder: (context, index) {
+                  final playlist = playlists[index];
+                  return _buildPlaylistCard(context, ref, playlist);
+                },
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildPlaylistCard(
     BuildContext context,
+    WidgetRef ref,
     Map<String, dynamic> playlist,
   ) {
-    return GestureDetector(
+    final a = Aqua.of(context);
+    return AquaGridTile(
       onTap: () async {
-        Get.to(
-          () => PlaylistDetailScreen(
+        AppNav.push(
+          PlaylistDetailScreen(
             playlistId: playlist['id'],
             playlistName: playlist['name'],
           ),
-          transition: Transition.rightToLeft,
         );
       },
-      child: Column(
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: context.theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.queue_music_rounded,
-                  size: 64,
-                  color: context.theme.colorScheme.onPrimaryContainer,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            playlist['name'],
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAppBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Row(
-        spacing: 12,
-        children: [
-          IconButton(
-            onPressed: () => Get.back(),
-            icon: const Icon(Icons.arrow_back),
-          ),
-          const Text(
-            "My Playlists",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-        ],
+      onLongPress: () =>
+          showDeletePlaylistDialog(ref, playlist['id'], playlist['name']),
+      title: playlist['name'],
+      artworkBuilder: (size) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          gradient: Aqua.gel(a.gelBlue),
+        ),
+        child: Icon(
+          Icons.queue_music_rounded,
+          size: size * 0.45,
+          color: Colors.white,
+        ),
       ),
     );
   }

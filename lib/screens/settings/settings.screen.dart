@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart' hide AppBar;
 import 'package:flutter/services.dart';
 import 'package:flutter_appbar/flutter_appbar.dart';
-import 'package:get/get.dart';
-import 'package:wavvy/service/settings.service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/widgets/floating_app_bar.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/theme_selector.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Find the service we created earlier
-    final SettingsService controller = Get.find<SettingsService>();
-    final theme = context.theme;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+    final theme = Theme.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         systemNavigationBarColor: theme.scaffoldBackgroundColor,
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: context.isDarkMode
+        statusBarIconBrightness: theme.brightness == Brightness.dark
             ? Brightness.light
             : Brightness.dark,
       ),
@@ -33,16 +35,17 @@ class SettingsScreen extends StatelessWidget {
                 body: FloatingAppBar(
                   title: "Settings",
                   showSearch: false,
-                  leading: IconButton(
-                    onPressed: () => Get.back(),
-                    icon: const Icon(Icons.arrow_back_rounded),
+                  leading: GelButton(
+                    tooltip: "Back",
+                    onPressed: () => AppNav.pop(),
+                    child: const Icon(Icons.chevron_left_rounded),
                   ),
                 ),
               ),
             ],
             child: ListView(
               physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
               children: [
                 const SizedBox(height: 8),
                 const ThemeSelector(),
@@ -55,21 +58,23 @@ class SettingsScreen extends StatelessWidget {
                   context,
                   children: [
                     _buildSwitchTile(
+                      context,
                       title: "Double Tap to Seek",
                       subtitle: "Double tap artwork to skip 10s",
                       icon: Icons.touch_app_rounded,
                       color: Colors.blueAccent,
-                      value: controller.enableDoubleTapSeek,
-                      onChanged: controller.toggleDoubleTapSeek,
+                      value: settings.enableDoubleTapSeek,
+                      onChanged: notifier.toggleDoubleTapSeek,
                     ),
                     _buildDivider(context),
                     _buildSwitchTile(
+                      context,
                       title: "Shake to Skip",
                       subtitle: "Shake your device to skip track",
                       icon: Icons.vibration_rounded,
                       color: Colors.orangeAccent,
-                      value: controller.enableShakeToSkip,
-                      onChanged: controller.toggleShakeToSkip,
+                      value: settings.enableShakeToSkip,
+                      onChanged: notifier.toggleShakeToSkip,
                     ),
                     _buildDivider(context),
                     // _buildSwitchTile(
@@ -82,21 +87,23 @@ class SettingsScreen extends StatelessWidget {
                     // ),
                     _buildDivider(context),
                     _buildSwitchTile(
+                      context,
                       title: "Dynamic Colors",
                       subtitle: "Theme player based on album art",
                       icon: Icons.palette_rounded,
                       color: Colors.purpleAccent,
-                      value: controller.enableDynamicColors,
-                      onChanged: controller.toggleDynamicColors,
+                      value: settings.enableDynamicColors,
+                      onChanged: notifier.toggleDynamicColors,
                     ),
                     _buildDivider(context),
                     _buildSwitchTile(
+                      context,
                       title: "Dark mode",
                       subtitle: "Switch to dark mode",
-                      icon: Icons.palette_rounded,
-                      color: Colors.purpleAccent,
-                      value: controller.isDarkMode,
-                      onChanged: controller.toggleDarkMode,
+                      icon: Icons.dark_mode_rounded,
+                      color: Colors.indigoAccent,
+                      value: settings.isDarkMode,
+                      onChanged: notifier.toggleDarkMode,
                     ),
                   ],
                 ),
@@ -107,30 +114,33 @@ class SettingsScreen extends StatelessWidget {
                   context,
                   children: [
                     _buildSwitchTile(
+                      context,
                       title: "Fetch Lyrics",
                       subtitle: "Automatically find song lyrics",
                       icon: Icons.lyrics_rounded,
                       color: Colors.pinkAccent,
-                      value: controller.enableLyricsFetching,
-                      onChanged: controller.toggleLyricsFetching,
+                      value: settings.enableLyricsFetching,
+                      onChanged: notifier.toggleLyricsFetching,
                     ),
                     _buildDivider(context),
                     _buildSwitchTile(
+                      context,
                       title: "Artist Info",
                       subtitle: "Load bios and artist images",
                       icon: Icons.person_search_rounded,
                       color: Colors.indigoAccent,
-                      value: controller.enableArtistInfoFetching,
-                      onChanged: controller.toggleArtistInfoFetching,
+                      value: settings.enableArtistInfoFetching,
+                      onChanged: notifier.toggleArtistInfoFetching,
                     ),
                     _buildDivider(context),
                     _buildSwitchTile(
+                      context,
                       title: "Show Stats",
                       subtitle: "Most played & recently played",
                       icon: Icons.bar_chart_rounded,
                       color: Colors.green,
-                      value: controller.showStats,
-                      onChanged: controller.toggleShowStats,
+                      value: settings.showStats,
+                      onChanged: notifier.toggleShowStats,
                     ),
                   ],
                 ),
@@ -141,12 +151,13 @@ class SettingsScreen extends StatelessWidget {
                   context,
                   children: [
                     _buildSwitchTile(
+                      context,
                       title: "Incognito Mode",
                       subtitle: "Don't record listening history",
                       icon: Icons.visibility_off_rounded,
                       color: Colors.grey,
-                      value: controller.isIncognitoMode,
-                      onChanged: controller.toggleIncognito,
+                      value: settings.isIncognitoMode,
+                      onChanged: notifier.toggleIncognito,
                     ),
                   ],
                 ),
@@ -157,12 +168,13 @@ class SettingsScreen extends StatelessWidget {
                   context,
                   children: [
                     _buildSwitchTile(
+                      context,
                       title: "Enable Downloader",
                       subtitle: "Allow downloading external content",
                       icon: Icons.download_rounded,
                       color: Colors.redAccent,
-                      value: controller.enableDownloader,
-                      onChanged: controller.toggleDownloader,
+                      value: settings.enableDownloader,
+                      onChanged: notifier.toggleDownloader,
                     ),
                     _buildDivider(context),
                     // _buildSwitchTile(
@@ -186,85 +198,78 @@ class SettingsScreen extends StatelessWidget {
   // --- REUSABLE WIDGETS ---
 
   Widget _buildSectionHeader(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: context.theme.primaryColor,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
+    return GroupHeader(title);
   }
 
   Widget _buildSettingsCard(
     BuildContext context, {
     required List<Widget> children,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: context.isDarkMode ? Colors.grey[900] : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(children: children),
-    );
+    // Dividers are inserted by InsetGroup, so drop the manual ones.
+    return InsetGroup(children: children.where((w) => w is! Divider).toList());
   }
 
-  Widget _buildSwitchTile({
+  Widget _buildSwitchTile(
+    BuildContext context, {
     required String title,
     required String subtitle,
     required IconData icon,
     required Color color,
-    required RxBool value,
-    required Function(bool) onChanged,
+    required bool value,
+    required ValueChanged<bool> onChanged,
   }) {
-    return Obx(
-      () => SwitchListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        activeThumbColor: Get.theme.primaryColor,
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 13,
-            color: Get.theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 0, 6),
+          child: Row(
+            children: [
+              IconBadge(icon: icon, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color:
+                            (Theme.of(
+                              context,
+                            ).extension<AquaPalette>()?.textSecondary ??
+                            Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              AquaCheckbox(value: value, onChanged: onChanged),
+              const SizedBox(width: 4),
+            ],
           ),
         ),
-        secondary: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(icon, color: color, size: 22),
-        ),
-        value: value.value,
-        onChanged: onChanged,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
 
   Widget _buildDivider(BuildContext context) {
     return Divider(
-      height: 1,
-      thickness: 1,
+      height: Ds.hairline,
+      thickness: Ds.hairline,
       indent: 60,
-      endIndent: 0,
-      color: context.theme.dividerColor.withValues(alpha: 0.5),
+      color: Ds.separator(context),
     );
   }
 }

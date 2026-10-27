@@ -1,19 +1,24 @@
-import 'package:flutter/material.dart' hide AppBar;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_appbar/flutter_appbar.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/core/context_ext.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:wavvy/widgets/aqua_song_list.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
-import 'package:wavvy/screens/library/albums/albums.controller.dart';
+import 'package:wavvy/widgets/floating_app_bar.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 
-class AllAlbumsScreen extends GetView<AlbumController> {
+class AllAlbumsScreen extends ConsumerWidget {
   const AllAlbumsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final navBarColor = controller.getNavbarColor(context);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final items = ref.watch(libraryProvider.select((s) => s.albums));
+    return Builder(builder: (context) {
+      final navBarColor = Aqua.of(context).toolbar[1];
 
       final Brightness iconBrightness =
           ThemeData.estimateBrightnessForColor(navBarColor) == Brightness.dark
@@ -30,120 +35,55 @@ class AllAlbumsScreen extends GetView<AlbumController> {
               : Brightness.dark,
         ),
         child: Scaffold(
-          backgroundColor: context.theme.scaffoldBackgroundColor,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           bottomNavigationBar: BottomMiniPlayer(showTabView: false),
-          body: SafeArea(
-            child: AppBarConnection(
-              appBars: [
-                AppBar(
-                  behavior: const MaterialAppBarBehavior(floating: true),
-                  body: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      border: BoxBorder.fromLTRB(
-                        bottom: BorderSide(
-                          width: 1,
-                          color: context.theme.dividerColor,
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      spacing: 12,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            Get.back();
-                          },
-                          icon: Icon(Icons.arrow_back),
-                        ),
-                        Text(
-                          "Albums",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 24,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-              child: Obx(() {
-                if (controller.audioController.albums.isEmpty) {
-                  return const Center(child: Text("No Albums Found"));
-                }
-
-                return GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.75,
-                  ),
-                  itemCount: controller.audioController.albums.length,
-                  itemBuilder: (context, index) {
-                    final album = controller.audioController.albums[index];
-                    return GestureDetector(
-                      onTap: () =>
-                          Get.to(() => AlbumDetailScreen(album: album)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                color: context.isDarkMode
-                                    ? Colors.grey[800]
-                                    : Colors.grey[200],
-                              ),
-                              child: QueryArtworkWidget(
-                                id: album.id,
-                                type: ArtworkType.ALBUM,
-                                artworkFit: BoxFit.cover,
-                                artworkBorder: BorderRadius.circular(12),
-                                nullArtworkWidget: const Icon(
-                                  Icons.album,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            album.album,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          Text(
-                            "${album.numOfSongs} Songs • ${album.artist ?? 'Unknown'}",
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: context.theme.textTheme.bodyMedium?.color
-                                  ?.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ],
-                      ),
+          body: Column(
+            children: [
+              FloatingAppBar(
+                title: "Albums",
+                showSearch: false,
+                leading: aquaBackButton(),
+              ),
+              Expanded(
+                child: Builder(builder: (context) {
+                  if (items.isEmpty) {
+                    return const AquaEmptyMessage(
+                      message: "No Albums Found",
+                      icon: Icons.album_rounded,
                     );
-                  },
-                );
-              }),
-            ),
+                  }
+
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 0.8,
+                        ),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final album = items[index];
+                      return AquaGridTile(
+                        onTap: () =>
+                            AppNav.push(AlbumDetailScreen(album: album)),
+                        title: album.album,
+                        subtitle:
+                            "${album.numOfSongs} Songs • ${album.artist ?? 'Unknown'}",
+                        artworkBuilder: (size) => aquaArtwork(
+                          context,
+                          id: album.id,
+                          type: ArtworkType.ALBUM,
+                          size: size,
+                          placeholder: Icons.album_rounded,
+                        ),
+                      );
+                    },
+                  );
+                }),
+              ),
+            ],
           ),
         ),
       );

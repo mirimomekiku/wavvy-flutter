@@ -1,129 +1,120 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/controllers/audio.controller.dart';
+import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/providers/playlists_provider.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 
-class SongsHeaderAppBar extends GetView<AudioController> {
+/// "Recently Played" / "Most Played" shelves: an Aqua section bar followed
+/// by photo-framed album art.
+class SongsHeaderAppBar extends ConsumerWidget {
   const SongsHeaderAppBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // --- RECENTLY PLAYED ---
-        Obx(() {
-          if (controller.recentSongs.isEmpty) return const SizedBox.shrink();
-          return _buildSection(context, "Recently Played", controller.recentSongs);
-        }),
-
-        // --- MOST PLAYED ---
-        Obx(() {
-          if (controller.mostPlayedSongs.isEmpty) {
-            return const SizedBox.shrink();
-          }
-          return _buildSection(context, "Most Played", controller.mostPlayedSongs);
-        }),
+        Consumer(
+          builder: (context, ref, child) {
+            final recent = ref.watch(playlistsProvider.select((s) => s.recent));
+            if (recent.isEmpty) return const SizedBox.shrink();
+            return _buildSection(context, ref, "Recently Played", recent);
+          },
+        ),
+        Consumer(
+          builder: (context, ref, child) {
+            final mostPlayed = ref.watch(
+              playlistsProvider.select((s) => s.mostPlayed),
+            );
+            if (mostPlayed.isEmpty) return const SizedBox.shrink();
+            return _buildSection(context, ref, "Most Played", mostPlayed);
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildSection(BuildContext context, String title, List<SongModel> songList) {
+  Widget _buildSection(
+    BuildContext context,
+    WidgetRef ref,
+    String title,
+    List<SongModel> songList,
+  ) {
+    final a = Aqua.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-          child: Text(
-            title,
-            style: context.theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ),
-        SizedBox(
-          height: 180,
+        AquaSectionBar(title: title),
+        Container(
+          color: a.background,
+          height: 168,
           child: ListView.builder(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             scrollDirection: Axis.horizontal,
             itemCount: songList.length,
             itemBuilder: (context, index) {
               final song = songList[index];
-              return GestureDetector(
-                onTap: () => controller.playSong(song, contextList: songList),
-                child: Container(
-                  width: 120,
-                  margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: context.isDarkMode ? Colors.grey[900] : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Artwork
-                      Expanded(
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                            color: context.isDarkMode ? Colors.grey[800] : Colors.grey[100],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                            child: QueryArtworkWidget(
-                              id: song.id,
-                              type: ArtworkType.AUDIO,
-                              keepOldArtwork: true,
-                              artworkFit: BoxFit.cover,
-                              nullArtworkWidget: Icon(
+              return Semantics(
+                button: true,
+                label: "Play ${song.title}",
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => ref
+                      .read(playerProvider.notifier)
+                      .playSong(song, contextList: songList),
+                  child: Container(
+                    width: 112,
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    child: Column(
+                      children: [
+                        AquaPhotoFrame(
+                          child: QueryArtworkWidget(
+                            id: song.id,
+                            type: ArtworkType.AUDIO,
+                            keepOldArtwork: true,
+                            artworkFit: BoxFit.cover,
+                            artworkBorder: BorderRadius.zero,
+                            artworkWidth: 100,
+                            artworkHeight: 100,
+                            nullArtworkWidget: Container(
+                              width: 100,
+                              height: 100,
+                              color: a.stripe,
+                              child: Icon(
                                 Icons.music_note_rounded,
-                                color: context.isDarkMode ? Colors.white24 : Colors.black26,
-                                size: 48,
+                                size: 40,
+                                color: a.textSecondary,
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      // Title & Artist
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              song.artist ?? "Unknown",
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: context.theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.6), 
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                        const SizedBox(height: 6),
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                            color: a.text,
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          song.artist ?? "Unknown",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: a.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

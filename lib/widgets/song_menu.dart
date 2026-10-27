@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:wavvy/controllers/audio.controller.dart';
+import 'package:wavvy/core/dialogs.dart';
+import 'package:wavvy/core/navigation.dart';
+import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/providers/palette_provider.dart';
+import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/screens/audio_effects/effects.screen.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
-import 'package:wavvy/screens/library/playlists/playlists.controller.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
+import 'package:wavvy/widgets/audio_dialogs.dart';
+import 'package:wavvy/widgets/playlist_dialogs.dart';
 
 class SongMenuOptions {
   final bool showPlayNext;
@@ -40,20 +46,18 @@ class SongMenuOptions {
 }
 
 class SongMenuHelper {
-  // Dependencies
-  static final AudioController _audioController = Get.find<AudioController>();
-  static final PlaylistsController _playlistController =
-      Get.find<PlaylistsController>();
-
   static void show(
     BuildContext context,
+    WidgetRef ref,
     SongModel song, {
     SongMenuOptions options = const SongMenuOptions(),
   }) {
-    final bgColor = _audioController.playerColor.value ?? context.theme.scaffoldBackgroundColor;
-    final textColor = _audioController.playerColor.value != null 
-        ? _audioController.playerTextColor.value 
-        : (context.theme.textTheme.bodyLarge?.color ?? Colors.black);
+    final palette = ref.read(paletteProvider);
+    final theme = Theme.of(context);
+    final bgColor = palette.playerColor ?? theme.scaffoldBackgroundColor;
+    final textColor = palette.playerColor != null
+        ? palette.playerTextColor
+        : (theme.textTheme.bodyLarge?.color ?? Colors.black);
     final subTextColor = textColor.withValues(alpha: 0.7);
 
     showModalBottomSheet(
@@ -61,7 +65,7 @@ class SongMenuHelper {
       backgroundColor: bgColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(Ds.radiusL)),
       ),
       builder: (context) {
         return DraggableScrollableSheet(
@@ -70,170 +74,188 @@ class SongMenuHelper {
           maxChildSize: 0.9,
           expand: false,
           builder: (_, controller) {
+            final rows = <Widget>[];
+            void add({
+              required IconData icon,
+              required String label,
+              Color? color,
+              required VoidCallback onTap,
+            }) {
+              rows.add(
+                _buildOption(
+                  icon: icon,
+                  label: label,
+                  color: color ?? textColor,
+                  striped: rows.length.isOdd,
+                  stripeColor: textColor.withValues(alpha: 0.07),
+                  onTap: onTap,
+                ),
+              );
+            }
+
+            if (options.showPlayNext) {
+              add(
+                icon: Icons.playlist_play_rounded,
+                label: "Play Next",
+                onTap: () {
+                  Navigator.pop(context);
+                  ref.read(playerProvider.notifier).playNext(song);
+                },
+              );
+            }
+
+            if (options.showAddToQueue) {
+              add(
+                icon: Icons.queue_music_rounded,
+                label: "Add to Queue",
+                onTap: () {
+                  Navigator.pop(context);
+                  ref.read(playerProvider.notifier).addToQueue(song);
+                },
+              );
+            }
+
+            if (options.showAddToPlaylist) {
+              add(
+                icon: Icons.playlist_add_rounded,
+                label: "Add to Playlist",
+                onTap: () {
+                  Navigator.pop(context);
+                  showAddToPlaylistSheet(context, ref, song);
+                },
+              );
+            }
+
+            if (options.showCustomEqualizer) {
+              add(
+                icon: Icons.equalizer_rounded,
+                label: "Custom equalizer",
+                onTap: () {
+                  Navigator.pop(context);
+                  AppNav.push(const AudioEffectsScreen());
+                },
+              );
+            }
+
+            if (options.showSystemEqualizer) {
+              add(
+                icon: Icons.surround_sound_rounded,
+                label: "System equalizer",
+                onTap: () {
+                  PlayerUtils.openEqualizer(
+                    ref.read(audioPlayerProvider).androidAudioSessionId,
+                  );
+                },
+              );
+            }
+
+            if (options.showGoToArtist) {
+              add(
+                icon: Icons.person_rounded,
+                label: "Go to Artist",
+                onTap: () => _handleGoToArtist(context, ref, song),
+              );
+            }
+
+            if (options.showGoToAlbum) {
+              add(
+                icon: Icons.album_rounded,
+                label: "Go to Album",
+                onTap: () => _handleGoToAlbum(context, ref, song),
+              );
+            }
+
+            if (options.showShare) {
+              add(
+                icon: Icons.ios_share_rounded,
+                label: "Share",
+                onTap: () {
+                  Navigator.pop(context);
+                  PlayerUtils.shareSong(song);
+                },
+              );
+            }
+
+            if (options.showSleepTimer) {
+              add(
+                icon: Icons.timer_rounded,
+                label: "Sleep timer",
+                onTap: () {
+                  Navigator.pop(context);
+                  openSleepTimerDialog(ref);
+                },
+              );
+            }
+
+            if (options.showEditTags) {
+              add(
+                icon: Icons.edit_rounded,
+                label: "Edit tags",
+                onTap: () {
+                  Navigator.pop(context);
+                  editSongTags(ref, song);
+                },
+              );
+            }
+
+            if (options.showDelete) {
+              add(
+                icon: Icons.delete_outline_rounded,
+                label: "Delete",
+                color: Colors.redAccent,
+                onTap: () {
+                  Navigator.pop(context);
+                  confirmDeleteSong(ref, song);
+                },
+              );
+            }
+
+            if (options.showSongInfo) {
+              add(
+                icon: Icons.info_outline_rounded,
+                label: "Song Info",
+                onTap: () {
+                  Navigator.pop(context);
+                  showInfoDialog(
+                    context,
+                    ref,
+                    song,
+                    theme.scaffoldBackgroundColor,
+                    textColor,
+                  );
+                },
+              );
+            }
+
+            final edge = textColor.withValues(alpha: 0.25);
+
             return Column(
               children: [
-                // Drag handle pill
-                const SizedBox(height: 12),
-                Container(
-                  width: 40,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: textColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2.5),
+                // Grabber
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 6),
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: textColor.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
 
                 // --- HEADER ---
                 _buildHeader(song, textColor, subTextColor),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Divider(color: textColor.withValues(alpha: 0.1), height: 16),
-                ),
+                Container(height: 1, color: edge),
 
                 // --- SCROLLABLE OPTIONS ---
                 Expanded(
                   child: ListView(
                     controller: controller,
-                    padding: const EdgeInsets.only(bottom: 24),
-                    children: [
-                      if (options.showPlayNext)
-                        _buildOption(
-                          icon: Icons.playlist_play_rounded,
-                          label: "Play Next",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _audioController.playNext(song);
-                          },
-                        ),
-
-                      if (options.showAddToQueue)
-                        _buildOption(
-                          icon: Icons.queue_music_rounded,
-                          label: "Add to Queue",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _audioController.addToQueue(song);
-                          },
-                        ),
-
-                      if (options.showAddToPlaylist)
-                        _buildOption(
-                          icon: Icons.playlist_add_rounded,
-                          label: "Add to Playlist",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _playlistController.showAddToPlaylistSheet(
-                              context,
-                              song,
-                            );
-                          },
-                        ),
-
-                      if (options.showCustomEqualizer)
-                        _buildOption(
-                          icon: Icons.equalizer_rounded,
-                          label: "Custom equalizer",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Get.to(() => const AudioEffectsScreen());
-                          },
-                        ),
-
-                      if (options.showSystemEqualizer)
-                        _buildOption(
-                          icon: Icons.surround_sound_rounded,
-                          label: "System equalizer",
-                          color: textColor,
-                          onTap: () {
-                            PlayerUtils.openEqualizer(
-                              _audioController
-                                  .audioPlayer
-                                  .androidAudioSessionId,
-                            );
-                          },
-                        ),
-
-                      if (options.showGoToArtist)
-                        _buildOption(
-                          icon: Icons.person_rounded,
-                          label: "Go to Artist",
-                          color: textColor,
-                          onTap: () => _handleGoToArtist(context, song),
-                        ),
-
-                      if (options.showGoToAlbum)
-                        _buildOption(
-                          icon: Icons.album_rounded,
-                          label: "Go to Album",
-                          color: textColor,
-                          onTap: () => _handleGoToAlbum(context, song),
-                        ),
-
-                      if (options.showShare)
-                        _buildOption(
-                          icon: Icons.ios_share_rounded,
-                          label: "Share",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            PlayerUtils.shareSong(song);
-                          },
-                        ),
-
-                      if (options.showSleepTimer)
-                        _buildOption(
-                          icon: Icons.timer_rounded,
-                          label: "Sleep timer",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _audioController.openSleepTimerDialog();
-                          },
-                        ),
-
-                      if (options.showEditTags)
-                        _buildOption(
-                          icon: Icons.edit_rounded,
-                          label: "Edit tags",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _audioController.editSongTags(song);
-                          },
-                        ),
-
-                      if (options.showDelete)
-                        _buildOption(
-                          icon: Icons.delete_outline_rounded,
-                          label: "Delete",
-                          color: Colors.redAccent,
-                          onTap: () {
-                            Navigator.pop(context);
-                            _audioController.deleteSong(song);
-                          },
-                        ),
-
-                      if (options.showSongInfo)
-                        _buildOption(
-                          icon: Icons.info_outline_rounded,
-                          label: "Song Info",
-                          color: textColor,
-                          onTap: () {
-                            Navigator.pop(context);
-                            showInfoDialog(
-                              context,
-                              song,
-                              context.theme.scaffoldBackgroundColor,
-                              textColor,
-                            );
-                          },
-                        ),
-                    ],
+                    padding: EdgeInsets.only(
+                      bottom: 24 + MediaQuery.of(context).padding.bottom,
+                    ),
+                    children: [...rows, Container(height: 1, color: edge)],
                   ),
                 ),
               ],
@@ -245,54 +267,56 @@ class SongMenuHelper {
   }
 
   static Widget _buildHeader(SongModel song, Color textColor, Color subColor) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      leading: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: QueryArtworkWidget(
-          id: song.id,
-          type: ArtworkType.AUDIO,
-          artworkBorder: BorderRadius.circular(16),
-          artworkWidth: 64,
-          artworkHeight: 64,
-          nullArtworkWidget: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: textColor.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          AquaPhotoFrame(
+            child: QueryArtworkWidget(
+              id: song.id,
+              type: ArtworkType.AUDIO,
+              artworkBorder: BorderRadius.zero,
+              artworkFit: BoxFit.cover,
+              artworkWidth: 56,
+              artworkHeight: 56,
+              nullArtworkWidget: Container(
+                width: 56,
+                height: 56,
+                color: textColor.withValues(alpha: 0.08),
+                child: Icon(
+                  Icons.music_note_rounded,
+                  color: textColor,
+                  size: 28,
+                ),
+              ),
             ),
-            child: Icon(Icons.music_note_rounded, color: textColor, size: 30),
           ),
-        ),
-      ),
-      title: Text(
-        song.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          color: textColor,
-          fontSize: 18,
-          letterSpacing: -0.5,
-        ),
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4.0),
-        child: Text(
-          song.artist ?? "Unknown Artist",
-          maxLines: 1,
-          style: TextStyle(color: subColor, fontSize: 13, fontWeight: FontWeight.w500),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  song.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  song.artist ?? "Unknown Artist",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: subColor, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -300,49 +324,71 @@ class SongMenuHelper {
   static Widget _buildOption({
     required IconData icon,
     required String label,
-    Color? color,
+    required Color color,
+    required bool striped,
+    required Color stripeColor,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 2),
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color?.withValues(alpha: 0.05),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: color, size: 22),
-      ),
-      title: Text(
-        label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 15),
-      ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 52),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        color: striped ? stripeColor : null,
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  static void _handleGoToArtist(BuildContext context, SongModel song) {
+  static void _handleGoToArtist(
+    BuildContext context,
+    WidgetRef ref,
+    SongModel song,
+  ) {
     Navigator.pop(context);
-    final artistModel = _audioController.artists.firstWhereOrNull(
-      (a) => a.id == song.artistId,
-    );
+    final artistModel = ref
+        .read(libraryProvider)
+        .artists
+        .where((a) => a.id == song.artistId)
+        .firstOrNull;
 
     if (artistModel != null) {
-      Get.to(() => ArtistDetailScreen(artist: artistModel));
+      AppNav.push(ArtistDetailScreen(artist: artistModel));
     } else {
       AppSnackbar.showErrorSnackBar("Error", "Artist info not found");
     }
   }
 
-  static void _handleGoToAlbum(BuildContext context, SongModel song) {
+  static void _handleGoToAlbum(
+    BuildContext context,
+    WidgetRef ref,
+    SongModel song,
+  ) {
     Navigator.pop(context);
-    final albumModel = _audioController.albums.firstWhereOrNull(
-      (a) => a.id == song.albumId,
-    );
+    final albumModel = ref
+        .read(libraryProvider)
+        .albums
+        .where((a) => a.id == song.albumId)
+        .firstOrNull;
 
     if (albumModel != null) {
-      Get.to(() => AlbumDetailScreen(album: albumModel));
+      AppNav.push(AlbumDetailScreen(album: albumModel));
     } else {
       AppSnackbar.showErrorSnackBar("Error", "Album info not found");
     }
@@ -350,36 +396,54 @@ class SongMenuHelper {
 
   static void showInfoDialog(
     BuildContext context,
+    WidgetRef ref,
     SongModel song,
     Color bgColor,
     Color textColor,
   ) {
-    Get.defaultDialog(
-      title: "Song Details",
-      titleStyle: TextStyle(
-        color: context.theme.colorScheme.onSurface,
-        fontWeight: FontWeight.w800,
-        fontSize: 22,
-        letterSpacing: -0.5,
-      ),
-      backgroundColor: context.theme.colorScheme.surfaceContainer,
-      contentPadding: const EdgeInsets.all(24),
-      radius: 20,
-      content: Text(
-        _audioController.getSongInfo(song),
-        style: TextStyle(
-          color: context.theme.colorScheme.onSurface.withValues(alpha: 0.8),
-          height: 1.5,
+    final a = Aqua.of(context);
+
+    final info = ref.read(playerProvider.notifier).getSongInfo(song);
+
+    showAppDialog(
+      builder: (_) => Dialog(
+        backgroundColor: a.background,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Ds.radiusM),
+          side: BorderSide(color: a.border),
         ),
-      ),
-      confirm: TextButton(
-        onPressed: () => Get.back(),
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: context.theme.primaryColor.withValues(alpha: 0.1),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AquaSectionBar(title: "Song Details"),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  info,
+                  style: TextStyle(color: a.text, fontSize: 13.5, height: 1.5),
+                ),
+              ),
+            ),
+            Container(height: 1, color: a.separator),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: GelButton(
+                  primary: true,
+                  width: 80,
+                  size: 30,
+                  tooltip: "Close",
+                  onPressed: () => AppNav.pop(),
+                  child: const Text("Close"),
+                ),
+              ),
+            ),
+          ],
         ),
-        child: Text("Close", style: TextStyle(fontWeight: FontWeight.bold, color: context.theme.primaryColor)),
       ),
     );
   }
