@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/core/dialogs.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
@@ -13,7 +14,7 @@ Future<void> showYoutubeDownloadDialog(WidgetRef ref, Video video) async {
   final notifier = ref.read(ytdlpProvider.notifier);
 
   showAppDialog<void>(
-    builder: (context) => const Center(child: CircularProgressIndicator()),
+    builder: (context) => const Center(child: PixelLoader(size: 40)),
   );
 
   final List<AudioOnlyStreamInfo>? streams = await notifier.fetchAudioStreams(
@@ -28,17 +29,9 @@ Future<void> showYoutubeDownloadDialog(WidgetRef ref, Video video) async {
 
   showAppDialog<void>(
     builder: (context) {
-      final a = Aqua.of(context);
-      return AlertDialog(
-        title: Text(
-          "Download",
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: a.text,
-          ),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+      final a = Wv.of(context);
+      return WvDialog(
+        title: "Download",
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -46,43 +39,71 @@ Future<void> showYoutubeDownloadDialog(WidgetRef ref, Video video) async {
             itemCount: streams.length,
             itemBuilder: (context, i) {
               final s = streams[i];
-              return ColoredBox(
-                color: i.isEven ? a.background : a.stripe,
-                child: ListTile(
-                  leading: Icon(Icons.audiotrack, color: a.glyph),
-                  title: Text(
-                    "${(s.bitrate.kiloBitsPerSecond).round()} kbps (${s.container.name})",
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: a.text,
+              final (bg, fg) = a.tonal(i);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: bg,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    side: BorderSide(color: a.outline.withValues(alpha: 0.35)),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () {
+                      AppNav.pop();
+                      notifier.startBackgroundDownload(
+                        s.url.toString(),
+                        video.title,
+                        s.container.name,
+                      );
+                    },
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 64),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.audiotrack_rounded, size: 24, color: fg),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    "${(s.bitrate.kiloBitsPerSecond).round()} kbps (${s.container.name})",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: fg,
+                                    ),
+                                  ),
+                                  Text(
+                                    "${s.size.totalMegaBytes.toStringAsFixed(2)} MB",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: fg.withValues(alpha: 0.8),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.download_rounded, size: 24, color: fg),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  subtitle: Text(
-                    "${s.size.totalMegaBytes.toStringAsFixed(2)} MB",
-                    style: TextStyle(fontSize: 12, color: a.textSecondary),
-                  ),
-                  trailing: Icon(Icons.download, color: a.accent),
-                  onTap: () {
-                    AppNav.pop();
-                    notifier.startBackgroundDownload(
-                      s.url.toString(),
-                      video.title,
-                      s.container.name,
-                    );
-                  },
                 ),
               );
             },
           ),
         ),
-        actions: [
-          GelButton(
-            width: 88,
-            onPressed: () => AppNav.pop(),
-            child: const Text("Cancel"),
-          ),
-        ],
+        actions: [wvDialogButton("Cancel", () => AppNav.pop())],
       );
     },
   );

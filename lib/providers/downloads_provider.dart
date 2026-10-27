@@ -70,12 +70,20 @@ class YtdlpState {
 
   /// Search results (youtube_explode Video objects).
   final List<Video> results;
+  final bool isSearching;
+  final bool hasSearched;
+  final String searchError;
+  final String searchQuery;
 
   const YtdlpState({
     this.progressMap = const {},
     this.statusMap = const {},
     this.taskTitles = const {},
     this.results = const [],
+    this.isSearching = false,
+    this.hasSearched = false,
+    this.searchError = '',
+    this.searchQuery = '',
   });
 
   YtdlpState copyWith({
@@ -83,11 +91,19 @@ class YtdlpState {
     Map<String, DownloadTaskStatus>? statusMap,
     Map<String, String>? taskTitles,
     List<Video>? results,
+    bool? isSearching,
+    bool? hasSearched,
+    String? searchError,
+    String? searchQuery,
   }) => YtdlpState(
     progressMap: progressMap ?? this.progressMap,
     statusMap: statusMap ?? this.statusMap,
     taskTitles: taskTitles ?? this.taskTitles,
     results: results ?? this.results,
+    isSearching: isSearching ?? this.isSearching,
+    hasSearched: hasSearched ?? this.hasSearched,
+    searchError: searchError ?? this.searchError,
+    searchQuery: searchQuery ?? this.searchQuery,
   );
 }
 
@@ -103,10 +119,14 @@ final ytdlpProvider = NotifierProvider<YtdlpNotifier, YtdlpState>(
 /// ref.onDispose.
 class YtdlpNotifier extends Notifier<YtdlpState> {
   final YoutubeExplode _yt = YoutubeExplode();
+  int _searchRequest = 0;
 
   @override
   YtdlpState build() {
-    ref.onDispose(_yt.close);
+    ref.onDispose(() {
+      _searchRequest++;
+      _yt.close();
+    });
 
     ref.listen<DownloadEvent?>(downloadEventsProvider, (_, event) {
       if (event == null) return;
@@ -123,14 +143,32 @@ class YtdlpNotifier extends Notifier<YtdlpState> {
   }
 
   Future<void> search(String query) async {
-    if (query.trim().isEmpty) return;
+    final q = query.trim();
+    if (q.isEmpty) return;
+    final request = ++_searchRequest;
+    state = state.copyWith(
+      isSearching: true,
+      hasSearched: true,
+      searchQuery: q,
+      searchError: '',
+      results: [],
+    );
     try {
-      final searchList = await _yt.search.search(query);
-      state = state.copyWith(results: searchList.toList());
+      final results = await searchVideos(q);
+      if (request != _searchRequest) return;
+      state = state.copyWith(results: results, isSearching: false);
     } catch (e) {
-      AppSnackbar.showErrorSnackBar("Error", "Search failed: $e");
+      if (request != _searchRequest) return;
+      state = state.copyWith(
+        isSearching: false,
+        searchError:
+            'Could not search YouTube. Check your connection and try again.',
+      );
     }
   }
+
+  Future<List<Video>> searchVideos(String query) async =>
+      (await _yt.search.search(query)).toList();
 
   /// Audio-only manifest sorted by bitrate descending (android client), or
   /// null on failure (the caller shows the error snackbar).
