@@ -34,19 +34,13 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  cached_network_image: ^3.4.1
   sqflite: ^2.4.2
-  flutter_native_splash: ^2.4.7
-  carousel_slider: ^5.1.1
   just_audio: ^0.10.5
-  smooth_page_indicator: ^2.0.1
   flutter_riverpod: ^2.6.1
-  just_audio_background: ^0.0.1-beta.17
+  dynamic_color: ^1.7.0
   audio_service: ^0.18.18
   audio_session: ^0.2.2
-  just_waveform: ^0.0.7
   shared_preferences: ^2.5.4
-  flex_color_scheme: ^8.4.0
   permission_handler: ^12.0.1
   device_info_plus: ^12.3.0
   on_audio_query:
@@ -54,20 +48,16 @@ dependencies:
       url: https://github.com/rozpo/on_audio_query
       ref: 0d78299
       path: packages/on_audio_query
-  flutter_appbar: ^1.9.0
   palette_generator: ^0.3.3+7
   http: ^1.6.0
   google_fonts: ^6.3.3
   scrollable_positioned_list: ^0.3.8
   android_intent_plus: ^6.0.0
-  flutter_launcher_icons: ^0.14.4
   path: ^1.9.1
   path_provider: ^2.1.5
   youtube_explode_dart: ^3.0.5
   tiktok_scraper: ^0.1.0
   flutter_downloader: ^1.12.0
-  dio: ^5.9.0
-  mini_music_visualizer: ^1.1.4
   metadata_god: ^1.1.0
   flutter_dotenv: ^6.0.0
   sensors_plus: ^7.0.0
@@ -78,6 +68,10 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  # Asset generators (run from the CLI, not imported by the app).
+  flutter_native_splash: ^2.4.7
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -95,10 +89,18 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  fonts:
+    - family: WorkSans
+      fonts:
+        - asset: assets/fonts/WorkSans.ttf
+          weight: 100
+        - asset: assets/fonts/WorkSans.ttf
+          weight: 900
 
   # To add assets to your application, add an assets section, like this:
   assets:
     - .env
+    - assets/fonts/OFL-WorkSans.txt
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

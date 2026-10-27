@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +15,7 @@ class PaletteState {
   final Color? playerColor;
   final Color playerTextColor;
 
-  /// Saturated swatch that drives the app-wide Aqua accent when Dynamic
+  /// Saturated swatch that drives the app-wide Wv accent when Dynamic
   /// Colors is on. Null = default Blue/Graphite.
   final Color? accent;
 

@@ -1,130 +1,166 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
-/// Classic Mac OS X Aqua theme. Material components still work (so screens
-/// that haven't been restyled stay usable) but are recolored to Aqua, with
-/// no ripples and Cupertino page motion.
+/// Kaisu's silver, paper and Aqua vocabulary adapted for mobile.
 class WavvyTheme {
   WavvyTheme._();
 
-  static AquaAppearance appearanceFor(int index) =>
-      index == 1 ? AquaAppearance.graphite : AquaAppearance.blue;
+  /// Legacy indices are retained; 5 = Aqua and 6 = Graphite.
+  static WvAppearance appearanceFor(int index) {
+    switch (index) {
+      case 0:
+        return WvAppearance.green;
+      case 1:
+        return WvAppearance.red;
+      case 2:
+        return WvAppearance.materialYou;
+      case 4:
+        return WvAppearance.peach;
+      case 3:
+        return WvAppearance.lilac;
+      case 6:
+        return WvAppearance.graphite;
+      default:
+        return WvAppearance.aqua;
+    }
+  }
 
-  static ThemeData light(AquaAppearance appearance, {Color? seed}) => _build(
-    AquaPalette(dark: false, appearance: appearance, seed: seed),
+  /// [system] is the platform's wallpaper-derived scheme for this brightness
+  /// (only used by the Material You appearance).
+  static ThemeData light(
+    WvAppearance appearance, {
+    Color? seed,
+    ColorScheme? system,
+  }) => _build(
+    WvPalette(dark: false, appearance: appearance, seed: seed, system: system),
   );
 
-  static ThemeData dark(AquaAppearance appearance, {Color? seed}) => _build(
-    AquaPalette(dark: true, appearance: appearance, seed: seed),
+  static ThemeData dark(
+    WvAppearance appearance, {
+    Color? seed,
+    ColorScheme? system,
+  }) => _build(
+    WvPalette(dark: true, appearance: appearance, seed: seed, system: system),
   );
 
-  static ThemeData _build(AquaPalette a) {
-    final brightness = a.dark ? Brightness.dark : Brightness.light;
-
-    final scheme =
-        ColorScheme.fromSeed(
-          seedColor: a.gelBlue[2],
-          brightness: brightness,
-        ).copyWith(
-          primary: a.accent,
-          onPrimary: Colors.white,
-          primaryContainer: a.selection[1],
-          onPrimaryContainer: Colors.white,
-          surface: a.background,
-          onSurface: a.text,
-          onSurfaceVariant: a.textSecondary,
-          surfaceContainerLowest: a.background,
-          surfaceContainerLow: a.background,
-          surfaceContainer: a.stripe,
-          surfaceContainerHigh: a.background,
-          surfaceContainerHighest: a.stripe,
-          outline: a.border,
-          outlineVariant: a.separator,
-        );
+  static ThemeData _build(WvPalette a) {
+    final scheme = a.scheme;
+    final brightness = scheme.brightness;
 
     final base = ThemeData(
       useMaterial3: true,
+      fontFamily: 'WorkSans',
       brightness: brightness,
       colorScheme: scheme,
     );
 
-    // Lucida Grande isn't available; Noto Sans is the closest humanist face.
-    final textTheme = GoogleFonts.notoSansTextTheme(
-      base.textTheme,
-    ).apply(bodyColor: a.text, displayColor: a.text);
+    final textTheme = base.textTheme.apply(
+      bodyColor: a.text,
+      displayColor: a.text,
+    );
 
     return base.copyWith(
       extensions: [a],
+      inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
+        filled: true,
+        fillColor: a.surface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(5),
+          borderSide: BorderSide(color: a.separator),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(5),
+          borderSide: BorderSide(color: a.separator),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(5),
+          borderSide: BorderSide(color: a.accent, width: 1.5),
+        ),
+      ),
       textTheme: textTheme,
-      primaryTextTheme: GoogleFonts.notoSansTextTheme(base.primaryTextTheme),
+      primaryTextTheme: textTheme,
       scaffoldBackgroundColor: a.background,
       canvasColor: a.background,
-      // Aqua has no Material ripples.
-      splashFactory: NoSplash.splashFactory,
-      splashColor: Colors.transparent,
-      highlightColor: Colors.transparent,
-      hoverColor: Colors.transparent,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       dividerTheme: DividerThemeData(
         thickness: Ds.hairline,
         space: Ds.hairline,
         color: a.separator,
       ),
-      pageTransitionsTheme: const PageTransitionsTheme(
-        builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-        },
-      ),
       appBarTheme: AppBarTheme(
-        backgroundColor: a.toolbar[0],
+        backgroundColor: a.background,
         foregroundColor: a.text,
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: a.background,
-        elevation: 14,
+        backgroundColor: a.surfaceHigh,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Ds.radiusM + 2),
-          side: BorderSide(color: a.border),
+          borderRadius: BorderRadius.circular(Ds.radiusXL),
+          side: BorderSide(color: a.separator, width: 1),
         ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: a.background,
-        shape: RoundedRectangleBorder(
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(Ds.radiusL),
+        backgroundColor: a.surfaceHigh,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(Ds.radiusXL),
           ),
-          side: BorderSide(color: a.border),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: a.dark
-            ? const Color(0xFF3A3A3A)
-            : const Color(0xFF2B2B2B),
-        contentTextStyle: const TextStyle(color: Colors.white),
+        backgroundColor: a.scheme.inverseSurface,
+        contentTextStyle: TextStyle(color: a.scheme.onInverseSurface),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(Ds.radiusM),
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: a.background,
+        color: a.surfaceHigh,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Ds.radiusS),
-          side: BorderSide(color: a.border),
+          borderRadius: BorderRadius.circular(Ds.radiusM),
         ),
       ),
       listTileTheme: const ListTileThemeData(
         contentPadding: EdgeInsets.symmetric(horizontal: 16),
       ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: a.accent,
+        linearTrackColor: a.surfaceHighest,
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: a.accent,
+        selectionColor: a.accent.withValues(alpha: 0.35),
+        selectionHandleColor: a.accent,
+      ),
       sliderTheme: SliderThemeData(
-        activeTrackColor: a.gelBlue[2],
-        inactiveTrackColor: a.separator,
-        thumbColor: a.gelGray[1],
-        trackHeight: 5,
+        activeTrackColor: a.accent,
+        inactiveTrackColor: a.surfaceHighest,
+        thumbColor: a.accent,
+        overlayColor: a.accent.withValues(alpha: 0.12),
+        trackHeight: 3,
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
     );
   }

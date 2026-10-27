@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:wavvy/core/app_context.dart';
-import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
 /// Context-free dialog helpers (replace Get.dialog / Get.defaultDialog).
@@ -21,13 +20,14 @@ Future<T?> showAppDialog<T>({
   );
 }
 
-/// Aqua dialog shell: section-bar title, body, and a row of gel buttons.
-class AquaDialog extends StatelessWidget {
+/// Wv dialog shell: rounded surface, bold title, body, and a row of pill
+/// buttons.
+class WvDialog extends StatelessWidget {
   final String title;
   final Widget content;
   final List<Widget> actions;
 
-  const AquaDialog({
+  const WvDialog({
     super.key,
     required this.title,
     required this.content,
@@ -36,41 +36,51 @@ class AquaDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
     return Dialog(
-      backgroundColor: a.background,
+      backgroundColor: a.surfaceHigh,
+      elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Ds.radiusM + 2),
-        side: BorderSide(color: a.border),
+        borderRadius: BorderRadius.circular(Ds.radiusXL),
+        side: BorderSide(color: a.separator),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AquaSectionBar(title: title),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 28, 28, 0),
+            child: Text(
+              title,
+              style: TextStyle(
+                color: a.text,
+                fontSize: 24,
+                fontFamily: 'WorkSans',
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ),
           Flexible(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              padding: const EdgeInsets.fromLTRB(28, 14, 28, 12),
               child: DefaultTextStyle.merge(
-                style: TextStyle(color: a.text, fontSize: 14),
+                style: TextStyle(color: a.textSecondary, fontSize: 14),
                 child: content,
               ),
             ),
           ),
           if (actions.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  for (int i = 0; i < actions.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 4),
-                    actions[i],
-                  ],
-                ],
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: actions,
               ),
             ),
         ],
@@ -79,27 +89,62 @@ class AquaDialog extends StatelessWidget {
   }
 }
 
-/// Labeled capsule gel button for dialog action rows.
-Widget aquaDialogButton(
+/// Pill button for dialog action rows. Destructive actions fill with the
+/// error color.
+Widget wvDialogButton(
   String label,
   VoidCallback? onPressed, {
   bool primary = false,
   bool destructive = false,
 }) {
-  return GelButton(
-    width: 92,
-    primary: primary,
-    onPressed: onPressed,
-    child: Text(
-      label,
-      style: destructive
-          ? TextStyle(
-              color: Colors.red.shade700,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            )
-          : null,
-    ),
+  return Builder(
+    builder: (context) {
+      final a = Wv.of(context);
+      if (destructive) {
+        return Semantics(
+          button: true,
+          enabled: onPressed != null,
+          label: label,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 96, minHeight: 48),
+            child: Material(
+              color: a.error,
+              borderRadius: BorderRadius.circular(24),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onPressed,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
+                  child: Center(
+                    widthFactor: 1,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: a.scheme.onError,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      return WvButton(
+        width: 96,
+        size: 44,
+        primary: primary,
+        onPressed: onPressed,
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      );
+    },
   );
 }
 
@@ -113,12 +158,12 @@ Future<void> showConfirmDialog({
   required FutureOr<void> Function() onConfirm,
 }) async {
   final confirmed = await showAppDialog<bool>(
-    builder: (context) => AquaDialog(
+    builder: (context) => WvDialog(
       title: title,
       content: Text(message),
       actions: [
-        aquaDialogButton(cancelText, () => Navigator.of(context).pop(false)),
-        aquaDialogButton(
+        wvDialogButton(cancelText, () => Navigator.of(context).pop(false)),
+        wvDialogButton(
           confirmText,
           () => Navigator.of(context).pop(true),
           primary: !destructive,
@@ -129,6 +174,3 @@ Future<void> showConfirmDialog({
   );
   if (confirmed == true) await onConfirm();
 }
-
-/// Convenience for non-context code that only needs to close the top route.
-void closeTopRoute() => AppNav.pop();

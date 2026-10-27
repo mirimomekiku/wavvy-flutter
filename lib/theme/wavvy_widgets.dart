@@ -1,333 +1,500 @@
 import 'package:flutter/material.dart';
 
-/// Classic Mac OS X "Aqua" (Snow Leopard / iTunes 10) building blocks.
+/// Kaisu-inspired paper surfaces, silver chrome and Aqua selection states.
+/// The first three appearance indices remain compatible with saved preferences.
+enum WvAppearance {
+  /// Mint (legacy Green index).
+  green,
+
+  /// Rose (legacy Red index).
+  red,
+
+  /// Material You: the system wallpaper scheme (falls back to a violet seed
+  /// when the platform has no dynamic colors).
+  materialYou,
+
+  lilac,
+  peach,
+  aqua,
+  graphite,
+}
+
+/// Colors for the current brightness + accent, exposed as a [ThemeExtension]
+/// so every widget reads it with [Wv.of].
 ///
-/// The signature materials are:
-///  * "gel": a glossy gradient with a hard split at 50% (light top half,
-///    darker bottom half) used for buttons, checkboxes and selections;
-///  * a brushed light-gray toolbar gradient with dark/light edge lines;
-///  * striped table rows and an inset "LCD" display.
-
-enum AquaAppearance { blue, graphite }
-
-/// Colors for the current brightness + appearance, exposed as a
-/// [ThemeExtension] so every widget reads it with [Aqua.of].
+/// Everything is derived from one Material [scheme]; the named roles below are
+/// short, stable aliases for it.
 @immutable
-class AquaPalette extends ThemeExtension<AquaPalette> {
+class WvPalette extends ThemeExtension<WvPalette> {
   final bool dark;
-  final AquaAppearance appearance;
+  final WvAppearance appearance;
 
   /// Album-art color (Dynamic Colors). When set (and not near-gray) it
-  /// replaces the blue/graphite gel, selection and accent colors.
+  /// replaces the appearance's own seed.
   final Color? seed;
 
-  const AquaPalette({
+  /// The system (wallpaper) scheme for this brightness, when available.
+  final ColorScheme? system;
+
+  /// The full Material 3 color scheme everything below is read from.
+  final ColorScheme scheme;
+
+  WvPalette({
     required this.dark,
     required this.appearance,
     this.seed,
-  });
+    this.system,
+  }) : scheme = _schemeFor(dark, appearance, seed, system);
 
-  bool get _blue => appearance == AquaAppearance.blue;
+  const WvPalette._(
+    this.dark,
+    this.appearance,
+    this.seed,
+    this.system,
+    this.scheme,
+  );
 
-  bool get _useSeed =>
-      seed != null && HSLColor.fromColor(seed!).saturation >= 0.12;
+  /// Used when no theme is available (should not normally happen).
+  static final WvPalette fallback = WvPalette(
+    dark: true,
+    appearance: WvAppearance.materialYou,
+  );
 
-  /// A tone of the seed at lightness offset [dl] from a clamped mid-tone.
-  Color _tone(double dl) {
-    final hsl = HSLColor.fromColor(seed!);
-    final sat = hsl.saturation.clamp(0.35, 0.85);
-    final light = (hsl.lightness.clamp(0.38, 0.56) + dl).clamp(0.0, 1.0);
-    return hsl.withSaturation(sat).withLightness(light).toColor();
+  static const Color _violet = Color(0xFF6750A4);
+  static const Color _green = Color(0xFF397565);
+  static const Color _red = Color(0xFFAC4C72);
+
+  static bool _usable(Color? seed) =>
+      seed != null && HSLColor.fromColor(seed).saturation >= 0.12;
+
+  static ColorScheme _schemeFor(
+    bool dark,
+    WvAppearance appearance,
+    Color? seed,
+    ColorScheme? system,
+  ) {
+    final brightness = dark ? Brightness.dark : Brightness.light;
+    ColorScheme from(Color c) {
+      final base = ColorScheme.fromSeed(seedColor: c, brightness: brightness);
+      return base.copyWith(
+        surface: dark ? const Color(0xFF15191F) : const Color(0xFFECECEC),
+        onSurface: dark ? const Color(0xFFF0F3F7) : const Color(0xFF1C1C1C),
+        onSurfaceVariant: dark
+            ? const Color(0xFFB3BECD)
+            : const Color(0xFF4B4B4B),
+        surfaceContainer: dark ? const Color(0xFF1E242D) : Colors.white,
+        surfaceContainerHigh: dark
+            ? const Color(0xFF252D38)
+            : const Color(0xFFF0F3F7),
+        surfaceContainerHighest: dark
+            ? const Color(0xFF303B49)
+            : const Color(0xFFE4EAF1),
+        outline: dark ? const Color(0xFF9AA9BC) : const Color(0xFF6A7889),
+        outlineVariant: dark
+            ? const Color(0xFF364250)
+            : const Color(0xFFD6DAE0),
+        primaryContainer: dark
+            ? const Color(0xFF193958)
+            : const Color(0xFFE8F1FC),
+        onPrimaryContainer: dark
+            ? const Color(0xFFCDDEFA)
+            : const Color(0xFF173D72),
+        secondaryContainer: dark
+            ? const Color(0xFF293849)
+            : const Color(0xFFE7EDF5),
+        onSecondaryContainer: dark
+            ? const Color(0xFFD0DDEB)
+            : const Color(0xFF283F59),
+        tertiaryContainer: dark
+            ? const Color(0xFF273745)
+            : const Color(0xFFECF1F7),
+        onTertiaryContainer: dark
+            ? const Color(0xFFD0DDEB)
+            : const Color(0xFF283F59),
+      );
+    }
+
+    if (_usable(seed)) return from(seed!);
+    switch (appearance) {
+      case WvAppearance.green:
+        return from(_green);
+      case WvAppearance.red:
+        return from(_red);
+      case WvAppearance.materialYou:
+        return system ?? from(_violet);
+      case WvAppearance.lilac:
+        return from(const Color(0xFF7960A8));
+      case WvAppearance.peach:
+        return from(const Color(0xFF996344));
+      case WvAppearance.aqua:
+        return from(const Color(0xFF2563B2)).copyWith(
+          primary: dark ? const Color(0xFF8CB9F5) : const Color(0xFF356FCB),
+          onPrimary: dark ? const Color(0xFF10233D) : Colors.white,
+        );
+      case WvAppearance.graphite:
+        return from(const Color(0xFF526174)).copyWith(
+          primary: dark ? const Color(0xFFBDC6D0) : const Color(0xFF536172),
+          onPrimary: dark ? const Color(0xFF18232E) : Colors.white,
+        );
+    }
   }
 
-  // --- Surfaces & text ---
-  Color get background =>
-      dark ? const Color(0xFF1E1E1E) : const Color(0xFFFFFFFF);
-  Color get stripe => dark ? const Color(0xFF262A30) : const Color(0xFFEFF3FA);
-  Color get text => dark ? const Color(0xFFEDEDED) : const Color(0xFF1A1A1A);
-  Color get textSecondary =>
-      dark ? const Color(0xFF9C9C9C) : const Color(0xFF6B6B6B);
-  Color get separator =>
-      dark ? const Color(0xFF3A3A3A) : const Color(0xFFD0D0D0);
-  Color get glyph => dark ? const Color(0xFFE6E6E6) : const Color(0xFF333333);
-  Color get border => dark ? const Color(0xFF000000) : const Color(0xFF9A9A9A);
+  // ------------------------------------------------------------- Surfaces
 
-  // --- Toolbar / bars ---
-  List<Color> get toolbar => dark
-      ? const [Color(0xFF5E5E5E), Color(0xFF2D2D2D)]
-      : const [Color(0xFFE8E8E8), Color(0xFFB5B5B5)];
-  Color get toolbarBorder =>
-      dark ? const Color(0xFF000000) : const Color(0xFF6F6F6F);
-  Color get toolbarHighlight =>
-      dark ? const Color(0xFF6E6E6E) : const Color(0xFFF7F7F7);
+  Color get background => scheme.surface;
+  Color get surface => scheme.surfaceContainer;
+  Color get surfaceHigh => scheme.surfaceContainerHigh;
+  Color get surfaceHighest => scheme.surfaceContainerHighest;
+  Color get separator => scheme.outlineVariant;
+  Color get outline => scheme.outline;
+  Color get shellBottom =>
+      dark ? const Color(0xFF222A34) : const Color(0xFFE4E9EF);
+  Color get stripe => dark ? const Color(0xFF1B222C) : const Color(0xFFF1F5FB);
 
-  List<Color> get header => dark
-      ? const [Color(0xFF4A4A4A), Color(0xFF333333)]
-      : const [Color(0xFFF6F6F6), Color(0xFFDADADA)];
-  Color get headerBorder =>
-      dark ? const Color(0xFF1A1A1A) : const Color(0xFFB0B0B0);
+  LinearGradient get chromeGradient => LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: dark
+        ? const [Color(0xFF3B414A), Color(0xFF2B3038), Color(0xFF22272F)]
+        : const [Color(0xFFF7F7F7), Color(0xFFE2E3E5), Color(0xFFCDD0D4)],
+    stops: const [0, 0.48, 1],
+  );
+  LinearGradient gelGradient({bool primary = false}) => primary
+      ? LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color.lerp(accent, Colors.white, 0.48)!,
+            Color.lerp(accent, Colors.white, 0.12)!,
+            accent,
+            Color.lerp(accent, Colors.white, 0.13)!,
+          ],
+          stops: const [0, 0.45, 0.52, 1],
+        )
+      : LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: dark
+              ? const [
+                  Color(0xFF555C65),
+                  Color(0xFF3B424C),
+                  Color(0xFF303740),
+                  Color(0xFF3F4852),
+                ]
+              : const [
+                  Color(0xFFFEFEFE),
+                  Color(0xFFEBEBEB),
+                  Color(0xFFD6D6D6),
+                  Color(0xFFE6E6E6),
+                ],
+          stops: const [0, 0.48, 0.52, 1],
+        );
+  BoxDecoration get lcdDecoration => BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: dark
+          ? const [Color(0xFF161E23), Color(0xFF253238), Color(0xFF29363D)]
+          : const [Color(0xFFDDE4E2), Color(0xFFF2F5F3), Color(0xFFFBFCFB)],
+      stops: const [0, 0.4, 1],
+    ),
+    border: Border.all(
+      color: dark ? const Color(0xFF12171D) : const Color(0xFF8C959B),
+    ),
+    borderRadius: BorderRadius.circular(5),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.white.withValues(alpha: dark ? 0.04 : 0.8),
+        offset: const Offset(0, 1),
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.10),
+        blurRadius: 2,
+        offset: const Offset(0, -1),
+      ),
+    ],
+  );
 
-  // --- Gel (4 colors, split at 50%) ---
-  List<Color> get gelGray => dark
-      ? const [
-          Color(0xFF8A8A8A),
-          Color(0xFF5A5A5A),
-          Color(0xFF3E3E3E),
-          Color(0xFF4F4F4F),
-        ]
-      : const [
-          Color(0xFFFFFFFF),
-          Color(0xFFE6E6E6),
-          Color(0xFFD2D2D2),
-          Color(0xFFE4E4E4),
-        ];
-  Color get gelBorder =>
-      dark ? const Color(0xFF111111) : const Color(0xFF7E7E7E);
+  BoxDecoration frame({Color? color, double radius = 8, bool raised = true}) =>
+      BoxDecoration(
+        color: color ?? surface,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: separator),
+        boxShadow: raised
+            ? [
+                BoxShadow(
+                  color: scheme.shadow.withValues(alpha: dark ? 0.12 : 0.035),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ]
+            : null,
+      );
 
-  List<Color> get gelBlue => _useSeed
-      ? [_tone(0.24), _tone(0.10), _tone(-0.04), _tone(0.08)]
-      : _blue
-      ? const [
-          Color(0xFFAFD2F6),
-          Color(0xFF72AAEC),
-          Color(0xFF3C84DE),
-          Color(0xFF6DB1F6),
-        ]
-      : const [
-          Color(0xFFCDD2D8),
-          Color(0xFF98A0AB),
-          Color(0xFF6B7480),
-          Color(0xFF949CA8),
-        ];
-  Color get gelBlueBorder => _useSeed
-      ? _tone(-0.22)
-      : (_blue ? const Color(0xFF2A5CA8) : const Color(0xFF4D5560));
+  // ----------------------------------------------------------------- Text
 
-  // --- Selection (list rows) ---
-  List<Color> get selection => _useSeed
-      ? [_tone(0.12), _tone(-0.04)]
-      : _blue
-      ? const [Color(0xFF6AA8EE), Color(0xFF2D70D2)]
-      : const [Color(0xFFA9B0BA), Color(0xFF6A7380)];
-  Color get selectionBorder => _useSeed
-      ? _tone(-0.16)
-      : (_blue ? const Color(0xFF2A62B8) : const Color(0xFF59616D));
+  Color get text => scheme.onSurface;
+  Color get textSecondary => scheme.onSurfaceVariant;
+  Color get textTertiary => scheme.outline;
 
-  /// Links and accents.
-  Color get accent => _useSeed
-      ? _tone(dark ? 0.18 : -0.06)
-      : _blue
-      ? (dark ? const Color(0xFF6FA5F0) : const Color(0xFF1F5FBF))
-      : (dark ? const Color(0xFFB4BBC6) : const Color(0xFF4E5868));
+  // --------------------------------------------------------------- Accent
 
-  // --- LCD display ---
-  List<Color> get lcd => dark
-      ? const [Color(0xFF141516), Color(0xFF2A2C2E)]
-      : const [Color(0xFFCED2D2), Color(0xFFEDEFEF)];
-  Color get lcdBorder =>
-      dark ? const Color(0xFF000000) : const Color(0xFF74777A);
+  /// Primary: the main action, active indicators and progress.
+  Color get accent => scheme.primary;
 
-  // --- Photo frames ---
-  Color get frame => dark ? const Color(0xFF3A3A3A) : const Color(0xFFFFFFFF);
-  Color get frameBorder =>
-      dark ? const Color(0xFF000000) : const Color(0xFFB5B5B5);
+  /// Accent for text and icons sitting directly on [background].
+  Color get accentText => scheme.primary;
+
+  /// Content drawn on top of [accent].
+  Color get onAccent => scheme.onPrimary;
+
+  // Tonal containers (color blocking).
+  Color get primaryContainer => scheme.primaryContainer;
+  Color get onPrimaryContainer => scheme.onPrimaryContainer;
+  Color get secondaryContainer => scheme.secondaryContainer;
+  Color get onSecondaryContainer => scheme.onSecondaryContainer;
+  Color get tertiary => scheme.tertiary;
+  Color get onTertiary => scheme.onTertiary;
+  Color get tertiaryContainer => scheme.tertiaryContainer;
+  Color get onTertiaryContainer => scheme.onTertiaryContainer;
+  Color get error => scheme.error;
+
+  /// Rotating tonal "color block" pairs (container, content-on-container):
+  /// primary, secondary, tertiary containers. Use [i] (an index or a hash) to
+  /// give neighbouring tiles different colors, Material 3 Expressive style.
+  (Color, Color) tonal(int i) {
+    switch (i.abs() % 3) {
+      case 0:
+        return (primaryContainer, onPrimaryContainer);
+      case 1:
+        return (tertiaryContainer, onTertiaryContainer);
+      default:
+        return (secondaryContainer, onSecondaryContainer);
+    }
+  }
+
+  /// Selected chip / segmented item (Material You uses secondaryContainer).
+  Color get chipSelected => scheme.primaryContainer;
+
+  /// Text on a selected chip.
+  Color get onChipSelected => scheme.onPrimaryContainer;
+
+  /// Background for now-playing surfaces. The scheme itself is generated from
+  /// the album color while a song with artwork plays, so its primary container
+  /// is already album-tinted.
+  Color tint(Color? source) => source == null ? background : primaryContainer;
 
   @override
-  AquaPalette copyWith({
+  WvPalette copyWith({
     bool? dark,
-    AquaAppearance? appearance,
+    WvAppearance? appearance,
     Color? seed,
     bool clearSeed = false,
-  }) => AquaPalette(
+    ColorScheme? system,
+  }) => WvPalette(
     dark: dark ?? this.dark,
     appearance: appearance ?? this.appearance,
     seed: clearSeed ? null : (seed ?? this.seed),
+    system: system ?? this.system,
   );
 
   @override
-  AquaPalette lerp(ThemeExtension<AquaPalette>? other, double t) {
-    if (other is! AquaPalette) return this;
+  WvPalette lerp(ThemeExtension<WvPalette>? other, double t) {
+    if (other is! WvPalette) return this;
     final base = t < 0.5 ? this : other;
-    // Fade between two album colors instead of snapping.
-    final Color? mixed = (seed != null && other.seed != null)
-        ? Color.lerp(seed, other.seed, t)
-        : base.seed;
-    return AquaPalette(
-      dark: base.dark,
-      appearance: base.appearance,
-      seed: mixed,
+    // Blend the whole tonal scheme so album changes and light/dark switches
+    // cross-fade instead of snapping.
+    return WvPalette._(
+      base.dark,
+      base.appearance,
+      (seed != null && other.seed != null)
+          ? Color.lerp(seed, other.seed, t)
+          : base.seed,
+      base.system,
+      ColorScheme.lerp(scheme, other.scheme, t),
     );
   }
 }
 
-class Aqua {
-  Aqua._();
+class Wv {
+  Wv._();
 
-  static AquaPalette of(BuildContext context) =>
-      Theme.of(context).extension<AquaPalette>() ??
-      const AquaPalette(dark: false, appearance: AquaAppearance.blue);
-
-  /// Gel gradient: light top half, darker bottom half, hard split.
-  static LinearGradient gel(List<Color> c) => LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: c,
-    stops: const [0.0, 0.5, 0.5, 1.0],
-  );
-
-  static List<Color> darken(List<Color> colors, [double amount = 0.1]) {
-    return colors.map((c) {
-      final hsl = HSLColor.fromColor(c);
-      return hsl
-          .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-          .toColor();
-    }).toList();
-  }
+  static WvPalette of(BuildContext context) =>
+      Theme.of(context).extension<WvPalette>() ?? WvPalette.fallback;
 }
 
-/// Spacing, radii and motion constants (Aqua uses small radii, crisp 1px
-/// lines and quick ease-out animations).
+/// Shared spacing, rounded frames and short press animations.
 class Ds {
   Ds._();
 
-  static const double radiusS = 4;
+  static const double radiusS = 10;
   static const double radiusM = 6;
-  static const double radiusL = 10;
+  static const double radiusL = 8;
+  static const double radiusXL = 12;
   static const double hairline = 1;
 
-  static const Duration fast = Duration(milliseconds: 120);
-  static const Duration medium = Duration(milliseconds: 250);
-  static const Curve emphasized = Curves.easeOut;
+  /// "Leaf" corners: two opposite corners big, two small. Alternating leaf A /
+  /// leaf B / rounded tiles gives grids a playful, hand-cut rhythm.
+  static const BorderRadius leafA = BorderRadius.only(
+    topLeft: Radius.circular(40),
+    bottomRight: Radius.circular(40),
+    topRight: Radius.circular(14),
+    bottomLeft: Radius.circular(14),
+  );
+  static const BorderRadius leafB = BorderRadius.only(
+    topRight: Radius.circular(40),
+    bottomLeft: Radius.circular(40),
+    topLeft: Radius.circular(14),
+    bottomRight: Radius.circular(14),
+  );
 
-  static Color separator(BuildContext context) => Aqua.of(context).separator;
+  /// Rotating playful corner style for the i-th tile of a grid/shelf.
+  static BorderRadius tileShape(int i) => BorderRadius.circular(16);
+
+  static const Duration fast = Duration(milliseconds: 150);
+  static const Duration medium = Duration(milliseconds: 250);
+
+  /// Springy, slightly overshooting motion for shape/size changes.
+  static const Curve spring = Curves.easeOutCubic;
+  static const Duration springDuration = Duration(milliseconds: 200);
+
+  static Color separator(BuildContext context) => Wv.of(context).separator;
 }
 
-/// Brushed-metal bar. [topBar] puts the dark edge on the bottom (a toolbar);
-/// otherwise the dark edge is on top (a bottom bar).
-class AquaBar extends StatelessWidget {
+/// Flat bar background (toolbars and the bottom area).
+class WvBar extends StatelessWidget {
   final Widget child;
-  final bool topBar;
 
-  const AquaBar({super.key, required this.child, this.topBar = true});
+  /// Kept for call-site compatibility; the flat style has no top/bottom edge.
+  final bool topBar;
+  final Color? color;
+
+  const WvBar({super.key, required this.child, this.topBar = true, this.color});
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
-    final dark = BorderSide(color: a.toolbarBorder);
-    final light = BorderSide(color: a.toolbarHighlight);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: a.toolbar,
-        ),
-        border: Border(
-          top: topBar ? light : dark,
-          bottom: topBar ? dark : light,
-        ),
-      ),
-      child: Material(type: MaterialType.transparency, child: child),
-    );
+    final a = Wv.of(context);
+    return Material(color: color ?? a.background, child: child);
   }
 }
 
-/// Glossy Aqua push button. Circular for transport controls, capsule for
-/// toolbar buttons. Visible size is small but the hit area is always 48dp.
-class GelButton extends StatefulWidget {
+/// Button used everywhere in the app (Material 3 Expressive style: it
+/// morphs its shape while pressed).
+///
+///  * [circular] icon buttons: transparent by default, [primary] = primary
+///    fill, [inverse] = primary-container fill (the big play button);
+///  * labeled capsules ([circular] false): tonal (secondary container) by
+///    default, [primary] = primary pill, [inverse] = primary-container pill.
+///  * [squircle] keeps the resting shape a rounded square (e.g. the play button
+///    while paused) so state changes read as a shape morph.
+///
+/// The visible size is small but the hit area is always 48dp.
+class WvButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onPressed;
   final bool primary;
+  final bool inverse;
   final bool circular;
+  final bool squircle;
   final double size;
   final double? width;
   final String? tooltip;
 
-  const GelButton({
+  const WvButton({
     super.key,
     required this.child,
     required this.onPressed,
     this.primary = false,
+    this.inverse = false,
     this.circular = false,
-    this.size = 30,
+    this.squircle = false,
+    this.size = 32,
     this.width,
     this.tooltip,
   });
 
   @override
-  State<GelButton> createState() => _GelButtonState();
+  State<WvButton> createState() => _WvButtonState();
 }
 
-class _GelButtonState extends State<GelButton> {
-  bool _down = false;
-
+class _WvButtonState extends State<WvButton> {
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
     final enabled = widget.onPressed != null;
-
-    var colors = widget.primary ? a.gelBlue : a.gelGray;
-    if (_down && enabled) colors = Aqua.darken(colors, 0.12);
-    final borderColor = widget.primary ? a.gelBlueBorder : a.gelBorder;
-    final glyphColor = widget.primary ? Colors.white : a.glyph;
-
-    final double w = widget.circular
-        ? widget.size
-        : (widget.width ?? widget.size * 1.4);
-
-    final visual = AnimatedContainer(
-      duration: Ds.fast,
-      width: w,
-      height: widget.size,
-      decoration: BoxDecoration(
-        gradient: Aqua.gel(colors),
-        shape: widget.circular ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: widget.circular
-            ? null
-            : BorderRadius.circular(widget.size / 2),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white.withValues(alpha: a.dark ? 0.06 : 0.7),
-            offset: const Offset(0, 1),
-          ),
-        ],
+    final fg = widget.primary ? a.onAccent : a.text;
+    final radius = widget.circular && !widget.squircle
+        ? widget.size / 2
+        : widget.squircle
+        ? 6.0
+        : 16.0;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+    );
+    final decoration = BoxDecoration(
+      gradient: a.gelGradient(primary: widget.primary),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: widget.primary
+            ? Color.lerp(a.accent, Colors.black, 0.25)!
+            : a.outline.withValues(alpha: 0.65),
       ),
-      child: IconTheme(
-        data: IconThemeData(color: glyphColor, size: widget.size * 0.56),
-        child: DefaultTextStyle.merge(
-          style: TextStyle(
-            color: glyphColor,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: a.dark ? 0.25 : 0.14),
+          blurRadius: 1,
+          offset: const Offset(0, 1),
+        ),
+      ],
+    );
+    final style = TextButton.styleFrom(
+      foregroundColor: fg,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      disabledForegroundColor: a.textTertiary,
+      minimumSize: Size(
+        widget.circular ? widget.size.clamp(32.0, 100.0) : (widget.width ?? 72),
+        widget.size.clamp(32.0, 100.0),
+      ),
+      padding: widget.circular
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: 12),
+      shape: shape,
+      textStyle: TextStyle(
+        fontFamily: 'WorkSans',
+        fontSize: 13,
+        fontWeight: widget.primary ? FontWeight.w600 : FontWeight.w500,
+        shadows: widget.primary
+            ? const [Shadow(color: Color(0x66305792), offset: Offset(0, -1))]
+            : null,
+      ),
+    );
+    Widget result = Material(
+      color: Colors.transparent,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: decoration,
+        child: TextButton(
+          style: style,
+          onPressed: widget.onPressed,
+          child: IconTheme(
+            data: IconThemeData(
+              size: widget.circular
+                  ? (widget.size * 0.48).clamp(18.0, 32.0)
+                  : 18,
+              color: enabled ? fg : a.textTertiary,
+            ),
+            child: widget.circular
+                ? widget.child
+                : FittedBox(fit: BoxFit.scaleDown, child: widget.child),
           ),
-          child: Center(child: widget.child),
         ),
       ),
     );
-
-    Widget result = Semantics(
-      button: true,
-      enabled: enabled,
-      label: widget.tooltip,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: enabled ? (_) => setState(() => _down = true) : null,
-        onTapUp: enabled ? (_) => setState(() => _down = false) : null,
-        onTapCancel: enabled ? () => setState(() => _down = false) : null,
-        onTap: widget.onPressed,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-          child: Center(
-            widthFactor: 1,
-            heightFactor: 1,
-            child: Opacity(opacity: enabled ? 1 : 0.45, child: visual),
-          ),
-        ),
-      ),
-    );
-
+    if (widget.width != null && !widget.circular) {
+      result = SizedBox(width: widget.width, child: result);
+    }
+    if (!enabled) result = Opacity(opacity: 0.55, child: result);
     if (widget.tooltip != null) {
       result = Tooltip(message: widget.tooltip!, child: result);
     }
@@ -335,139 +502,116 @@ class _GelButtonState extends State<GelButton> {
   }
 }
 
-/// Aqua checkbox: gel square, white check when on.
-class AquaCheckbox extends StatelessWidget {
+/// Material 3 Expressive switch: a primary track with a growing thumb.
+class WvSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
-
-  const AquaCheckbox({super.key, required this.value, required this.onChanged});
-
+  const WvSwitch({super.key, required this.value, required this.onChanged});
   @override
-  Widget build(BuildContext context) {
-    final a = Aqua.of(context);
-    final colors = value ? a.gelBlue : a.gelGray;
-    final border = value ? a.gelBlueBorder : a.gelBorder;
-
-    return Semantics(
-      checked: value,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onChanged == null ? null : () => onChanged!(!value),
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Center(
-            child: AnimatedContainer(
-              duration: Ds.fast,
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                gradient: Aqua.gel(colors),
-                borderRadius: BorderRadius.circular(Ds.radiusS),
-                border: Border.all(color: border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: a.dark ? 0.06 : 0.7),
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: value
-                  ? const Icon(
-                      Icons.check_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      Switch.adaptive(value: value, onChanged: onChanged);
 }
 
-/// Segmented gel control (e.g. Blue / Graphite).
-class AquaSegmented extends StatelessWidget {
+/// Row of toggle chips. Shape morphs on selection: the selected chip is a full
+/// pill in the secondary container, the others are rounded squares. With
+/// [indicator] a short accent bar sits under the selected chip.
+///
+/// [uppercase] renders compact, letter-spaced labels (used by the Library and
+/// Search source toggles).
+class WvChips extends StatelessWidget {
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onChanged;
+  final bool uppercase;
+  final bool indicator;
 
-  const AquaSegmented({
+  const WvChips({
     super.key,
     required this.labels,
     required this.selected,
     required this.onChanged,
+    this.uppercase = false,
+    this.indicator = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Ds.radiusM),
-          border: Border.all(color: a.gelBorder),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.white.withValues(alpha: a.dark ? 0.06 : 0.7),
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(Ds.radiusM - 1),
-          child: Row(
-            children: [
-              for (int i = 0; i < labels.length; i++)
-                Expanded(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => onChanged(i),
-                    child: AnimatedContainer(
-                      duration: Ds.fast,
-                      height: 34,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        gradient: Aqua.gel(
-                          i == selected ? a.gelBlue : a.gelGray,
-                        ),
-                        border: i == 0
-                            ? null
-                            : Border(left: BorderSide(color: a.gelBorder)),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int i = 0; i < labels.length; i++)
+            Semantics(
+              button: true,
+              selected: selected == i,
+              label: labels[i],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.horizontal(
+                    left: i == 0 ? const Radius.circular(6) : Radius.zero,
+                    right: i == labels.length - 1
+                        ? const Radius.circular(6)
+                        : Radius.zero,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      gradient: a.gelGradient(primary: i == selected),
+                      border: Border.all(
+                        color: i == selected
+                            ? a.accent
+                            : a.outline.withValues(alpha: 0.6),
                       ),
-                      child: Text(
-                        labels[i],
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: i == selected ? Colors.white : a.glyph,
+                    ),
+                    child: InkWell(
+                      onTap: () => onChanged(i),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(minHeight: 36),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: uppercase ? 12 : 14,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            uppercase ? labels[i].toUpperCase() : labels[i],
+                            style: TextStyle(
+                              fontSize: uppercase ? 11 : 12,
+                              fontWeight: i == selected
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
+                              color: i == selected ? a.onAccent : a.text,
+                              letterSpacing: uppercase ? 0.2 : 0,
+                            ),
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-/// Inset search field with a magnifier, as in iTunes' toolbar. Tappable
-/// (it opens the search screen) rather than editable.
-class AquaSearchField extends StatelessWidget {
+/// Search field look-alike (a Material 3 search bar) that opens search when
+/// tapped.
+class WvSearchField extends StatelessWidget {
   final VoidCallback onTap;
   final String hint;
 
-  const AquaSearchField({super.key, required this.onTap, this.hint = "Search"});
+  const WvSearchField({super.key, required this.onTap, this.hint = "Search"});
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
     return Semantics(
       button: true,
@@ -475,38 +619,35 @@ class AquaSearchField extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: SizedBox(
-          height: 48,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 56),
           child: Center(
             child: Container(
-              height: 32,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              constraints: const BoxConstraints(minHeight: 56),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: a.gelBorder),
-                // Inset look: darker rim fading into the field.
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: a.dark
-                      ? const [Color(0xFF0C0C0C), Color(0xFF222222)]
-                      : const [Color(0xFFD6D6D6), Color(0xFFFFFFFF)],
-                  stops: const [0.0, 0.4],
+                color: a.surfaceHigh,
+                borderRadius: BorderRadius.circular(Ds.radiusM),
+                border: Border.all(
+                  color: a.outline.withValues(alpha: 0.6),
+                  width: 1.4,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: a.dark ? 0.06 : 0.7),
-                    offset: const Offset(0, 1),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
-                  Icon(Icons.search_rounded, size: 18, color: a.textSecondary),
-                  const SizedBox(width: 6),
-                  Text(
-                    hint,
-                    style: TextStyle(fontSize: 13.5, color: a.textSecondary),
+                  Icon(Icons.search_rounded, size: 24, color: a.textSecondary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      hint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: a.textSecondary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -518,210 +659,65 @@ class AquaSearchField extends StatelessWidget {
   }
 }
 
-/// Inset "LCD" panel that holds the now-playing info.
-class AquaLcd extends StatelessWidget {
+/// Rounded tonal card.
+class WvPanel extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final Color? color;
+  final double radius;
 
-  const AquaLcd({
+  const WvPanel({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    this.color,
+    this.radius = Ds.radiusM,
   });
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
 
     return Container(
       padding: padding,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: a.lcd,
-        ),
-        borderRadius: BorderRadius.circular(Ds.radiusM),
-        border: Border.all(color: a.lcdBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white.withValues(alpha: a.dark ? 0.06 : 0.7),
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
+      decoration: a.frame(color: color, radius: radius),
       child: child,
     );
   }
 }
 
-/// Thin progress track with a gel-blue fill and a small knob (display only).
-class AquaScrubber extends StatelessWidget {
+/// Thin progress line (display only).
+class WvProgressBar extends StatelessWidget {
   final double value; // 0..1
+  final Color? color;
+  final Color? trackColor;
+  final double height;
 
-  const AquaScrubber({super.key, required this.value});
+  const WvProgressBar({
+    super.key,
+    required this.value,
+    this.color,
+    this.trackColor,
+    this.height = 4,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
     final v = value.clamp(0.0, 1.0);
 
-    return SizedBox(
-      height: 12,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth;
-          const knob = 11.0;
-          return Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Container(
-                height: 5,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: a.gelBorder, width: 0.8),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: a.dark
-                        ? const [Color(0xFF0F0F0F), Color(0xFF3A3A3A)]
-                        : const [Color(0xFF9E9E9E), Color(0xFFE2E2E2)],
-                  ),
-                ),
-              ),
-              Container(
-                width: (w - knob) * v + knob / 2,
-                height: 5,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(3),
-                  gradient: Aqua.gel(a.gelBlue),
-                ),
-              ),
-              Positioned(
-                left: (w - knob) * v,
-                child: Container(
-                  width: knob,
-                  height: knob,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: Aqua.gel(a.gelGray),
-                    border: Border.all(color: a.gelBorder),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-/// Table / group header bar (gradient strip with an optional trailing
-/// action), used for list section titles.
-class AquaSectionBar extends StatelessWidget {
-  final String title;
-  final Widget? trailing;
-
-  const AquaSectionBar({super.key, required this.title, this.trailing});
-
-  @override
-  Widget build(BuildContext context) {
-    final a = Aqua.of(context);
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 36),
-      padding: const EdgeInsets.only(left: 16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: a.header,
-        ),
-        border: Border(
-          top: BorderSide(color: a.headerBorder),
-          bottom: BorderSide(color: a.headerBorder),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: a.text,
-                shadows: [
-                  Shadow(
-                    color: Colors.white.withValues(alpha: a.dark ? 0.0 : 0.8),
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: ColoredBox(color: trackColor ?? a.surfaceHighest),
             ),
-          ),
-          ?trailing,
-        ],
-      ),
-    );
-  }
-}
-
-/// White-bordered "photo" frame with a drop shadow (iPhoto / Cover Flow).
-class AquaPhotoFrame extends StatelessWidget {
-  final Widget child;
-  final bool circular;
-
-  const AquaPhotoFrame({super.key, required this.child, this.circular = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final a = Aqua.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: a.frame,
-        shape: circular ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: circular ? null : BorderRadius.circular(3),
-        border: Border.all(color: a.frameBorder),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: circular
-          ? ClipOval(child: child)
-          : ClipRRect(borderRadius: BorderRadius.circular(1.5), child: child),
-    );
-  }
-}
-
-/// Bold group label above a [InsetGroup] (System Preferences style).
-class GroupHeader extends StatelessWidget {
-  final String title;
-
-  const GroupHeader(this.title, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final a = Aqua.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 20, 4, 6),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: a.text,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          shadows: [
-            Shadow(
-              color: Colors.white.withValues(alpha: a.dark ? 0.0 : 0.8),
-              offset: const Offset(0, 1),
+            FractionallySizedBox(
+              widthFactor: v,
+              child: ColoredBox(color: color ?? a.accent),
             ),
           ],
         ),
@@ -730,45 +726,157 @@ class GroupHeader extends StatelessWidget {
   }
 }
 
-/// Bordered group box whose rows alternate between white and light blue
-/// stripes, like an iTunes table.
-class InsetGroup extends StatelessWidget {
-  final List<Widget> children;
-  final double dividerIndent;
+/// Bold section title with an optional trailing action ("Show all").
+class WvSectionHeader extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
 
-  const InsetGroup({super.key, required this.children, this.dividerIndent = 0});
+  const WvSectionHeader({super.key, required this.title, this.trailing});
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
+    final a = Wv.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 20, top: 24, bottom: 4),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 40),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.3,
+                  color: a.text,
+                ),
+              ),
+            ),
+            ?trailing,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Artwork with big rounded corners (or a circle). Optional shadow for large
+/// hero artwork.
+class WvArtwork extends StatelessWidget {
+  final Widget child;
+  final bool circular;
+  final double radius;
+  final bool elevated;
+
+  /// Overrides [radius] with an arbitrary corner shape (e.g. [Ds.tileShape]).
+  final BorderRadius? shape;
+
+  const WvArtwork({
+    super.key,
+    required this.child,
+    this.circular = false,
+    this.radius = Ds.radiusM,
+    this.elevated = false,
+    this.shape,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
 
     return Container(
       decoration: BoxDecoration(
-        color: a.background,
-        borderRadius: BorderRadius.circular(Ds.radiusM),
-        border: Border.all(color: a.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white.withValues(alpha: a.dark ? 0.05 : 0.8),
-            offset: const Offset(0, 1),
-          ),
-        ],
+        border: Border.all(color: a.separator, width: 1),
+        shape: circular ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: circular
+            ? null
+            : (shape ?? BorderRadius.circular(radius)),
+        boxShadow: elevated
+            ? [
+                BoxShadow(
+                  color: a.scheme.shadow.withValues(alpha: a.dark ? 0.2 : 0.1),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+            : null,
+      ),
+      child: circular
+          ? ClipOval(child: child)
+          : ClipRRect(
+              borderRadius: shape ?? BorderRadius.circular(radius),
+              child: child,
+            ),
+    );
+  }
+}
+
+/// Label above an [InsetGroup].
+class GroupHeader extends StatelessWidget {
+  final String title;
+
+  const GroupHeader(this.title, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: a.textSecondary,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.2,
+        ),
+      ),
+    );
+  }
+}
+
+/// Material 3 Expressive segmented list: items sit in separate tonal tiles
+/// with small gaps; only the outer corners are large.
+class InsetGroup extends StatelessWidget {
+  final List<Widget> children;
+
+  /// Kept for call-site compatibility (the segmented style has no dividers).
+  final double dividerIndent;
+
+  const InsetGroup({
+    super.key,
+    required this.children,
+    this.dividerIndent = 64,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return Material(
+      color: a.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: BorderSide(color: a.separator),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          for (int i = 0; i < children.length; i++)
-            ColoredBox(
-              color: i.isEven ? a.background : a.stripe,
-              child: children[i],
-            ),
+          for (int i = 0; i < children.length; i++) ...[
+            if (i > 0)
+              Divider(height: 1, indent: dividerIndent, color: a.separator),
+            children[i],
+          ],
         ],
       ),
     );
   }
 }
 
-/// Small glossy icon tile (split-gloss gel in the given color).
+/// Small tinted icon tile with a squircle shape.
 class IconBadge extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -778,29 +886,19 @@ class IconBadge extends StatelessWidget {
     super.key,
     required this.icon,
     required this.color,
-    this.size = 30,
+    this.size = 32,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hsl = HSLColor.fromColor(color);
-    Color shade(double l) =>
-        hsl.withLightness((hsl.lightness + l).clamp(0.0, 1.0)).toColor();
-
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.22),
-        gradient: Aqua.gel([
-          shade(0.2),
-          shade(0.08),
-          shade(-0.06),
-          shade(0.05),
-        ]),
-        border: Border.all(color: shade(-0.22)),
+        borderRadius: BorderRadius.circular(size * 0.36),
+        color: color.withValues(alpha: 0.18),
       ),
-      child: Icon(icon, color: Colors.white, size: size * 0.6),
+      child: Icon(icon, color: color, size: size * 0.55),
     );
   }
 }

@@ -1,15 +1,15 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:wavvy/core/app_context.dart';
 
 /// Context-free navigation (replaces Get.to / Get.toNamed / Get.back).
 class AppNav {
   AppNav._();
 
-  /// Pushes [page] with the Cupertino slide transition.
+  /// Pushes [page] using the theme's page transition.
   static Future<T?> push<T>(Widget page) {
     final nav = navigatorKey.currentState;
     if (nav == null) return Future.value(null);
-    return nav.push<T>(CupertinoPageRoute<T>(builder: (_) => page));
+    return nav.push<T>(MaterialPageRoute<T>(builder: (_) => page));
   }
 
   /// Pushes a route registered in MaterialApp.routes.

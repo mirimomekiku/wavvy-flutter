@@ -8,6 +8,27 @@ import 'package:wavvy/theme/wavvy_widgets.dart';
 
 /// Playlist dialogs / sheets (ported from the old PlaylistsController).
 
+InputDecoration _wvFieldDecoration(WvPalette a, String hint) => InputDecoration(
+  isDense: true,
+  filled: true,
+  fillColor: a.surfaceHighest,
+  hintText: hint,
+  hintStyle: TextStyle(color: a.textSecondary),
+  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+  border: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(16),
+    borderSide: BorderSide.none,
+  ),
+  enabledBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(16),
+    borderSide: BorderSide.none,
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(16),
+    borderSide: BorderSide(color: a.accent, width: 1.5),
+  ),
+);
+
 void showNewPlaylistDialog(WidgetRef ref) {
   showAppDialog<void>(builder: (context) => _NewPlaylistDialog(ref: ref));
 }
@@ -31,41 +52,19 @@ class _NewPlaylistDialogState extends State<_NewPlaylistDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final a = Aqua.of(context);
-    return AquaDialog(
+    final a = Wv.of(context);
+    return WvDialog(
       title: "New Playlist",
-      content: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Ds.radiusS),
-          border: Border.all(color: a.gelBorder),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: a.dark
-                ? const [Color(0xFF0C0C0C), Color(0xFF222222)]
-                : const [Color(0xFFD6D6D6), Color(0xFFFFFFFF)],
-            stops: const [0.0, 0.4],
-          ),
-        ),
-        child: TextField(
-          controller: _textController,
-          autofocus: true,
-          style: TextStyle(fontSize: 14, color: a.text),
-          cursorColor: a.accent,
-          decoration: const InputDecoration(
-            isDense: true,
-            filled: false,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-          ),
-        ),
+      content: TextField(
+        controller: _textController,
+        autofocus: true,
+        style: TextStyle(fontSize: 15, color: a.text),
+        cursorColor: a.accent,
+        decoration: _wvFieldDecoration(a, "Playlist name"),
       ),
       actions: [
-        aquaDialogButton("Cancel", () => Navigator.of(context).pop()),
-        aquaDialogButton("Create", () {
+        wvDialogButton("Cancel", () => Navigator.of(context).pop()),
+        wvDialogButton("Create", () {
           widget.ref
               .read(playlistsProvider.notifier)
               .createLocalPlaylist(_textController.text);
@@ -78,12 +77,12 @@ class _NewPlaylistDialogState extends State<_NewPlaylistDialog> {
 
 void showDeletePlaylistDialog(WidgetRef ref, int playlistId, String name) {
   showAppDialog<void>(
-    builder: (context) => AquaDialog(
+    builder: (context) => WvDialog(
       title: "Delete Playlist",
       content: Text('Delete "$name"? The songs stay on your device.'),
       actions: [
-        aquaDialogButton("Cancel", () => Navigator.of(context).pop()),
-        aquaDialogButton("Delete", () async {
+        wvDialogButton("Cancel", () => Navigator.of(context).pop()),
+        wvDialogButton("Delete", () async {
           await ref
               .read(playlistsProvider.notifier)
               .deleteLocalPlaylist(playlistId);
@@ -96,12 +95,12 @@ void showDeletePlaylistDialog(WidgetRef ref, int playlistId, String name) {
 
 void showRemoveFromPlaylistDialog(WidgetRef ref, int playlistId, int songId) {
   showAppDialog<void>(
-    builder: (context) => AquaDialog(
+    builder: (context) => WvDialog(
       title: "Remove Song",
       content: const Text("Remove this song from the playlist?"),
       actions: [
-        aquaDialogButton("Cancel", () => Navigator.of(context).pop()),
-        aquaDialogButton("Remove", () async {
+        wvDialogButton("Cancel", () => Navigator.of(context).pop()),
+        wvDialogButton("Remove", () async {
           await ref
               .read(playlistsProvider.notifier)
               .removeFromLocalPlaylist(playlistId, songId);
@@ -120,7 +119,7 @@ void showAddToPlaylistSheet(
   showModalBottomSheet(
     context: context,
     builder: (sheetContext) {
-      final a = Aqua.of(sheetContext);
+      final a = Wv.of(sheetContext);
       return Container(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.of(sheetContext).size.height * 0.6,
@@ -128,42 +127,87 @@ void showAddToPlaylistSheet(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const AquaSectionBar(title: "Add to Playlist"),
-            Expanded(
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: WvSectionHeader(title: "Add to Playlist"),
+            ),
+            Flexible(
               child: Consumer(
                 builder: (context, ref, child) {
                   final playlists = ref.watch(
                     playlistsProvider.select((s) => s.playlists),
                   );
                   if (playlists.isEmpty) {
-                    return Center(
-                      child: Text(
-                        "No playlists found",
-                        style: TextStyle(color: a.textSecondary),
+                    return Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Text(
+                          "No playlists found",
+                          style: TextStyle(color: a.textSecondary),
+                        ),
                       ),
                     );
                   }
                   return ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     itemCount: playlists.length,
                     itemBuilder: (context, index) {
                       final playlist = playlists[index];
-                      return ColoredBox(
-                        color: index.isEven ? a.background : a.stripe,
-                        child: ListTile(
-                          leading: Icon(Icons.queue_music, color: a.glyph),
-                          title: Text(
-                            playlist['name'],
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: a.text,
+                      final (bg, fg) = a.tonal(index);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: bg,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(
+                              color: a.outline.withValues(alpha: 0.35),
                             ),
                           ),
-                          onTap: () {
-                            ref
-                                .read(playlistsProvider.notifier)
-                                .addSongToLocalPlaylist(playlist['id'], song.id);
-                            Navigator.pop(context);
-                          },
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () {
+                              ref
+                                  .read(playlistsProvider.notifier)
+                                  .addSongToLocalPlaylist(
+                                    playlist['id'],
+                                    song.id,
+                                  );
+                              Navigator.pop(context);
+                            },
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(minHeight: 60),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.queue_music_rounded,
+                                      size: 24,
+                                      color: fg,
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Text(
+                                        playlist['name'],
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                          color: fg,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       );
                     },

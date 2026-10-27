@@ -19,14 +19,14 @@ class SettingsState {
   final bool isDarkMode;
   final bool isIncognitoMode;
 
-  /// 0 = Blue, 1 = Graphite (Aqua appearance).
+  /// Active indices: 2 System, 5 Aqua, 6 Graphite. Legacy values migrate on load.
   final int currentThemeIndex;
 
   const SettingsState({
     this.enableDoubleTapSeek = true,
     this.enableShakeToSkip = false,
     this.enableFadeInOut = false,
-    this.enableDynamicColors = true,
+    this.enableDynamicColors = false,
     this.enableLyricsFetching = true,
     this.enableArtistInfoFetching = true,
     this.showStats = true,
@@ -34,7 +34,7 @@ class SettingsState {
     this.enableWakeLock = false,
     this.isDarkMode = false,
     this.isIncognitoMode = false,
-    this.currentThemeIndex = 0,
+    this.currentThemeIndex = 5,
   });
 
   SettingsState copyWith({
@@ -95,22 +95,23 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// Reads preferences into state and applies the wake lock. Called once in
   /// main() before runApp. First run: dark mode follows the platform brightness.
   Future<void> load() async {
-    final storedIndex = await _prefs.getInt(_kThemeSchemeIndex) ?? 0;
+    // New installs use Kaisu Aqua. Retired pastel presets migrate to Aqua.
+    final storedIndex = await _prefs.getInt(_kThemeSchemeIndex) ?? 5;
     final storedTheme = await _prefs.getBool(_kDarkMode);
 
     final loaded = SettingsState(
       enableDoubleTapSeek: await _prefs.getBool(_kDoubleTapSeek) ?? true,
       enableShakeToSkip: await _prefs.getBool(_kShakeToSkip) ?? false,
       enableFadeInOut: await _prefs.getBool(_kFadeInOut) ?? false,
-      enableDynamicColors: await _prefs.getBool(_kDynamicColors) ?? true,
+      enableDynamicColors: await _prefs.getBool(_kDynamicColors) ?? false,
       enableLyricsFetching: await _prefs.getBool(_kFetchLyrics) ?? true,
       enableArtistInfoFetching: await _prefs.getBool(_kFetchArtistInfo) ?? true,
       showStats: await _prefs.getBool(_kShowStats) ?? true,
       enableDownloader: await _prefs.getBool(_kEnableDownloader) ?? true,
       enableWakeLock: await _prefs.getBool(_kWakeLock) ?? false,
       isIncognitoMode: await _prefs.getBool(_kIncognito) ?? false,
-      // 0 = Blue, 1 = Graphite (Aqua appearance).
-      currentThemeIndex: storedIndex.clamp(0, 1),
+      // Existing saved indices remain compatible.
+      currentThemeIndex: storedIndex == 2 || storedIndex == 6 ? storedIndex : 5,
       isDarkMode:
           storedTheme ??
           PlatformDispatcher.instance.platformBrightness == Brightness.dark,
@@ -175,10 +176,15 @@ class SettingsNotifier extends Notifier<SettingsState> {
     await _prefs.setBool(_kIncognito, value);
   }
 
-  /// Clamped to 0..1.
+  /// Select a preset and turn off album-adaptive recoloring.
   Future<void> updateThemeIndex(int index) async {
-    final clamped = index.clamp(0, 1);
-    state = state.copyWith(currentThemeIndex: clamped);
+    final clamped = index.clamp(0, 6);
+    // An explicit preset wins over album-adaptive colors.
+    state = state.copyWith(
+      currentThemeIndex: clamped,
+      enableDynamicColors: false,
+    );
+    await _prefs.setBool(_kDynamicColors, false);
     await _prefs.setInt(_kThemeSchemeIndex, clamped);
   }
 

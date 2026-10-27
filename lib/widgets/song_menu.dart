@@ -4,15 +4,16 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/dialogs.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/library_provider.dart';
-import 'package:wavvy/providers/palette_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/screens/audio_effects/effects.screen.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
+import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 import 'package:wavvy/widgets/audio_dialogs.dart';
+import 'package:wavvy/player_sheets/player_dialogs.dart';
 import 'package:wavvy/widgets/playlist_dialogs.dart';
 
 class SongMenuOptions {
@@ -28,6 +29,7 @@ class SongMenuOptions {
   final bool showCustomEqualizer;
   final bool showSystemEqualizer;
   final bool showSongInfo;
+  final bool showPlaybackSpeed;
 
   const SongMenuOptions({
     this.showPlayNext = true,
@@ -42,6 +44,7 @@ class SongMenuOptions {
     this.showCustomEqualizer = false,
     this.showSystemEqualizer = false,
     this.showSongInfo = false,
+    this.showPlaybackSpeed = false,
   });
 }
 
@@ -52,20 +55,16 @@ class SongMenuHelper {
     SongModel song, {
     SongMenuOptions options = const SongMenuOptions(),
   }) {
-    final palette = ref.read(paletteProvider);
-    final theme = Theme.of(context);
-    final bgColor = palette.playerColor ?? theme.scaffoldBackgroundColor;
-    final textColor = palette.playerColor != null
-        ? palette.playerTextColor
-        : (theme.textTheme.bodyLarge?.color ?? Colors.black);
-    final subTextColor = textColor.withValues(alpha: 0.7);
+    final a = Wv.of(context);
+    final textColor = a.text;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: bgColor,
+      backgroundColor: a.background,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(Ds.radiusL)),
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: a.separator),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(Ds.radiusXL)),
       ),
       builder: (context) {
         return DraggableScrollableSheet(
@@ -83,11 +82,11 @@ class SongMenuHelper {
             }) {
               rows.add(
                 _buildOption(
+                  a: a,
+                  index: rows.length,
                   icon: icon,
                   label: label,
-                  color: color ?? textColor,
-                  striped: rows.length.isOdd,
-                  stripeColor: textColor.withValues(alpha: 0.07),
+                  color: color,
                   onTap: onTap,
                 ),
               );
@@ -126,6 +125,16 @@ class SongMenuHelper {
               );
             }
 
+            if (options.showPlaybackSpeed) {
+              add(
+                icon: Icons.speed_rounded,
+                label: 'Playback speed',
+                onTap: () {
+                  Navigator.pop(context);
+                  showSpeedDialog(ref);
+                },
+              );
+            }
             if (options.showCustomEqualizer) {
               add(
                 icon: Icons.equalizer_rounded,
@@ -202,7 +211,7 @@ class SongMenuHelper {
               add(
                 icon: Icons.delete_outline_rounded,
                 label: "Delete",
-                color: Colors.redAccent,
+                color: a.error,
                 onTap: () {
                   Navigator.pop(context);
                   confirmDeleteSong(ref, song);
@@ -216,18 +225,10 @@ class SongMenuHelper {
                 label: "Song Info",
                 onTap: () {
                   Navigator.pop(context);
-                  showInfoDialog(
-                    context,
-                    ref,
-                    song,
-                    theme.scaffoldBackgroundColor,
-                    textColor,
-                  );
+                  showInfoDialog(context, ref, song, a.background, textColor);
                 },
               );
             }
-
-            final edge = textColor.withValues(alpha: 0.25);
 
             return Column(
               children: [
@@ -237,25 +238,24 @@ class SongMenuHelper {
                   child: Container(
                     width: 36,
                     height: 4,
-                    decoration: BoxDecoration(
-                      color: textColor.withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                    decoration: a.frame(color: a.textTertiary, radius: 2),
                   ),
                 ),
 
                 // --- HEADER ---
-                _buildHeader(song, textColor, subTextColor),
-                Container(height: 1, color: edge),
+                _buildHeader(song, a),
+                const SizedBox(height: 4),
 
                 // --- SCROLLABLE OPTIONS ---
                 Expanded(
                   child: ListView(
                     controller: controller,
                     padding: EdgeInsets.only(
+                      left: 16,
+                      right: 16,
                       bottom: 24 + MediaQuery.of(context).padding.bottom,
                     ),
-                    children: [...rows, Container(height: 1, color: edge)],
+                    children: rows,
                   ),
                 ),
               ],
@@ -266,32 +266,28 @@ class SongMenuHelper {
     );
   }
 
-  static Widget _buildHeader(SongModel song, Color textColor, Color subColor) {
+  static Widget _buildHeader(SongModel song, WvPalette a) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: Row(
         children: [
-          AquaPhotoFrame(
-            child: QueryArtworkWidget(
-              id: song.id,
-              type: ArtworkType.AUDIO,
-              artworkBorder: BorderRadius.zero,
-              artworkFit: BoxFit.cover,
-              artworkWidth: 56,
-              artworkHeight: 56,
-              nullArtworkWidget: Container(
-                width: 56,
-                height: 56,
-                color: textColor.withValues(alpha: 0.08),
-                child: Icon(
-                  Icons.music_note_rounded,
-                  color: textColor,
-                  size: 28,
-                ),
+          SizedBox(
+            width: 64,
+            height: 64,
+            child: WvArtwork(
+              radius: 22,
+              child: QueryArtworkWidget(
+                id: song.id,
+                type: ArtworkType.AUDIO,
+                artworkBorder: BorderRadius.zero,
+                artworkFit: BoxFit.cover,
+                artworkWidth: 64,
+                artworkHeight: 64,
+                nullArtworkWidget: WvMediaPlaceholder(seed: song.id, size: 64),
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,17 +297,18 @@ class SongMenuHelper {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: textColor,
-                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: a.text,
+                    fontSize: 20,
+                    letterSpacing: -0.3,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   song.artist ?? "Unknown Artist",
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: subColor, fontSize: 13),
+                  style: TextStyle(color: a.textSecondary, fontSize: 14),
                 ),
               ],
             ),
@@ -322,36 +319,27 @@ class SongMenuHelper {
   }
 
   static Widget _buildOption({
+    required WvPalette a,
+    required int index,
     required IconData icon,
     required String label,
-    required Color color,
-    required bool striped,
-    required Color stripeColor,
+    required Color? color,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 52),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        color: striped ? stripeColor : null,
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14.5,
-                ),
-              ),
-            ),
-          ],
+    return Material(
+      color: a.surface,
+      child: ListTile(
+        leading: Icon(icon, color: color ?? a.textSecondary, size: 22),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: color ?? a.text,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
+        onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
       ),
     );
   }
@@ -401,49 +389,28 @@ class SongMenuHelper {
     Color bgColor,
     Color textColor,
   ) {
-    final a = Aqua.of(context);
-
     final info = ref.read(playerProvider.notifier).getSongInfo(song);
 
     showAppDialog(
-      builder: (_) => Dialog(
-        backgroundColor: a.background,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(Ds.radiusM),
-          side: BorderSide(color: a.border),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const AquaSectionBar(title: "Song Details"),
-            Flexible(
-              child: SingleChildScrollView(
+      builder: (_) => WvDialog(
+        title: "Song Details",
+        content: SingleChildScrollView(
+          child: Builder(
+            builder: (context) {
+              final a = Wv.of(context);
+              return Container(
+                width: double.infinity,
                 padding: const EdgeInsets.all(16),
+                decoration: a.frame(color: a.surfaceHighest, radius: 24),
                 child: Text(
                   info,
-                  style: TextStyle(color: a.text, fontSize: 13.5, height: 1.5),
+                  style: TextStyle(color: a.text, fontSize: 14, height: 1.5),
                 ),
-              ),
-            ),
-            Container(height: 1, color: a.separator),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: GelButton(
-                  primary: true,
-                  width: 80,
-                  size: 30,
-                  tooltip: "Close",
-                  onPressed: () => AppNav.pop(),
-                  child: const Text("Close"),
-                ),
-              ),
-            ),
-          ],
+              );
+            },
+          ),
         ),
+        actions: [wvDialogButton("Close", () => AppNav.pop(), primary: true)],
       ),
     );
   }
