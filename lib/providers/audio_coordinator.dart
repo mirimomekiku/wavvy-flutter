@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:wavvy/playback/coordination.dart';
 import 'package:wavvy/providers/artist_info_provider.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
@@ -13,42 +14,27 @@ import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/playlists_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 
-/// Wires the cross-provider side effects that AudioController.onInit (and
-/// ShakeController, and the audio handler's session listener) used to set up
-/// with GetX workers. Watch it ONCE from the app root:
+/// Wires the cross-provider side effects: track-change enrichment, play
+/// logging, lyric sync and scrolling, shake-to-skip, audio-session effects, the
+/// playback settings and library reloads. Watch it ONCE from the app root:
 ///
 ///     ref.watch(audioCoordinatorProvider);
 ///
-/// Implement with ref.listen + Timers; cancel everything in ref.onDispose.
-/// Behaviors to port:
-///  1. Song change (debounced 300ms; playerProvider.currentSong):
-///       song != null -> paletteProvider.updateForSong(id); if
-///       settings.enableArtistInfoFetching -> artistInfo.refreshForSong(song);
-///       if settings.enableLyricsFetching -> lyrics.fetchLyrics(...)
-///       (duration in seconds = song.duration ~/ 1000)
-///       song == null -> palette.clear(); lyrics.clear().
-///  2. settings.enableDynamicColors changes -> re-run palette update for the
-///     current song (or palette.clear() when disabled -> updateForSong
-///     handles the disabled branch).
-///  3. Position ticks (positionProvider), throttled to 1s for play logging
-///     and 200ms for lyrics:
-///       - Play logging (skip when settings.isIncognitoMode): if
-///         position < 2s and lastLoggedSongId == current id -> reset it; threshold =
-///         durationSec > 0 ? (durationSec ~/ 2).clamp(3, 15) : 15; when
-///         position >= threshold and lastLoggedSongId != id ->
-///         playlists.logSongPlay(id), remember id.
-///       - Lyrics: if lyrics non-empty -> lyrics.syncPosition(position).
-///  4. Lyrics auto-scroll: when lyricsProvider.currentIndex changes to >= 0,
-///     not loading, and lyricsScrollController.isAttached ->
-///     scrollTo(index, 400ms, Curves.easeInOutCubic, alignment 0.5).
-///  5. Shake to skip: while settings.enableShakeToSkip, listen to
-///     accelerometerEventStream (sensors_plus); magnitude > 25 and > 2000ms
-///     since last shake and player has a next track -> playerNotifier.next().
-///     Start/stop when the setting toggles.
-///  6. Audio session id: audioPlayer.androidAudioSessionIdStream -> on a
-///     non-null id call nativeEffectsChannel.initEffects(id) and
-///     effectsProvider.notifier.resetState().
-///  7. First frame: libraryProvider.notifier.fetchAllSongs().
+/// Everything it starts is cancelled in ref.onDispose.
+///  1. Song change (debounced 300ms): refresh the palette, artist info and
+///     lyrics for the new song, or clear them when nothing is loaded.
+///  2. Dynamic colors toggled: re-run the palette for the current song.
+///  3. Position ticks: log a play once a song passes its threshold (1s throttle,
+///     skipped in incognito) and sync the lyrics (200ms throttle).
+///  4. Lyrics auto-scroll to the active line.
+///  5. Shake to skip while the setting is on.
+///  6. Audio session id: (re)create the native effects and reapply the user's
+///     effect settings.
+///  7. First frame: load the library.
+///  8. App resume: reload the library silently.
+///  9. Playback settings: fade in/out and skip silence.
+/// 10. Last session, audio focus, ReplayGain, crossfade, A-B loop, remembered
+///     speed and the sleep timer's end-of-track rule (lib/playback/).
 final audioCoordinatorProvider = Provider<void>((ref) {
   // ------------------------------------------------ 1. Song change (debounce)
   Timer? songDebounce;
@@ -188,12 +174,28 @@ final audioCoordinatorProvider = Provider<void>((ref) {
       .androidAudioSessionIdStream
       .listen((sessionId) async {
         if (sessionId == null) return;
-        try {
-          await ref.read(nativeEffectsChannelProvider).initEffects(sessionId);
-        } catch (_) {}
-        ref.read(effectsProvider.notifier).resetState();
+        await ref.read(effectsProvider.notifier).attachToSession(sessionId);
       });
   ref.onDispose(sessionSub.cancel);
+
+  // -------------------- 10. Session, focus, ReplayGain, crossfade, loop, rates
+  wirePlayback(ref);
+
+  // ---------------------------------------------- 9. Playback settings
+  void applyPlaybackSettings(SettingsState settings) {
+    ref.read(audioHandlerProvider).fadeEnabled = settings.enableFadeInOut;
+    ref
+        .read(audioPlayerProvider)
+        .setSkipSilenceEnabled(settings.enableSkipSilence);
+  }
+
+  applyPlaybackSettings(ref.read(settingsProvider));
+  ref.listen(settingsProvider, (prev, next) {
+    if (prev?.enableFadeInOut != next.enableFadeInOut ||
+        prev?.enableSkipSilence != next.enableSkipSilence) {
+      applyPlaybackSettings(next);
+    }
+  });
 
   // ------------------------------------- 8. Reload the library on resume
   // New songs appear without a restart, and granting storage access in the

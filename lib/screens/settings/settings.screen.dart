@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wavvy/downloader/flavor.dart';
+import 'package:wavvy/downloader/ui/engine_card.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
@@ -50,6 +52,54 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
       trailing: AquaSwitch(value: value, onChanged: change),
+    );
+    // A row with a pop-up menu of choices; [selected] is an index into [labels].
+    Widget choice(
+      String title,
+      String subtitle,
+      IconData icon,
+      List<String> labels,
+      int selected,
+      ValueChanged<int> change,
+    ) => ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      leading: Icon(icon, color: a.textSecondary, size: 22),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: a.text,
+        ),
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 3),
+        child: Text(
+          subtitle,
+          style: TextStyle(fontSize: 12, height: 1.4, color: a.textSecondary),
+        ),
+      ),
+      trailing: PopupMenuButton<int>(
+        tooltip: title,
+        padding: EdgeInsets.zero,
+        color: a.surface,
+        elevation: 6,
+        shape: aquaMenuShape(a),
+        initialValue: selected,
+        onSelected: change,
+        itemBuilder: (_) => [
+          for (var i = 0; i < labels.length; i++)
+            CheckedPopupMenuItem(
+              value: i,
+              checked: i == selected,
+              child: Text(labels[i]),
+            ),
+        ],
+        child: AquaPopupLabel(
+          label: labels[selected.clamp(0, labels.length - 1)],
+        ),
+      ),
     );
     return WvSystemUi(
       child: Scaffold(
@@ -105,11 +155,101 @@ class SettingsScreen extends ConsumerWidget {
                         n.toggleShakeToSkip,
                       ),
                       toggle(
+                        'Fade in and out',
+                        'Ease the volume when you play or pause',
+                        Icons.graphic_eq_rounded,
+                        s.enableFadeInOut,
+                        n.toggleFadeInOut,
+                      ),
+                      toggle(
+                        'Skip silence',
+                        'Jump over silent gaps within tracks',
+                        Icons.fast_forward_rounded,
+                        s.enableSkipSilence,
+                        n.toggleSkipSilence,
+                      ),
+                      toggle(
                         'Keep screen awake',
                         'Keep Wavvy visible while you listen',
                         Icons.light_mode_outlined,
                         s.enableWakeLock,
                         n.toggleWakeLock,
+                      ),
+                      toggle(
+                        'Resume last session',
+                        'Reopen with the queue and position you left',
+                        Icons.history_toggle_off_rounded,
+                        s.resumeSession,
+                        n.toggleResumeSession,
+                      ),
+                      toggle(
+                        'Remember speed',
+                        'Keep the speed and pitch you set for each album',
+                        Icons.speed_rounded,
+                        s.rememberRates,
+                        n.toggleRememberRates,
+                      ),
+                    ],
+                  ),
+                  const GroupHeader('Sound leveling'),
+                  InsetGroup(
+                    children: [
+                      choice(
+                        'Volume leveling',
+                        'Even out loud and quiet tracks using their ReplayGain tags',
+                        Icons.equalizer_rounded,
+                        const ['Off', 'Track', 'Album'],
+                        s.replayGainMode,
+                        n.setReplayGainMode,
+                      ),
+                      choice(
+                        'Crossfade',
+                        'Overlap the end of a track with the next. Experimental',
+                        Icons.blur_linear_rounded,
+                        const [
+                          'Off',
+                          '2 s',
+                          '4 s',
+                          '6 s',
+                          '8 s',
+                          '10 s',
+                          '12 s',
+                        ],
+                        s.crossfadeSeconds == 0 ? 0 : s.crossfadeSeconds ~/ 2,
+                        (i) => n.setCrossfadeSeconds(i * 2),
+                      ),
+                    ],
+                  ),
+                  const GroupHeader('Headphones & calls'),
+                  InsetGroup(
+                    children: [
+                      toggle(
+                        'Pause when unplugged',
+                        'Pause when headphones are unplugged',
+                        Icons.headset_off_outlined,
+                        s.pauseOnUnplug,
+                        n.togglePauseOnUnplug,
+                      ),
+                      toggle(
+                        'Lower volume for notifications',
+                        'Quieten the music instead of pausing for short sounds',
+                        Icons.volume_down_rounded,
+                        s.duckOnInterruption,
+                        n.toggleDuckOnInterruption,
+                      ),
+                      toggle(
+                        'Resume after interruptions',
+                        'Carry on when a call or other sound ends',
+                        Icons.play_circle_outline_rounded,
+                        s.resumeAfterInterruption,
+                        n.toggleResumeAfterInterruption,
+                      ),
+                      toggle(
+                        'Resume when plugged back in',
+                        'Carry on if headphones return within ten minutes',
+                        Icons.headphones_rounded,
+                        s.resumeOnReconnect,
+                        n.toggleResumeOnReconnect,
                       ),
                     ],
                   ),
@@ -151,15 +291,32 @@ class SettingsScreen extends ConsumerWidget {
                         s.enableArtistInfoFetching,
                         n.toggleArtistInfoFetching,
                       ),
-                      toggle(
-                        'Downloads',
-                        'Enable YouTube, TikTok and transfer history',
-                        Icons.download_outlined,
-                        s.enableDownloader,
-                        n.toggleDownloader,
-                      ),
+                      if (kDownloaderAvailable)
+                        toggle(
+                          'Downloads',
+                          'Search online and download audio',
+                          Icons.download_outlined,
+                          s.enableDownloader,
+                          n.toggleDownloader,
+                        ),
                     ],
                   ),
+                  if (kDownloaderAvailable)
+                    if (s.enableDownloader) ...[
+                      const GroupHeader('Downloader'),
+                      InsetGroup(
+                        children: [
+                          const EngineSettingsRow(),
+                          toggle(
+                            'Wi-Fi only',
+                            'Do not download on mobile data',
+                            Icons.wifi_rounded,
+                            s.downloadWifiOnly,
+                            n.toggleDownloadWifiOnly,
+                          ),
+                        ],
+                      ),
+                    ],
                   const GroupHeader('Listening history'),
                   InsetGroup(
                     children: [

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_name">Wavvy</string>
+    <string name="widget_description">Now playing and playback controls</string>
+    <string name="widget_nothing">Wavvy</string>
+    <string name="widget_open">Tap to open</string>
+    <string name="widget_art">Album artwork</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_play">Play or pause</string>
+    <string name="widget_next">Next</string>
+</resources>

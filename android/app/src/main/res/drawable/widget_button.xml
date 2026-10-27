@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A silver gel button. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <gradient
+        android:angle="270"
+        android:endColor="#FFE6E6E6"
+        android:startColor="#FFFEFEFE" />
+    <stroke android:width="1dp" android:color="#FF8E959B" />
+</shape>

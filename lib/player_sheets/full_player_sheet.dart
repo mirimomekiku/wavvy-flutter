@@ -5,13 +5,14 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:wavvy/core/navigation.dart';
-import 'package:wavvy/providers/artist_info_provider.dart';
-import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/player_sheets/artist_page.dart';
+import 'package:wavvy/playback/ab_loop.dart';
+import 'package:wavvy/playback/favorites.dart';
 import 'package:wavvy/providers/lyrics_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/player_sheet_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
-import 'package:wavvy/theme/pixel_art.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/widgets/lyric_card.dart';
@@ -154,7 +155,7 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
         final lyrics = lyricsState.lyrics;
 
         if (lyricsState.isLoading) {
-          return const Center(child: PixelLoader(size: 36));
+          return const Center(child: AquaSpinner(size: 34));
         }
 
         if (lyrics.isEmpty) {
@@ -272,121 +273,7 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
     );
   }
 
-  Widget _buildArtistPage(BuildContext context) {
-    final a = Wv.of(context);
-    return Consumer(
-      builder: (context, ref, _) {
-        final artistInfo = ref.watch(artistInfoProvider);
-        final currentSong = ref.watch(
-          playerProvider.select((s) => s.currentSong),
-        );
-        if (artistInfo.isLoading) {
-          return const Center(child: PixelLoader(size: 36));
-        }
-        final name = currentSong?.artist ?? 'Unknown Artist';
-        final mine = ref
-            .watch(libraryProvider.select((s) => s.songs))
-            .where((s) => s.artist == currentSong?.artist)
-            .toList();
-        final albums = {for (final s in mine) s.album}.length;
-        Widget placeholder() => WvMediaPlaceholder(
-          seed: currentSong?.artistId ?? currentSong?.id ?? 0,
-          size: 168,
-        );
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: WvArtwork(
-                      circular: true,
-                      elevated: true,
-                      child: artistInfo.imageUrl.isNotEmpty
-                          ? Image.network(
-                              artistInfo.imageUrl,
-                              width: 168,
-                              height: 168,
-                              fit: BoxFit.cover,
-                              errorBuilder: (c, o, s) => placeholder(),
-                            )
-                          : placeholder(),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: a.text,
-                      fontSize: 26,
-                      fontFamily: 'WorkSans',
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                  if (mine.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      '${mine.length} ${mine.length == 1 ? 'track' : 'tracks'}'
-                      ' \u00b7 $albums ${albums == 1 ? 'album' : 'albums'}'
-                      ' in your library',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: a.textSecondary, fontSize: 13),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  WvPanel(
-                    padding: const EdgeInsets.all(18),
-                    color: a.surface,
-                    radius: 14,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline_rounded,
-                              size: 18,
-                              color: a.accent,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'About',
-                              style: TextStyle(
-                                color: a.text,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          artistInfo.bio.isEmpty
-                              ? 'No information found.'
-                              : artistInfo.bio,
-                          style: TextStyle(
-                            color: a.textSecondary,
-                            fontSize: 14,
-                            height: 1.55,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget _buildArtistPage(BuildContext context) => const ArtistInfoPage();
 }
 
 /// The Player tab: artwork, title row, seek bar, transport and mode dock.
@@ -407,7 +294,9 @@ class _NowPlayingPage extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, c) {
         final width = math.min(c.maxWidth, 480.0) - 32;
-        final side = math.min(width, math.max(140.0, c.maxHeight - 330));
+        // Room for everything under the artwork: title, seek bar, the extras
+        // row, transport and the mode dock.
+        final side = math.min(width, math.max(140.0, c.maxHeight - 384));
         return SingleChildScrollView(
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: c.maxHeight),
@@ -466,8 +355,10 @@ class _NowPlayingPage extends ConsumerWidget {
                               ],
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          _FavoriteButton(song: song),
                           if (onLyrics != null) ...[
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             WvButton(
                               circular: true,
                               squircle: true,
@@ -481,7 +372,9 @@ class _NowPlayingPage extends ConsumerWidget {
                       ),
                       const SizedBox(height: 10),
                       _SeekRow(song: song),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 6),
+                      const _PlaybackExtras(),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
@@ -747,7 +640,110 @@ class _ModeCell extends StatelessWidget {
   }
 }
 
-/// Wavy seek bar with elapsed/total time and a bitrate/format readout.
+/// The heart: adds the playing song to Favorites, or takes it out.
+class _FavoriteButton extends ConsumerWidget {
+  const _FavoriteButton({required this.song});
+  final SongModel song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final liked = ref.watch(
+      favoritesProvider.select((f) => f.containsKey(song.id)),
+    );
+    return WvButton(
+      circular: true,
+      squircle: true,
+      size: 44,
+      tooltip: liked ? 'Remove from Favorites' : 'Add to Favorites',
+      onPressed: () => ref.read(favoritesProvider.notifier).toggle(song),
+      child: Icon(
+        liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        color: liked ? const Color(0xFFD8453B) : null,
+      ),
+    );
+  }
+}
+
+/// Skip back or forward 15 seconds, and mark a section to repeat (A-B).
+class _PlaybackExtras extends ConsumerWidget {
+  const _PlaybackExtras();
+
+  static const _skip = Duration(seconds: 15);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loop = ref.watch(abLoopProvider);
+    final controls = ref.read(playerProvider.notifier);
+    final label = loop.isActive
+        ? 'A\u2013B on'
+        : loop.start != null
+        ? 'Set B'
+        : 'A\u2013B';
+    final tooltip = loop.isActive
+        ? 'Clear the repeated section'
+        : loop.start != null
+        ? 'Mark the end of the section to repeat'
+        : 'Mark the start of a section to repeat';
+    return Row(
+      children: [
+        Expanded(
+          child: WvButton(
+            size: 34,
+            tooltip: 'Back 15 seconds',
+            onPressed: () => controls.seek(-_skip, relative: true),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.replay_rounded, size: 16),
+                SizedBox(width: 4),
+                Text('15'),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 2,
+          child: WvButton(
+            key: const Key('ab_loop'),
+            size: 34,
+            primary: loop.start != null,
+            tooltip: tooltip,
+            onPressed: () => ref
+                .read(abLoopProvider.notifier)
+                .press(ref.read(positionProvider)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.repeat_one_rounded, size: 16),
+                const SizedBox(width: 4),
+                Text(label),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: WvButton(
+            size: 34,
+            tooltip: 'Forward 15 seconds',
+            onPressed: () => controls.seek(_skip, relative: true),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('15'),
+                SizedBox(width: 4),
+                Icon(Icons.refresh_rounded, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Aqua seek bar with elapsed/total time and a bitrate/format readout.
 class _SeekRow extends ConsumerWidget {
   const _SeekRow({required this.song});
   final SongModel song;
@@ -769,48 +765,56 @@ class _SeekRow extends ConsumerWidget {
     final a = Wv.of(context);
     final duration = ref.watch(durationProvider);
     final position = ref.watch(positionProvider);
-    final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final controls = ref.read(playerProvider.notifier);
     final max = math.max(1.0, duration.inMilliseconds.toDouble());
-    final style = TextStyle(fontSize: 11, color: a.textSecondary);
     final format = _format;
+    final loop = ref.watch(abLoopProvider);
+    // Elapsed and total time sit in recessed LCD readouts, as on a Mac.
+    Widget lcd(String text) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: a.lcdDecoration.copyWith(
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w600,
+          color: a.text,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
     return Column(
       children: [
-        SizedBox(
-          height: 32,
-          child: WvWavySlider(
-            value: position.inMilliseconds.toDouble().clamp(0.0, max),
-            max: max,
-            animate: playing,
-            onChanged: (v) {
-              if (duration > Duration.zero) {
-                controls.seek(Duration(milliseconds: v.toInt()));
-              }
-            },
-          ),
+        AquaSeekBar(
+          value: position.inMilliseconds.toDouble().clamp(0.0, max),
+          max: max,
+          step: 5000,
+          loopStart: loop.start?.inMilliseconds.toDouble(),
+          loopEnd: loop.end?.inMilliseconds.toDouble(),
+          onChanged: (v) {
+            if (duration > Duration.zero) {
+              controls.seek(Duration(milliseconds: v.toInt()));
+            }
+          },
         ),
         Row(
           children: [
-            Text(PlayerUtils.formatDuration(position), style: style),
+            lcd(PlayerUtils.formatDuration(position)),
             Expanded(
               child: Center(
                 child: format.isEmpty
                     ? null
-                    : Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: a.surfaceHigh,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: a.separator),
-                        ),
-                        child: Text(format, style: style),
+                    : Text(
+                        format,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11, color: a.textSecondary),
                       ),
               ),
             ),
-            Text(PlayerUtils.formatDuration(duration), style: style),
+            lcd(PlayerUtils.formatDuration(duration)),
           ],
         ),
       ],

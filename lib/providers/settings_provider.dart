@@ -2,50 +2,104 @@ import 'dart:ui';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wavvy/downloader/flavor.dart';
+import 'package:wavvy/theme/wavvy_theme.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-/// Immutable snapshot of every user setting (replaces SettingsService's Rx
-/// fields). Field names are unchanged from the GetX version.
+/// Immutable snapshot of every user setting.
 class SettingsState {
   final bool enableDoubleTapSeek;
   final bool enableShakeToSkip;
   final bool enableFadeInOut;
+  final bool enableSkipSilence;
   final bool enableDynamicColors;
   final bool enableLyricsFetching;
   final bool enableArtistInfoFetching;
   final bool showStats;
   final bool enableDownloader;
+
+  /// Reopen with the queue and position you left.
+  final bool resumeSession;
+
+  /// Pause when headphones are unplugged.
+  final bool pauseOnUnplug;
+
+  /// Lower the volume, instead of pausing, for short sounds such as notifications.
+  final bool duckOnInterruption;
+
+  /// Carry on after a call or other interruption ends.
+  final bool resumeAfterInterruption;
+
+  /// Resume when headphones are plugged back in soon after unplugging.
+  final bool resumeOnReconnect;
+
+  /// Keep the speed and pitch you choose for each album.
+  final bool rememberRates;
+
+  /// 0 off, 1 track gain, 2 album gain.
+  final int replayGainMode;
+
+  /// 0 is off.
+  final int crossfadeSeconds;
+
+  /// Only start downloads on an unmetered (Wi-Fi) connection.
+  final bool downloadWifiOnly;
   final bool enableWakeLock;
   final bool isDarkMode;
   final bool isIncognitoMode;
 
-  /// Active indices: 2 System, 5 Aqua, 6 Graphite. Legacy values migrate on load.
+  /// The color theme: see [WavvyTheme.byIndex]. Values saved by older versions
+  /// migrate on load ([WavvyTheme.normalizeIndex]).
   final int currentThemeIndex;
 
   const SettingsState({
     this.enableDoubleTapSeek = true,
     this.enableShakeToSkip = false,
     this.enableFadeInOut = false,
+    this.enableSkipSilence = false,
     this.enableDynamicColors = false,
     this.enableLyricsFetching = true,
     this.enableArtistInfoFetching = true,
     this.showStats = true,
     this.enableDownloader = true,
+    this.downloadWifiOnly = false,
+    this.resumeSession = true,
+    this.pauseOnUnplug = true,
+    this.duckOnInterruption = true,
+    this.resumeAfterInterruption = true,
+    this.resumeOnReconnect = false,
+    this.rememberRates = true,
+    this.replayGainMode = 0,
+    this.crossfadeSeconds = 0,
     this.enableWakeLock = false,
     this.isDarkMode = false,
     this.isIncognitoMode = false,
     this.currentThemeIndex = 5,
   });
 
+  /// Whether downloads are on: this build has the downloader (see
+  /// [kDownloaderAvailable]) and the user has not turned it off.
+  bool get downloaderOn => kDownloaderAvailable && enableDownloader;
+
   SettingsState copyWith({
     bool? enableDoubleTapSeek,
     bool? enableShakeToSkip,
     bool? enableFadeInOut,
+    bool? enableSkipSilence,
     bool? enableDynamicColors,
     bool? enableLyricsFetching,
     bool? enableArtistInfoFetching,
     bool? showStats,
     bool? enableDownloader,
+    bool? downloadWifiOnly,
+    bool? resumeSession,
+    bool? pauseOnUnplug,
+    bool? duckOnInterruption,
+    bool? resumeAfterInterruption,
+    bool? resumeOnReconnect,
+    bool? rememberRates,
+    int? replayGainMode,
+    int? crossfadeSeconds,
     bool? enableWakeLock,
     bool? isDarkMode,
     bool? isIncognitoMode,
@@ -54,12 +108,23 @@ class SettingsState {
     enableDoubleTapSeek: enableDoubleTapSeek ?? this.enableDoubleTapSeek,
     enableShakeToSkip: enableShakeToSkip ?? this.enableShakeToSkip,
     enableFadeInOut: enableFadeInOut ?? this.enableFadeInOut,
+    enableSkipSilence: enableSkipSilence ?? this.enableSkipSilence,
     enableDynamicColors: enableDynamicColors ?? this.enableDynamicColors,
     enableLyricsFetching: enableLyricsFetching ?? this.enableLyricsFetching,
     enableArtistInfoFetching:
         enableArtistInfoFetching ?? this.enableArtistInfoFetching,
     showStats: showStats ?? this.showStats,
     enableDownloader: enableDownloader ?? this.enableDownloader,
+    downloadWifiOnly: downloadWifiOnly ?? this.downloadWifiOnly,
+    resumeSession: resumeSession ?? this.resumeSession,
+    pauseOnUnplug: pauseOnUnplug ?? this.pauseOnUnplug,
+    duckOnInterruption: duckOnInterruption ?? this.duckOnInterruption,
+    resumeAfterInterruption:
+        resumeAfterInterruption ?? this.resumeAfterInterruption,
+    resumeOnReconnect: resumeOnReconnect ?? this.resumeOnReconnect,
+    rememberRates: rememberRates ?? this.rememberRates,
+    replayGainMode: replayGainMode ?? this.replayGainMode,
+    crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
     enableWakeLock: enableWakeLock ?? this.enableWakeLock,
     isDarkMode: isDarkMode ?? this.isDarkMode,
     isIncognitoMode: isIncognitoMode ?? this.isIncognitoMode,
@@ -71,19 +136,31 @@ final settingsProvider = NotifierProvider<SettingsNotifier, SettingsState>(
   SettingsNotifier.new,
 );
 
-/// Port of SettingsService. Persists with SharedPreferencesAsync using the
-/// SAME keys as before (feature_double_tap_seek, ..., theme_scheme_index).
+/// Persists settings with SharedPreferencesAsync (feature_double_tap_seek, ...,
+/// theme_scheme_index). Existing keys keep their meaning so saved preferences
+/// carry over between versions.
 class SettingsNotifier extends Notifier<SettingsState> {
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
 
   static const String _kDoubleTapSeek = 'feature_double_tap_seek';
   static const String _kShakeToSkip = 'feature_shake_to_skip';
   static const String _kFadeInOut = 'feature_fade_in_out';
+  static const String _kSkipSilence = 'feature_skip_silence';
   static const String _kDynamicColors = 'feature_dynamic_colors';
   static const String _kFetchLyrics = 'feature_fetch_lyrics';
   static const String _kFetchArtistInfo = 'feature_fetch_artist_info';
   static const String _kShowStats = 'feature_show_stats';
   static const String _kEnableDownloader = 'feature_enable_downloader';
+  static const String _kDownloadWifiOnly = 'feature_download_wifi_only';
+  static const String _kResumeSession = 'feature_resume_session';
+  static const String _kPauseOnUnplug = 'feature_pause_on_unplug';
+  static const String _kDuckOnInterruption = 'feature_duck_on_interruption';
+  static const String _kResumeAfterInterruption =
+      'feature_resume_after_interruption';
+  static const String _kResumeOnReconnect = 'feature_resume_on_reconnect';
+  static const String _kRememberRates = 'feature_remember_rates';
+  static const String _kReplayGainMode = 'feature_replay_gain';
+  static const String _kCrossfadeSeconds = 'feature_crossfade_seconds';
   static const String _kWakeLock = 'feature_wake_lock';
   static const String _kDarkMode = 'feature_dark_mode';
   static const String _kIncognito = 'feature_incognito';
@@ -95,23 +172,34 @@ class SettingsNotifier extends Notifier<SettingsState> {
   /// Reads preferences into state and applies the wake lock. Called once in
   /// main() before runApp. First run: dark mode follows the platform brightness.
   Future<void> load() async {
-    // New installs use Kaisu Aqua. Retired pastel presets migrate to Aqua.
-    final storedIndex = await _prefs.getInt(_kThemeSchemeIndex) ?? 5;
+    // New installs use Kaisu Aqua; older saved themes are carried over.
+    final storedIndex = await _prefs.getInt(_kThemeSchemeIndex);
     final storedTheme = await _prefs.getBool(_kDarkMode);
 
     final loaded = SettingsState(
       enableDoubleTapSeek: await _prefs.getBool(_kDoubleTapSeek) ?? true,
       enableShakeToSkip: await _prefs.getBool(_kShakeToSkip) ?? false,
       enableFadeInOut: await _prefs.getBool(_kFadeInOut) ?? false,
+      enableSkipSilence: await _prefs.getBool(_kSkipSilence) ?? false,
       enableDynamicColors: await _prefs.getBool(_kDynamicColors) ?? false,
       enableLyricsFetching: await _prefs.getBool(_kFetchLyrics) ?? true,
       enableArtistInfoFetching: await _prefs.getBool(_kFetchArtistInfo) ?? true,
       showStats: await _prefs.getBool(_kShowStats) ?? true,
       enableDownloader: await _prefs.getBool(_kEnableDownloader) ?? true,
+      downloadWifiOnly: await _prefs.getBool(_kDownloadWifiOnly) ?? false,
+      resumeSession: await _prefs.getBool(_kResumeSession) ?? true,
+      pauseOnUnplug: await _prefs.getBool(_kPauseOnUnplug) ?? true,
+      duckOnInterruption: await _prefs.getBool(_kDuckOnInterruption) ?? true,
+      resumeAfterInterruption:
+          await _prefs.getBool(_kResumeAfterInterruption) ?? true,
+      resumeOnReconnect: await _prefs.getBool(_kResumeOnReconnect) ?? false,
+      rememberRates: await _prefs.getBool(_kRememberRates) ?? true,
+      replayGainMode: (await _prefs.getInt(_kReplayGainMode)) ?? 0,
+      crossfadeSeconds: (await _prefs.getInt(_kCrossfadeSeconds)) ?? 0,
       enableWakeLock: await _prefs.getBool(_kWakeLock) ?? false,
       isIncognitoMode: await _prefs.getBool(_kIncognito) ?? false,
       // Existing saved indices remain compatible.
-      currentThemeIndex: storedIndex == 2 || storedIndex == 6 ? storedIndex : 5,
+      currentThemeIndex: WavvyTheme.normalizeIndex(storedIndex),
       isDarkMode:
           storedTheme ??
           PlatformDispatcher.instance.platformBrightness == Brightness.dark,
@@ -133,6 +221,11 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<void> toggleFadeInOut(bool value) async {
     state = state.copyWith(enableFadeInOut: value);
     await _prefs.setBool(_kFadeInOut, value);
+  }
+
+  Future<void> toggleSkipSilence(bool value) async {
+    state = state.copyWith(enableSkipSilence: value);
+    await _prefs.setBool(_kSkipSilence, value);
   }
 
   Future<void> toggleDynamicColors(bool value) async {
@@ -160,6 +253,51 @@ class SettingsNotifier extends Notifier<SettingsState> {
     await _prefs.setBool(_kEnableDownloader, value);
   }
 
+  Future<void> toggleResumeSession(bool value) async {
+    state = state.copyWith(resumeSession: value);
+    await _prefs.setBool(_kResumeSession, value);
+  }
+
+  Future<void> togglePauseOnUnplug(bool value) async {
+    state = state.copyWith(pauseOnUnplug: value);
+    await _prefs.setBool(_kPauseOnUnplug, value);
+  }
+
+  Future<void> toggleDuckOnInterruption(bool value) async {
+    state = state.copyWith(duckOnInterruption: value);
+    await _prefs.setBool(_kDuckOnInterruption, value);
+  }
+
+  Future<void> toggleResumeAfterInterruption(bool value) async {
+    state = state.copyWith(resumeAfterInterruption: value);
+    await _prefs.setBool(_kResumeAfterInterruption, value);
+  }
+
+  Future<void> toggleResumeOnReconnect(bool value) async {
+    state = state.copyWith(resumeOnReconnect: value);
+    await _prefs.setBool(_kResumeOnReconnect, value);
+  }
+
+  Future<void> toggleRememberRates(bool value) async {
+    state = state.copyWith(rememberRates: value);
+    await _prefs.setBool(_kRememberRates, value);
+  }
+
+  Future<void> setReplayGainMode(int value) async {
+    state = state.copyWith(replayGainMode: value);
+    await _prefs.setInt(_kReplayGainMode, value);
+  }
+
+  Future<void> setCrossfadeSeconds(int value) async {
+    state = state.copyWith(crossfadeSeconds: value);
+    await _prefs.setInt(_kCrossfadeSeconds, value);
+  }
+
+  Future<void> toggleDownloadWifiOnly(bool value) async {
+    state = state.copyWith(downloadWifiOnly: value);
+    await _prefs.setBool(_kDownloadWifiOnly, value);
+  }
+
   Future<void> toggleWakeLock(bool value) async {
     state = state.copyWith(enableWakeLock: value);
     await _prefs.setBool(_kWakeLock, value);
@@ -178,7 +316,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
 
   /// Select a preset and turn off album-adaptive recoloring.
   Future<void> updateThemeIndex(int index) async {
-    final clamped = index.clamp(0, 6);
+    final clamped = WavvyTheme.normalizeIndex(index);
     // An explicit preset wins over album-adaptive colors.
     state = state.copyWith(
       currentThemeIndex: clamped,

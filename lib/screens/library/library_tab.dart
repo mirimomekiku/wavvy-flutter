@@ -18,8 +18,20 @@ import 'package:wavvy/widgets/playlist_dialogs.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/page_heading.dart';
+import 'package:wavvy/playback/favorites.dart';
+import 'package:wavvy/screens/library/liked/liked.screen.dart';
 
-final libraryQueryProvider = StateProvider<String>((ref) => '');
+/// The text typed into the Library filter field.
+final libraryQueryProvider = NotifierProvider<LibraryQueryNotifier, String>(
+  LibraryQueryNotifier.new,
+);
+
+class LibraryQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  void set(String query) => state = query;
+}
 
 const _sectionLabels = ['Songs', 'Albums', 'Artists', 'Playlists'];
 
@@ -38,42 +50,73 @@ class LibraryTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final section = ref.watch(librarySectionProvider);
 
-    return RefreshIndicator(
-      onRefresh: () => ref.read(libraryProvider.notifier).fetchAllSongs(),
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _Header(section: section)),
-          const SliverToBoxAdapter(child: _LibrarySearch()),
-          if (ref.watch(libraryProvider.select((s) => s.isLoading)))
-            const SliverToBoxAdapter(
-              child: LinearProgressIndicator(minHeight: 2),
-            ),
-          if (ref.watch(libraryProvider.select((s) => s.error)).isNotEmpty)
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(ref.watch(libraryProvider).error),
+    final inset = MediaQuery.paddingOf(context).top;
+    final chrome = Wv.of(context).chromeGradient.colors.first;
+
+    // The scroll view starts below the status bar, so the pinned chips stop
+    // right under it instead of behind it, and nothing is added while they are
+    // not pinned. A strip in the toolbar's top color fills the status bar, and
+    // the heading (which would pad itself below the status bar) is told the
+    // inset is already taken.
+    return Stack(
+      children: [
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: inset,
+          child: ColoredBox(color: chrome),
+        ),
+        Positioned.fill(
+          top: inset,
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: RefreshIndicator(
+              onRefresh: () =>
+                  ref.read(libraryProvider.notifier).fetchAllSongs(),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _Header(section: section)),
+                  const SliverToBoxAdapter(child: _LibrarySearch()),
+                  if (ref.watch(libraryProvider.select((s) => s.isLoading)))
+                    const SliverToBoxAdapter(
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
+                  if (ref
+                      .watch(libraryProvider.select((s) => s.error))
+                      .isNotEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(ref.watch(libraryProvider).error),
+                      ),
+                    ),
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _SectionChipsDelegate(
+                      selected: section.index,
+                      extent: _chipsExtent(context),
+                    ),
+                  ),
+                  ...switch (section) {
+                    LibrarySection.songs => const [_SongsSection()],
+                    LibrarySection.albums => const [_AlbumsSection()],
+                    LibrarySection.artists => const [_ArtistsSection()],
+                    LibrarySection.playlists => const [_PlaylistsSection()],
+                  },
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: 24 + MediaQuery.paddingOf(context).bottom,
+                    ),
+                  ),
+                ],
               ),
             ),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _SectionChipsDelegate(
-              selected: section.index,
-              extent: _chipsExtent(context),
-            ),
           ),
-          ...switch (section) {
-            LibrarySection.songs => const [_SongsSection()],
-            LibrarySection.albums => const [_AlbumsSection()],
-            LibrarySection.artists => const [_ArtistsSection()],
-            LibrarySection.playlists => const [_PlaylistsSection()],
-          },
-          SliverToBoxAdapter(
-            child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -132,7 +175,7 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
       child: AquaSearchFrame(
         child: TextField(
           controller: _query,
-          onChanged: (v) => ref.read(libraryQueryProvider.notifier).state = v,
+          onChanged: (v) => ref.read(libraryQueryProvider.notifier).set(v),
           style: const TextStyle(fontSize: 14),
           decoration: aquaSearchDecoration(
             context,
@@ -153,7 +196,7 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
                     ),
                     onPressed: () {
                       _query.clear();
-                      ref.read(libraryQueryProvider.notifier).state = '';
+                      ref.read(libraryQueryProvider.notifier).set('');
                     },
                   ),
           ),
@@ -185,9 +228,15 @@ class _SectionChipsDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     // A persistent header's child is laid out loosely: fill the extent.
+    final a = Wv.of(context);
     return Container(
       height: extent,
-      color: Wv.of(context).background,
+      decoration: BoxDecoration(
+        gradient: a.chromeGradient,
+        border: Border(
+          bottom: BorderSide(color: a.outline.withValues(alpha: 0.55)),
+        ),
+      ),
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: _SectionPills(selected: selected),
@@ -467,6 +516,9 @@ class _SongsEmptyState extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final a = Wv.of(context);
     final denied = ref.watch(libraryProvider.select((s) => s.permissionDenied));
+    final blocked = ref.watch(
+      libraryProvider.select((s) => s.permissionBlocked),
+    );
 
     return Center(
       child: Padding(
@@ -493,7 +545,9 @@ class _SongsEmptyState extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               denied
-                  ? "Allow Wavvy to read your music, then come back and retry."
+                  ? blocked
+                        ? "Turn on music access for Wavvy in Settings, then come back."
+                        : "Allow Wavvy to read your music, then come back and retry."
                   : "Add music to your device to get started",
               textAlign: TextAlign.center,
               style: TextStyle(color: a.textSecondary, fontSize: 14),
@@ -508,18 +562,20 @@ class _SongsEmptyState extends ConsumerWidget {
                     width: 132,
                     squircle: true,
                     size: 52,
+                    primary: blocked,
                     onPressed: openAppSettings,
                     child: const Text("Open Settings"),
                   ),
-                WvButton(
-                  width: 108,
-                  squircle: true,
-                  size: 52,
-                  primary: true,
-                  onPressed: () =>
-                      ref.read(libraryProvider.notifier).fetchAllSongs(),
-                  child: Text(denied ? "Retry" : "Refresh"),
-                ),
+                if (!blocked)
+                  WvButton(
+                    width: 108,
+                    squircle: true,
+                    size: 52,
+                    primary: true,
+                    onPressed: () =>
+                        ref.read(libraryProvider.notifier).fetchAllSongs(),
+                    child: Text(denied ? "Retry" : "Refresh"),
+                  ),
               ],
             ),
           ],
@@ -687,40 +743,20 @@ class _PlaylistsSection extends ConsumerWidget {
         .where((p) => '${p['name']}'.toLowerCase().contains(q))
         .toList();
 
-    if (playlists.isEmpty) {
-      return SliverFillRemaining(
-        hasScrollBody: false,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const WvEmptyMessage(
-              message: "No custom playlists yet.",
-              icon: Icons.queue_music_rounded,
-              sprite: PixelSprites.mascotHappy,
-            ),
-            WvButton(
-              primary: true,
-              squircle: true,
-              size: 52,
-              width: 156,
-              onPressed: () => showNewPlaylistDialog(ref),
-              child: const Text("New playlist"),
-            ),
-          ],
-        ),
-      );
-    }
+    // Favorites sits first, then the way to make a new playlist.
+    final showLiked = q.isEmpty || 'liked songs'.contains(q);
+    final lead = showLiked ? 2 : 1;
 
     return SliverMainAxisGroup(
       slivers: [
         _countLabel(context, "${playlists.length} playlists"),
         _grid(
-          count: playlists.length + 1,
+          count: playlists.length + lead,
           aspectRatio: 0.95,
           builder: (context, i) {
-            if (i == 0) return const _NewPlaylistTile();
-            final index = i - 1;
+            if (showLiked && i == 0) return const _LikedTile();
+            if (i == lead - 1) return const _NewPlaylistTile();
+            final index = i - lead;
             final playlist = playlists[index];
             return _PlaylistTile(
               index: index,
@@ -741,6 +777,31 @@ class _PlaylistsSection extends ConsumerWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+/// Favorites, shown with the playlists.
+class _LikedTile extends ConsumerWidget {
+  const _LikedTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final a = Wv.of(context);
+    final count = ref.watch(likedSongsProvider.select((s) => s.length));
+    return WvGridTile(
+      title: 'Liked songs',
+      subtitle: '$count tracks',
+      onTap: () => AppNav.push(const LikedSongsScreen()),
+      artworkBuilder: (size) => Container(
+        color: a.tertiaryContainer,
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.favorite_rounded,
+          size: size * 0.4,
+          color: kHeartColor,
+        ),
+      ),
     );
   }
 }
