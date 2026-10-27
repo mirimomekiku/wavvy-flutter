@@ -6,43 +6,60 @@ import 'package:wavvy/theme/wavvy_widgets.dart';
 class WavvyTheme {
   WavvyTheme._();
 
-  /// Legacy indices are retained; 5 = Aqua and 6 = Graphite.
-  static WvAppearance appearanceFor(int index) {
-    switch (index) {
-      case 0:
-        return WvAppearance.green;
-      case 1:
-        return WvAppearance.red;
-      case 2:
-        return WvAppearance.materialYou;
-      case 4:
-        return WvAppearance.peach;
-      case 3:
-        return WvAppearance.lilac;
-      case 6:
-        return WvAppearance.graphite;
-      default:
-        return WvAppearance.aqua;
-    }
+  /// The saved theme index of each appearance. 5 and 6 are the original Aqua
+  /// and Graphite and keep their numbers; the accents follow.
+  static const Map<int, WvAppearance> byIndex = {
+    5: WvAppearance.aqua,
+    6: WvAppearance.graphite,
+    7: WvAppearance.orange,
+    8: WvAppearance.green,
+    9: WvAppearance.purple,
+    10: WvAppearance.pink,
+    11: WvAppearance.red,
+    12: WvAppearance.teal,
+  };
+
+  static const int defaultIndex = 5;
+
+  /// Indices saved by older versions: Mint and Rose become Green and Red,
+  /// Lilac and Peach become Purple and Orange, and the retired System theme
+  /// becomes Aqua.
+  static const Map<int, int> migratedIndex = {0: 8, 1: 11, 2: 5, 3: 9, 4: 7};
+
+  /// The index to use for a saved value, which may come from an older version.
+  static int normalizeIndex(int? saved) {
+    if (saved == null) return defaultIndex;
+    if (byIndex.containsKey(saved)) return saved;
+    return migratedIndex[saved] ?? defaultIndex;
   }
 
-  /// [system] is the platform's wallpaper-derived scheme for this brightness
-  /// (only used by the Material You appearance).
-  static ThemeData light(
-    WvAppearance appearance, {
-    Color? seed,
-    ColorScheme? system,
-  }) => _build(
-    WvPalette(dark: false, appearance: appearance, seed: seed, system: system),
-  );
+  static WvAppearance appearanceFor(int index) =>
+      byIndex[normalizeIndex(index)]!;
 
-  static ThemeData dark(
-    WvAppearance appearance, {
-    Color? seed,
-    ColorScheme? system,
-  }) => _build(
-    WvPalette(dark: true, appearance: appearance, seed: seed, system: system),
-  );
+  /// Building a theme generates a tonal scheme and a full ThemeData, so the
+  /// result is kept: switching light/dark or back to an earlier appearance or
+  /// album color reuses the finished theme instead of rebuilding it. Oldest
+  /// entries go first, so album colors don't pile up.
+  static final Map<(bool, WvAppearance, int?), ThemeData> _cache = {};
+  static const int _cacheLimit = 24;
+
+  static ThemeData _themed(bool dark, WvAppearance appearance, Color? seed) {
+    final key = (dark, appearance, seed?.toARGB32());
+    final hit = _cache.remove(key);
+    if (hit != null) return _cache[key] = hit;
+    final theme = _build(
+      WvPalette(dark: dark, appearance: appearance, seed: seed),
+    );
+    _cache[key] = theme;
+    if (_cache.length > _cacheLimit) _cache.remove(_cache.keys.first);
+    return theme;
+  }
+
+  static ThemeData light(WvAppearance appearance, {Color? seed}) =>
+      _themed(false, appearance, seed);
+
+  static ThemeData dark(WvAppearance appearance, {Color? seed}) =>
+      _themed(true, appearance, seed);
 
   static ThemeData _build(WvPalette a) {
     final scheme = a.scheme;

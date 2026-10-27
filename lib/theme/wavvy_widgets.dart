@@ -1,23 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 /// Kaisu-inspired paper surfaces, silver chrome and Aqua selection states.
-/// The first three appearance indices remain compatible with saved preferences.
-enum WvAppearance {
-  /// Mint (legacy Green index).
-  green,
-
-  /// Rose (legacy Red index).
-  red,
-
-  /// Material You: the system wallpaper scheme (falls back to a violet seed
-  /// when the platform has no dynamic colors).
-  materialYou,
-
-  lilac,
-  peach,
-  aqua,
-  graphite,
-}
+///
+/// The color themes are Kaisu's: Aqua (blue) and its accent colors, made by
+/// turning Aqua's blue around the color wheel (see [WvPalette.hueShift]), plus
+/// Graphite.
+enum WvAppearance { aqua, orange, green, purple, pink, red, teal, graphite }
 
 /// Colors for the current brightness + accent, exposed as a [ThemeExtension]
 /// so every widget reads it with [Wv.of].
@@ -33,48 +23,81 @@ class WvPalette extends ThemeExtension<WvPalette> {
   /// replaces the appearance's own seed.
   final Color? seed;
 
-  /// The system (wallpaper) scheme for this brightness, when available.
-  final ColorScheme? system;
-
   /// The full Material 3 color scheme everything below is read from.
   final ColorScheme scheme;
 
-  WvPalette({
-    required this.dark,
-    required this.appearance,
-    this.seed,
-    this.system,
-  }) : scheme = _schemeFor(dark, appearance, seed, system);
+  WvPalette({required this.dark, required this.appearance, this.seed})
+    : scheme = _schemeFor(dark, appearance, seed);
 
-  const WvPalette._(
-    this.dark,
-    this.appearance,
-    this.seed,
-    this.system,
-    this.scheme,
-  );
+  const WvPalette._(this.dark, this.appearance, this.seed, this.scheme);
 
   /// Used when no theme is available (should not normally happen).
   static final WvPalette fallback = WvPalette(
     dark: true,
-    appearance: WvAppearance.materialYou,
+    appearance: WvAppearance.aqua,
   );
 
-  static const Color _violet = Color(0xFF6750A4);
-  static const Color _green = Color(0xFF397565);
-  static const Color _red = Color(0xFFAC4C72);
+  /// Kaisu makes its accent colors by turning Aqua's blue around the color
+  /// wheel by these many degrees; so does Wavvy, so a theme looks the same on
+  /// both. Aqua itself is not turned.
+  static const Map<WvAppearance, double> hueShift = {
+    WvAppearance.orange: 175,
+    WvAppearance.green: 265,
+    WvAppearance.purple: 65,
+    WvAppearance.pink: 115,
+    WvAppearance.red: 145,
+    WvAppearance.teal: 320,
+  };
 
   static bool _usable(Color? seed) =>
       seed != null && HSLColor.fromColor(seed).saturation >= 0.12;
+
+  static Color _turn(Color c, double degrees) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl.withHue((hsl.hue + degrees) % 360).toColor();
+  }
+
+  static double _contrast(Color a, Color b) {
+    final x = a.computeLuminance(), y = b.computeLuminance();
+    return (math.max(x, y) + 0.05) / (math.min(x, y) + 0.05);
+  }
+
+  /// [c], darkened ([darker]) or lightened until it reads against [background]
+  /// at [minimum] contrast. Turning a blue to yellow-orange or green leaves it
+  /// brighter, and text in it would otherwise be hard to read.
+  static Color _readable(
+    Color c,
+    Color background, {
+    required bool darker,
+    double minimum = 4.5,
+  }) {
+    var hsl = HSLColor.fromColor(c);
+    var out = c;
+    for (var i = 0; i < 40 && _contrast(out, background) < minimum; i++) {
+      hsl = hsl.withLightness(
+        (hsl.lightness + (darker ? -0.02 : 0.02)).clamp(0.0, 1.0),
+      );
+      out = hsl.toColor();
+    }
+    return out;
+  }
+
+  /// White or near-black, whichever reads better on [background].
+  static Color _onColor(Color background, Color preferred) {
+    if (_contrast(preferred, background) >= 4.5) return preferred;
+    const dark = Color(0xFF111418);
+    return _contrast(Colors.white, background) >= _contrast(dark, background)
+        ? Colors.white
+        : dark;
+  }
 
   static ColorScheme _schemeFor(
     bool dark,
     WvAppearance appearance,
     Color? seed,
-    ColorScheme? system,
   ) {
     final brightness = dark ? Brightness.dark : Brightness.light;
-    ColorScheme from(Color c) {
+    ColorScheme from(Color c, {double shift = 0}) {
       final base = ColorScheme.fromSeed(seedColor: c, brightness: brightness);
       return base.copyWith(
         surface: dark ? const Color(0xFF15191F) : const Color(0xFFECECEC),
@@ -93,12 +116,14 @@ class WvPalette extends ThemeExtension<WvPalette> {
         outlineVariant: dark
             ? const Color(0xFF364250)
             : const Color(0xFFD6DAE0),
-        primaryContainer: dark
-            ? const Color(0xFF193958)
-            : const Color(0xFFE8F1FC),
-        onPrimaryContainer: dark
-            ? const Color(0xFFCDDEFA)
-            : const Color(0xFF173D72),
+        primaryContainer: _turn(
+          dark ? const Color(0xFF193958) : const Color(0xFFE8F1FC),
+          shift,
+        ),
+        onPrimaryContainer: _turn(
+          dark ? const Color(0xFFCDDEFA) : const Color(0xFF173D72),
+          shift,
+        ),
         secondaryContainer: dark
             ? const Color(0xFF293849)
             : const Color(0xFFE7EDF5),
@@ -114,29 +139,31 @@ class WvPalette extends ThemeExtension<WvPalette> {
       );
     }
 
+    // Album colors: the whole scheme comes from the artwork.
     if (_usable(seed)) return from(seed!);
-    switch (appearance) {
-      case WvAppearance.green:
-        return from(_green);
-      case WvAppearance.red:
-        return from(_red);
-      case WvAppearance.materialYou:
-        return system ?? from(_violet);
-      case WvAppearance.lilac:
-        return from(const Color(0xFF7960A8));
-      case WvAppearance.peach:
-        return from(const Color(0xFF996344));
-      case WvAppearance.aqua:
-        return from(const Color(0xFF2563B2)).copyWith(
-          primary: dark ? const Color(0xFF8CB9F5) : const Color(0xFF356FCB),
-          onPrimary: dark ? const Color(0xFF10233D) : Colors.white,
-        );
-      case WvAppearance.graphite:
-        return from(const Color(0xFF526174)).copyWith(
-          primary: dark ? const Color(0xFFBDC6D0) : const Color(0xFF536172),
-          onPrimary: dark ? const Color(0xFF18232E) : Colors.white,
-        );
+
+    if (appearance == WvAppearance.graphite) {
+      return from(const Color(0xFF526174)).copyWith(
+        primary: dark ? const Color(0xFFBDC6D0) : const Color(0xFF536172),
+        onPrimary: dark ? const Color(0xFF18232E) : Colors.white,
+      );
     }
+
+    // Aqua, and its accents turned around the color wheel.
+    final shift = hueShift[appearance] ?? 0;
+    final page = dark ? const Color(0xFF1E242D) : const Color(0xFFECECEC);
+    final primary = _readable(
+      _turn(dark ? const Color(0xFF8CB9F5) : const Color(0xFF356FCB), shift),
+      page,
+      darker: !dark,
+    );
+    return from(_turn(const Color(0xFF2563B2), shift), shift: shift).copyWith(
+      primary: primary,
+      onPrimary: _onColor(
+        primary,
+        _turn(dark ? const Color(0xFF10233D) : Colors.white, shift),
+      ),
+    );
   }
 
   // ------------------------------------------------------------- Surfaces
@@ -290,12 +317,10 @@ class WvPalette extends ThemeExtension<WvPalette> {
     WvAppearance? appearance,
     Color? seed,
     bool clearSeed = false,
-    ColorScheme? system,
   }) => WvPalette(
     dark: dark ?? this.dark,
     appearance: appearance ?? this.appearance,
     seed: clearSeed ? null : (seed ?? this.seed),
-    system: system ?? this.system,
   );
 
   @override
@@ -310,7 +335,6 @@ class WvPalette extends ThemeExtension<WvPalette> {
       (seed != null && other.seed != null)
           ? Color.lerp(seed, other.seed, t)
           : base.seed,
-      base.system,
       ColorScheme.lerp(scheme, other.scheme, t),
     );
   }
@@ -515,6 +539,10 @@ class WvChips extends StatelessWidget {
   final bool uppercase;
   final bool indicator;
 
+  /// When set, each chip shows its icon instead of its label (the label is kept
+  /// for the tooltip and screen readers). Must match [labels] in length.
+  final List<IconData>? icons;
+
   const WvChips({
     super.key,
     required this.labels,
@@ -522,6 +550,7 @@ class WvChips extends StatelessWidget {
     required this.onChanged,
     this.uppercase = false,
     this.indicator = false,
+    this.icons,
   });
 
   @override
@@ -567,17 +596,28 @@ class WvChips extends StatelessWidget {
                             horizontal: uppercase ? 12 : 14,
                             vertical: 8,
                           ),
-                          child: Text(
-                            uppercase ? labels[i].toUpperCase() : labels[i],
-                            style: TextStyle(
-                              fontSize: uppercase ? 11 : 12,
-                              fontWeight: i == selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                              color: i == selected ? a.onAccent : a.text,
-                              letterSpacing: uppercase ? 0.2 : 0,
-                            ),
-                          ),
+                          child: icons != null
+                              ? Tooltip(
+                                  message: labels[i],
+                                  child: Icon(
+                                    icons![i],
+                                    size: 20,
+                                    color: i == selected ? a.onAccent : a.text,
+                                  ),
+                                )
+                              : Text(
+                                  uppercase
+                                      ? labels[i].toUpperCase()
+                                      : labels[i],
+                                  style: TextStyle(
+                                    fontSize: uppercase ? 11 : 12,
+                                    fontWeight: i == selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: i == selected ? a.onAccent : a.text,
+                                    letterSpacing: uppercase ? 0.2 : 0,
+                                  ),
+                                ),
                         ),
                       ),
                     ),

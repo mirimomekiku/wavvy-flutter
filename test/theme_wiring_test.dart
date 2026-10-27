@@ -3,12 +3,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 // ignore: depend_on_referenced_packages
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 // ignore: depend_on_referenced_packages
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:wavvy/providers/palette_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/theme/wavvy_theme.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 import 'package:wavvy/wavvy_app.dart';
@@ -116,35 +118,25 @@ void main() {
   });
 
   group('appearance setting', () {
-    testWidgets(
-      'Aqua is the default; legacy accents and system remain selectable',
-      (tester) async {
-        final h = _Harness();
-        await h.pump(tester);
+    testWidgets('Aqua is the default and every accent is selectable', (
+      tester,
+    ) async {
+      final h = _Harness();
+      await h.pump(tester);
+      expect(h.palette.appearance, WvAppearance.aqua);
+      expect(h.theme.colorScheme.primary, h.palette.accent);
 
-        expect(h.palette.appearance, WvAppearance.aqua);
+      final accents = <Color>{h.palette.accent};
+      for (final entry in WavvyTheme.byIndex.entries) {
+        await h.settings.updateThemeIndex(entry.key);
+        await tester.pumpAndSettle();
+        expect(h.palette.appearance, entry.value);
         expect(h.theme.colorScheme.primary, h.palette.accent);
-        final aqua = h.palette.accent;
-
-        await h.settings.updateThemeIndex(0);
-        await tester.pumpAndSettle();
-        expect(h.palette.appearance, WvAppearance.green);
-        expect(h.theme.colorScheme.primary, h.palette.accent);
-        final green = h.palette.accent;
-
-        await h.settings.updateThemeIndex(1);
-        await tester.pumpAndSettle();
-        expect(h.palette.appearance, WvAppearance.red);
-        final red = h.palette.accent;
-
-        expect({aqua, green, red}.length, 3);
-
-        await h.settings.updateThemeIndex(2);
-        await tester.pumpAndSettle();
-        expect(h.palette.appearance, WvAppearance.materialYou);
-        expect(h.palette.accent, isNot(aqua));
-      },
-    );
+        accents.add(h.palette.accent);
+      }
+      // Eight themes, eight different accents.
+      expect(accents.length, WavvyTheme.byIndex.length);
+    });
 
     testWidgets('the appearance survives switching light/dark', (tester) async {
       final h = _Harness();
@@ -161,26 +153,67 @@ void main() {
       expect(h.palette.appearance, WvAppearance.red);
     });
 
-    testWidgets('a wallpaper scheme from the system is used by Material You', (
-      tester,
-    ) async {
-      final system = ColorScheme.fromSeed(seedColor: const Color(0xFF00897B));
-      final palette = WvPalette(
-        dark: false,
-        appearance: WvAppearance.materialYou,
-        system: system,
+    test('accents are Aqua turned around the color wheel, as in Kaisu', () {
+      final aqua = HSLColor.fromColor(
+        WvPalette(dark: false, appearance: WvAppearance.aqua).seed ??
+            const Color(0xFF356FCB),
       );
-      expect(palette.scheme, system);
-      expect(palette.accent, system.primary);
+      expect(aqua, isNotNull);
+      const turns = {
+        WvAppearance.orange: 175.0,
+        WvAppearance.green: 265.0,
+        WvAppearance.purple: 65.0,
+        WvAppearance.pink: 115.0,
+        WvAppearance.red: 145.0,
+        WvAppearance.teal: 320.0,
+      };
+      expect(WvPalette.hueShift, turns);
+      // The resulting hues: orange, green, purple, pink, red, teal.
+      double hue(WvAppearance a) =>
+          HSLColor.fromColor(WvPalette(dark: false, appearance: a).accent).hue;
+      double near(double a, double b) {
+        final d = (a - b).abs() % 360;
+        return d > 180 ? 360 - d : d;
+      }
 
-      // Green/red ignore the wallpaper.
-      final green = WvPalette(
-        dark: false,
-        appearance: WvAppearance.green,
-        system: system,
-      );
-      expect(green.accent, isNot(system.primary));
+      final base = hue(WvAppearance.aqua);
+      for (final e in turns.entries) {
+        // Lightness is adjusted for readability, so only the hue is compared.
+        expect(
+          near(hue(e.key), (base + e.value) % 360),
+          lessThan(8),
+          reason: '${e.key}',
+        );
+      }
     });
+
+    for (final dark in [false, true]) {
+      for (final appearance in WvAppearance.values) {
+        test('${appearance.name} is readable (${dark ? 'dark' : 'light'})', () {
+          final p = WvPalette(dark: dark, appearance: appearance);
+          expect(
+            _contrast(p.accentText, p.background),
+            greaterThanOrEqualTo(4.5),
+            reason: 'accent text on the page',
+          );
+          expect(
+            _contrast(p.accentText, p.surface),
+            greaterThanOrEqualTo(4.5),
+            reason: 'accent text on a card',
+          );
+          expect(
+            _contrast(p.onAccent, p.accent),
+            greaterThanOrEqualTo(4.5),
+            reason: 'text on the accent fill',
+          );
+          expect(
+            _contrast(p.onChipSelected, p.chipSelected),
+            greaterThanOrEqualTo(4.5),
+            reason: 'selected chip',
+          );
+        });
+      }
+    }
   });
 
   testWidgets('explicit companion themes override album colors and persist', (
@@ -203,18 +236,70 @@ void main() {
     expect(restored.read(settingsProvider).enableDynamicColors, isFalse);
   });
 
-  testWidgets('retired palettes migrate to Aqua while keeping brightness', (
-    tester,
-  ) async {
-    final h = _Harness();
-    await h.pump(tester);
-    await h.settings.updateThemeIndex(3);
-    await h.settings.toggleDarkMode(true);
-    final restored = ProviderContainer();
-    addTearDown(restored.dispose);
-    await restored.read(settingsProvider.notifier).load();
-    expect(restored.read(settingsProvider).currentThemeIndex, 5);
-    expect(restored.read(settingsProvider).isDarkMode, isTrue);
+  group('saved color themes from older versions', () {
+    Future<ProviderContainer> loadWith(int? saved, {bool dark = false}) async {
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.empty();
+      final prefs = SharedPreferencesAsync();
+      if (saved != null) await prefs.setInt('theme_scheme_index', saved);
+      await prefs.setBool('feature_dark_mode', dark);
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await container.read(settingsProvider.notifier).load();
+      return container;
+    }
+
+    testWidgets('are carried over to the closest current theme', (
+      tester,
+    ) async {
+      // Mint, Rose, System, Lilac, Peach.
+      for (final (old, now) in [(0, 8), (1, 11), (2, 5), (3, 9), (4, 7)]) {
+        final c = await loadWith(old);
+        expect(
+          c.read(settingsProvider).currentThemeIndex,
+          now,
+          reason: 'index $old',
+        );
+      }
+    });
+
+    testWidgets('current values are kept, and anything unknown is Aqua', (
+      tester,
+    ) async {
+      for (final index in WavvyTheme.byIndex.keys) {
+        expect(
+          (await loadWith(index)).read(settingsProvider).currentThemeIndex,
+          index,
+        );
+      }
+      for (final bad in [null, 99, -1]) {
+        expect(
+          (await loadWith(bad)).read(settingsProvider).currentThemeIndex,
+          5,
+        );
+      }
+    });
+
+    testWidgets('brightness is kept when the theme is migrated', (
+      tester,
+    ) async {
+      final c = await loadWith(3, dark: true);
+      expect(c.read(settingsProvider).currentThemeIndex, 9);
+      expect(c.read(settingsProvider).isDarkMode, isTrue);
+    });
+
+    test('there is no System theme to select', () {
+      expect(WavvyTheme.byIndex.values.map((a) => a.name).toSet(), {
+        'aqua',
+        'orange',
+        'green',
+        'purple',
+        'pink',
+        'red',
+        'teal',
+        'graphite',
+      });
+    });
   });
 
   group('dynamic colors', () {
@@ -322,7 +407,7 @@ void main() {
         test('${entry.key} (${dark ? 'dark' : 'light'})', () {
           final p = WvPalette(
             dark: dark,
-            appearance: WvAppearance.materialYou,
+            appearance: WvAppearance.aqua,
             seed: entry.value,
           );
           expect(
