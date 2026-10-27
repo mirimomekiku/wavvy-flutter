@@ -8,7 +8,7 @@ class DbHelper {
 
   static Database? _db;
 
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   Future<Database> get db async {
     if (_db != null) return _db!;
@@ -23,6 +23,12 @@ class DbHelper {
       path,
       version: _dbVersion,
 
+      // SQLite ignores FOREIGN KEY constraints (and ON DELETE CASCADE)
+      // unless this is enabled on every connection.
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+
       // For NEW users (Runs once when app is installed)
       onCreate: (db, version) async {
         await _createPlaylistTables(db);
@@ -33,6 +39,9 @@ class DbHelper {
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await _createStatsTable(db);
+        }
+        if (oldVersion < 3) {
+          await _dedupePlaylistSongs(db);
         }
       },
     );
@@ -54,6 +63,24 @@ class DbHelper {
         FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE
       )
     ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_playlist_song_unique '
+      'ON playlist_songs (playlist_id, song_id)',
+    );
+  }
+
+  /// Removes duplicate rows left by the old check-then-insert logic and
+  /// enforces uniqueness at the database level.
+  Future<void> _dedupePlaylistSongs(Database db) async {
+    await db.execute('''
+      DELETE FROM playlist_songs WHERE id NOT IN (
+        SELECT MIN(id) FROM playlist_songs GROUP BY playlist_id, song_id
+      )
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_playlist_song_unique '
+      'ON playlist_songs (playlist_id, song_id)',
+    );
   }
 
   Future<void> _createStatsTable(Database db) async {
@@ -67,6 +94,18 @@ class DbHelper {
   }
 
   // --- QUERY METHODS ---
+
+  Future<void> deletePlaylist(int playlistId) async {
+    final db = await this.db;
+    // Explicit child delete so orphans are cleaned even on databases
+    // created before foreign keys were enabled.
+    await db.delete(
+      'playlist_songs',
+      where: 'playlist_id = ?',
+      whereArgs: [playlistId],
+    );
+    await db.delete('playlists', where: 'id = ?', whereArgs: [playlistId]);
+  }
 
   Future<void> logSongPlay(int songId) async {
     final db = await this.db;

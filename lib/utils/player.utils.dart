@@ -32,11 +32,14 @@ class PlayerUtils {
 
   static String formatBytes(int bytes, int decimals) {
     if (bytes <= 0) return "0 B";
-    const suffixes = ["B", "KB", "MB", "GB"];
-    var i = (bytes.toString().length - 1) ~/ 3;
-    // simple calculation...
-    double size = bytes / (1024 * 1024);
-    return "${size.toStringAsFixed(2)} MB";
+    const suffixes = ["B", "KB", "MB", "GB", "TB"];
+    int i = 0;
+    double size = bytes.toDouble();
+    while (size >= 1024 && i < suffixes.length - 1) {
+      size /= 1024;
+      i++;
+    }
+    return "${size.toStringAsFixed(i == 0 ? 0 : decimals)} ${suffixes[i]}";
   }
 
   static List<Lyric> parseLrc(String lrc) {
@@ -119,7 +122,7 @@ class PlayerUtils {
           files: [songFile],
         );
 
-        final result = await SharePlus.instance.share(params);
+        await SharePlus.instance.share(params);
       } catch (e) {
         AppSnackbar.showErrorSnackBar("Error", "Could not share file: $e");
       }
