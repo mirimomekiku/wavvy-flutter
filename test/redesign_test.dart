@@ -1,0 +1,383 @@
+import 'package:wavvy/providers/lyrics_provider.dart';
+import 'package:wavvy/providers/artist_info_provider.dart';
+import 'package:wavvy/providers/player_sheet_provider.dart';
+import 'package:wavvy/providers/library_section_provider.dart';
+import 'package:wavvy/providers/search_source_provider.dart';
+import 'package:wavvy/providers/downloads_provider.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
+import 'package:wavvy/screens/library/library_tab.dart';
+import 'package:wavvy/screens/search/search_tab.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:wavvy/screens/settings/settings.screen.dart';
+import 'package:wavvy/screens/library/albums/view/album.screen.dart';
+import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
+import 'package:wavvy/screens/library/playlists/view/playlist.screen.dart';
+import 'package:wavvy/screens/audio_effects/effects.screen.dart';
+import 'package:wavvy/widgets/lyric_card.dart';
+import 'package:wavvy/models/lyric.dart';
+import 'package:wavvy/widgets/vinyl_deck.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+// ignore: depend_on_referenced_packages
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+// ignore: depend_on_referenced_packages
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
+import 'package:on_audio_query/on_audio_query.dart';
+import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/providers/playlists_provider.dart';
+import 'package:wavvy/providers/settings_provider.dart';
+import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/screens/home/home.screen.dart';
+import 'package:wavvy/theme/wavvy_theme.dart';
+import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/player_sheets/full_player_sheet.dart';
+
+SongModel _song(int id) => SongModel({
+  '_id': id,
+  '_data': '/music/s$id.mp3',
+  '_uri': 'content://media/$id',
+  '_display_name': 's$id.mp3',
+  '_display_name_wo_ext': 's$id',
+  '_size': 1024,
+  'title': 'Song $id',
+  'artist': 'Artist $id',
+  'album': 'Album ${id % 3}',
+  'album_id': id % 3,
+  'artist_id': id,
+  'duration': 200000,
+  'is_music': true,
+});
+
+AlbumModel _album(int id) => AlbumModel({
+  '_id': id,
+  'album': 'Album $id',
+  'artist': 'Artist $id',
+  'numsongs': 5,
+});
+
+ArtistModel _artist(int id) => ArtistModel({
+  '_id': id,
+  'artist': 'Artist $id',
+  'number_of_albums': 2,
+  'number_of_tracks': 7,
+});
+
+class _FakeLibrary extends LibraryNotifier {
+  @override
+  LibraryState build() {
+    final songs = [for (var i = 1; i <= 25; i++) _song(i)];
+    return LibraryState(
+      songs: songs,
+      filteredSongs: songs,
+      albums: [for (var i = 1; i <= 6; i++) _album(i)],
+      artists: [for (var i = 1; i <= 6; i++) _artist(i)],
+    );
+  }
+}
+
+class _FakePlayer extends PlayerNotifier {
+  @override
+  PlayerState build() => PlayerState(
+    queue: [for (var i = 1; i <= 5; i++) _song(i)],
+    currentSong: _song(2),
+    currentIndex: 1,
+    isPlaying: true,
+  );
+}
+
+class _FakePosition extends PositionNotifier {
+  @override
+  Duration build() => const Duration(seconds: 42);
+}
+
+class _FakeDuration extends DurationNotifier {
+  @override
+  Duration build() => const Duration(minutes: 3, seconds: 20);
+}
+
+class _FakeSettings extends SettingsNotifier {
+  @override
+  SettingsState build() => const SettingsState();
+}
+
+class _FakePlaylists extends PlaylistsNotifier {
+  @override
+  Future<List<SongModel>> getSongsInPlaylist(int playlistId) async => [
+    for (int i = 1; i <= 6; i++) _song(i),
+  ];
+  @override
+  PlaylistsState build() => PlaylistsState(
+    playlists: [
+      {'id': 1, 'name': 'Road trip'},
+      {'id': 2, 'name': 'Focus'},
+    ],
+    mostPlayed: [for (var i = 1; i <= 6; i++) _song(i)],
+    recent: [for (var i = 3; i <= 8; i++) _song(i)],
+  );
+}
+
+class _PreviewLyrics extends LyricsNotifier {
+  _PreviewLyrics(this.populated);
+  final bool populated;
+  @override
+  LyricsState build() => populated
+      ? LyricsState(
+          currentIndex: 1,
+          lyrics: [
+            Lyric(Duration.zero, 'A little room to breathe.'),
+            Lyric(const Duration(seconds: 40), 'Your music, wherever you go.'),
+            Lyric(const Duration(seconds: 60), 'Another day in motion.'),
+          ],
+        )
+      : const LyricsState();
+}
+
+class _PreviewArtist extends ArtistInfoNotifier {
+  @override
+  ArtistInfoState build() => const ArtistInfoState(
+    bio:
+        'An independent artist from your music collection. Artist information and artwork appear here when available online.',
+  );
+}
+
+class _PreviewPage extends SheetPageIndexNotifier {
+  _PreviewPage(this.page);
+  final int page;
+  @override
+  int build() => page;
+}
+
+class _PreviewSection extends LibrarySectionNotifier {
+  _PreviewSection(this.section);
+  final LibrarySection section;
+  @override
+  LibrarySection build() => section;
+}
+
+class _PreviewDownloads extends YtdlpNotifier {
+  @override
+  YtdlpState build() => YtdlpState(
+    taskTitles: {'one': 'Evening drive'},
+    progressMap: {'one': 42},
+    statusMap: {'one': DownloadTaskStatus.running},
+  );
+}
+
+class _PreviewClips extends TikTokNotifier {
+  @override
+  TikTokState build() => TikTokState(
+    taskTitles: {'two': 'City lights'},
+    progressMap: {'two': 100},
+    statusMap: {'two': DownloadTaskStatus.complete},
+  );
+}
+
+Widget _app(
+  Widget screen, {
+  bool dark = false,
+  double scale = 1.0,
+  int page = 0,
+  LibrarySection section = LibrarySection.songs,
+  SearchSource source = SearchSource.library,
+}) {
+  return ProviderScope(
+    overrides: [
+      libraryProvider.overrideWith(_FakeLibrary.new),
+      playerProvider.overrideWith(_FakePlayer.new),
+      playlistsProvider.overrideWith(_FakePlaylists.new),
+      positionProvider.overrideWith(_FakePosition.new),
+      durationProvider.overrideWith(_FakeDuration.new),
+      settingsProvider.overrideWith(_FakeSettings.new),
+      lyricsProvider.overrideWith(() => _PreviewLyrics(page == 2)),
+      artistInfoProvider.overrideWith(_PreviewArtist.new),
+      sheetPageIndexProvider.overrideWith(() => _PreviewPage(page)),
+      librarySectionProvider.overrideWith(() => _PreviewSection(section)),
+      searchSourceProvider.overrideWith((ref) => source),
+      ytdlpProvider.overrideWith(_PreviewDownloads.new),
+      tiktokProvider.overrideWith(_PreviewClips.new),
+    ],
+    child: MaterialApp(
+      theme: WavvyTheme.light(WvAppearance.aqua),
+      darkTheme: WavvyTheme.dark(WvAppearance.aqua),
+      themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(scale)),
+        child: child!,
+      ),
+      home: screen,
+    ),
+  );
+}
+
+void main() {
+  SharedPreferencesAsyncPlatform.instance =
+      InMemorySharedPreferencesAsync.empty();
+  setUpAll(() async {
+    if (const bool.fromEnvironment('CAPTURE_PREVIEWS')) {
+      for (final entry in {
+        'WorkSans': 'assets/fonts/WorkSans.ttf',
+        'serif':
+            '${const String.fromEnvironment('PREVIEW_FONT_DIR')}/georgia.ttf',
+        'sans-serif':
+            '${const String.fromEnvironment('PREVIEW_FONT_DIR')}/segoeui.ttf',
+        'monospace':
+            '${const String.fromEnvironment('PREVIEW_FONT_DIR')}/consola.ttf',
+        'MaterialIcons': const String.fromEnvironment('PREVIEW_ICON_FONT'),
+      }.entries) {
+        final font = File(entry.value);
+        if (await font.exists()) {
+          final loader = FontLoader(entry.key)
+            ..addFont(
+              font.readAsBytes().then((data) => ByteData.sublistView(data)),
+            );
+          await loader.load();
+        }
+      }
+    }
+  });
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('com.lucasjosino.on_audio_query'),
+          (call) async => null,
+        );
+  });
+  final screens = <String, Widget>{
+    'home': const HomeScreen(),
+    'library': const Scaffold(body: LibraryTab()),
+    'search': const Scaffold(body: SearchTab()),
+    'player': const Scaffold(body: FullPlayerSheet()),
+    'queue': const Scaffold(body: FullPlayerSheet(initialPage: 1)),
+    'lyrics': const Scaffold(body: FullPlayerSheet(initialPage: 2)),
+    'artist-info': const Scaffold(body: FullPlayerSheet(initialPage: 3)),
+    'library-albums': const Scaffold(body: LibraryTab()),
+    'library-artists': const Scaffold(body: LibraryTab()),
+    'library-playlists': const Scaffold(body: LibraryTab()),
+    'downloads': const Scaffold(body: SearchTab()),
+    'youtube': const Scaffold(body: SearchTab()),
+    'tiktok': const Scaffold(body: SearchTab()),
+    'settings': const SettingsScreen(),
+    'album': AlbumDetailScreen(album: _album(1)),
+    'artist': ArtistDetailScreen(artist: _artist(1)),
+    'playlist': const PlaylistDetailScreen(
+      playlistId: 1,
+      playlistName: 'Slow afternoons',
+    ),
+    'audio': const AudioEffectsScreen(),
+    'share': LyricCardGenerator(
+      song: _song(1),
+      lyrics: [Lyric(Duration.zero, 'A little music for your day')],
+      themeColor: const Color(0xFF7960A8),
+    ),
+  };
+  testWidgets('short landscape keeps playback and page content reachable', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(740 * 2, 360 * 2);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      _app(const Scaffold(body: FullPlayerSheet()), scale: 1.5),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.takeException(), isNull);
+    for (final label in ['Queue', 'Lyrics', 'Artist', 'Player']) {
+      await tester.tap(find.text(label).last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(tester.takeException(), isNull, reason: label);
+      expect(find.byTooltip('Pause'), findsOneWidget);
+    }
+  });
+  for (final dark in [false, true]) {
+    testWidgets('compact player and tabs at large text dark=$dark', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320 * 2, 640 * 2);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _app(const Scaffold(body: FullPlayerSheet()), dark: dark, scale: 1.5),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(tester.takeException(), isNull);
+      for (final label in ['Queue', 'Lyrics', 'Artist', 'Player']) {
+        await tester.ensureVisible(find.text(label).last);
+        await tester.tap(find.text(label).last);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(tester.takeException(), isNull, reason: label);
+        expect(find.byTooltip('Pause'), findsOneWidget);
+      }
+    });
+  }
+  for (final dark in [false, true]) {
+    for (final entry in screens.entries) {
+      testWidgets('${entry.key} Kaisu layout dark=$dark', (tester) async {
+        tester.view.physicalSize = const Size(390 * 2, 844 * 2);
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+        final captureKey = GlobalKey();
+        await tester.pumpWidget(
+          _app(
+            RepaintBoundary(key: captureKey, child: entry.value),
+            dark: dark,
+            page:
+                const {'queue': 1, 'lyrics': 2, 'artist-info': 3}[entry.key] ??
+                0,
+            section:
+                const {
+                  'library-albums': LibrarySection.albums,
+                  'library-artists': LibrarySection.artists,
+                  'library-playlists': LibrarySection.playlists,
+                }[entry.key] ??
+                LibrarySection.songs,
+            source:
+                const {
+                  'downloads': SearchSource.downloads,
+                  'youtube': SearchSource.youtube,
+                  'tiktok': SearchSource.tiktok,
+                }[entry.key] ??
+                SearchSource.library,
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(tester.takeException(), isNull);
+        if (entry.key == 'share') {
+          await tester.tap(find.text('A little music for your day').last);
+          await tester.pump();
+          expect(tester.takeException(), isNull);
+        }
+        if (entry.key == 'player') {
+          expect(find.byType(VinylDeck), findsOneWidget);
+        }
+        if (const bool.fromEnvironment('CAPTURE_PREVIEWS')) {
+          final boundary =
+              captureKey.currentContext!.findRenderObject()
+                  as RenderRepaintBoundary;
+          await tester.runAsync(() async {
+            final image = await boundary.toImage(pixelRatio: 2);
+            final bytes = await image.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            final output = File(
+              'build/kaisu-previews/${entry.key}-${dark ? 'dark' : 'light'}.png',
+            );
+            await output.parent.create(recursive: true);
+            await output.writeAsBytes(bytes!.buffer.asUint8List());
+            image.dispose();
+          });
+        }
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump();
+      });
+    }
+  }
+}
