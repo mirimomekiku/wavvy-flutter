@@ -12,6 +12,7 @@ import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
 import 'package:wavvy/screens/library/playlists/view/playlist.screen.dart';
 import 'package:wavvy/theme/pixel_art.dart';
+import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/playlist_dialogs.dart';
 import 'package:wavvy/widgets/song_menu.dart';
@@ -123,78 +124,38 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
     super.dispose();
   }
 
-  bool _focused = false;
-
   @override
   Widget build(BuildContext context) {
     final a = Wv.of(context);
-    final fill = a.dark ? const Color(0xFF1B2028) : Colors.white;
-    // Aqua search field: capsule, inset top edge, blue focus glow.
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color.lerp(fill, Colors.black, a.dark ? 0.35 : 0.1)!,
-              fill,
-            ],
-            stops: const [0, 0.4],
-          ),
-          border: Border.all(
-            color: _focused ? a.accent : a.outline.withValues(alpha: 0.75),
-          ),
-          boxShadow: [
-            if (_focused)
-              BoxShadow(
-                color: a.accent.withValues(alpha: 0.45),
-                blurRadius: 6,
-                spreadRadius: 1,
-              )
-            else
-              BoxShadow(
-                color: Colors.white.withValues(alpha: a.dark ? 0.05 : 0.8),
-                offset: const Offset(0, 1),
-              ),
-          ],
-        ),
-        child: Focus(
-          onFocusChange: (f) => setState(() => _focused = f),
-          child: TextField(
-            controller: _query,
-            onChanged: (v) => ref.read(libraryQueryProvider.notifier).state = v,
-            style: const TextStyle(fontSize: 14),
-            decoration: InputDecoration(
-              isDense: true,
-              filled: false,
-              contentPadding: const EdgeInsets.symmetric(vertical: 11),
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              hintText: 'Search songs, albums, artists',
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                size: 19,
-                color: a.textSecondary,
-              ),
-              suffixIcon: ref.watch(libraryQueryProvider).isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Clear filter',
-                      icon: Icon(
-                        Icons.cancel_rounded,
-                        size: 18,
-                        color: a.textSecondary,
-                      ),
-                      onPressed: () {
-                        _query.clear();
-                        ref.read(libraryQueryProvider.notifier).state = '';
-                      },
-                    ),
+      child: AquaSearchFrame(
+        child: TextField(
+          controller: _query,
+          onChanged: (v) => ref.read(libraryQueryProvider.notifier).state = v,
+          style: const TextStyle(fontSize: 14),
+          decoration: aquaSearchDecoration(
+            context,
+            hint: 'Search songs, albums, artists',
+            prefix: Icon(
+              Icons.search_rounded,
+              size: 19,
+              color: a.textSecondary,
             ),
+            suffix: ref.watch(libraryQueryProvider).isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear filter',
+                    icon: Icon(
+                      Icons.cancel_rounded,
+                      size: 18,
+                      color: a.textSecondary,
+                    ),
+                    onPressed: () {
+                      _query.clear();
+                      ref.read(libraryQueryProvider.notifier).state = '';
+                    },
+                  ),
           ),
         ),
       ),
@@ -428,6 +389,9 @@ class _SortRow extends ConsumerWidget {
               child: PopupMenuButton<SortOption>(
                 tooltip: 'Sort tracks',
                 initialValue: sort,
+                color: a.surface,
+                elevation: 6,
+                shape: aquaMenuShape(a),
                 onSelected: (s) =>
                     ref.read(libraryProvider.notifier).changeSortOption(s),
                 itemBuilder: (_) => [
@@ -438,38 +402,8 @@ class _SortRow extends ConsumerWidget {
                       child: Text(_sortLabels[i]),
                     ),
                 ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.sort_rounded,
-                        size: 18,
-                        color: a.textSecondary,
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _sortLabels[_sortOptions.indexOf(sort).clamp(0, 2)],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: a.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        Icons.expand_more_rounded,
-                        size: 16,
-                        color: a.textSecondary,
-                      ),
-                    ],
-                  ),
+                child: AquaPopupLabel(
+                  label: _sortLabels[_sortOptions.indexOf(sort).clamp(0, 2)],
                 ),
               ),
             ),
