@@ -21,12 +21,20 @@ class LibraryState {
   final List<ArtistModel> artists;
   final SortOption sort;
 
+  /// True when the last load failed because storage/audio access isn't granted.
+  final bool permissionDenied;
+  final bool isLoading;
+  final String error;
+
   const LibraryState({
     this.songs = const [],
     this.filteredSongs = const [],
     this.albums = const [],
     this.artists = const [],
     this.sort = SortOption.titleAZ,
+    this.permissionDenied = false,
+    this.isLoading = false,
+    this.error = '',
   });
 
   LibraryState copyWith({
@@ -35,12 +43,18 @@ class LibraryState {
     List<AlbumModel>? albums,
     List<ArtistModel>? artists,
     SortOption? sort,
+    bool? permissionDenied,
+    bool? isLoading,
+    String? error,
   }) => LibraryState(
     songs: songs ?? this.songs,
     filteredSongs: filteredSongs ?? this.filteredSongs,
     albums: albums ?? this.albums,
     artists: artists ?? this.artists,
     sort: sort ?? this.sort,
+    permissionDenied: permissionDenied ?? this.permissionDenied,
+    isLoading: isLoading ?? this.isLoading,
+    error: error ?? this.error,
   );
 }
 
@@ -58,10 +72,28 @@ class LibraryNotifier extends Notifier<LibraryState> {
   /// Checks/requests storage permissions, queries songs/albums/artists (only
   /// isMusic songs), applies the current sort, then asks playlistsProvider to
   /// refresh smart playlists.
-  Future<void> fetchAllSongs() async {
-    final hasPermission = await _checkAndRequestPermissions();
+  bool _fetching = false;
 
-    if (hasPermission) {
+  /// [silent] skips permission prompts and error snackbars (used for
+  /// automatic reloads when the app resumes). Overlapping calls are dropped.
+  Future<void> fetchAllSongs({bool silent = false}) async {
+    if (_fetching) return;
+    _fetching = true;
+    state = state.copyWith(isLoading: true, error: '');
+    try {
+      final hasPermission = await _checkAndRequestPermissions(request: !silent);
+
+      if (!hasPermission) {
+        state = state.copyWith(permissionDenied: true);
+        if (!silent) {
+          AppSnackbar.showErrorSnackBar(
+            "Cannot fetch songs",
+            "Permissions not granted.",
+          );
+        }
+        return;
+      }
+
       try {
         final audioQuery = ref.read(audioQueryProvider);
         final songsList = await audioQuery.querySongs(
@@ -84,6 +116,7 @@ class LibraryNotifier extends Notifier<LibraryState> {
           filteredSongs: List<SongModel>.from(sorted),
           albums: albumsList,
           artists: artistsList,
+          permissionDenied: false,
         );
 
         // Smart playlists map stored song ids onto the loaded library, so
@@ -93,16 +126,23 @@ class LibraryNotifier extends Notifier<LibraryState> {
             .refreshSmartPlaylists(bumpRevision: true);
       } catch (e) {
         debugPrint("fetchAllSongs failed: $e");
-        AppSnackbar.showErrorSnackBar(
-          "Cannot fetch songs",
-          "Could not read your music library.",
+        state = state.copyWith(
+          error: 'Could not read your music. Pull down to try again.',
         );
+        if (!silent) {
+          AppSnackbar.showErrorSnackBar(
+            "Cannot fetch songs",
+            "Could not read your music library.",
+          );
+        }
       }
-    } else {
-      AppSnackbar.showErrorSnackBar(
-        "Cannot fetch songs",
-        "Permissions not granted.",
+    } catch (e) {
+      state = state.copyWith(
+        error: 'Could not access your music. Please try again.',
       );
+    } finally {
+      _fetching = false;
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -179,7 +219,8 @@ class LibraryNotifier extends Notifier<LibraryState> {
     );
   }
 
-  Future<bool> _checkAndRequestPermissions() async {
+  /// With [request] false only the current grant status is checked.
+  Future<bool> _checkAndRequestPermissions({bool request = true}) async {
     if (!Platform.isAndroid) return true;
 
     final androidInfo = await DeviceInfoPlugin().androidInfo;
@@ -187,12 +228,12 @@ class LibraryNotifier extends Notifier<LibraryState> {
     // --- 1. Android 13+ (SDK 33+) ---
     if (androidInfo.version.sdkInt >= 33) {
       // Notification is optional for logic, but good for UX
-      if (await Permission.notification.isDenied) {
+      if (request && await Permission.notification.isDenied) {
         await Permission.notification.request();
       }
 
       // CRITICAL: on_audio_query crashes without this on Android 13+
-      if (await Permission.audio.isDenied) {
+      if (request && await Permission.audio.isDenied) {
         await Permission.audio.request();
       }
       return await Permission.audio.isGranted;
@@ -201,14 +242,14 @@ class LibraryNotifier extends Notifier<LibraryState> {
     // --- 2. Android 11 & 12 (SDK 30-32) ---
     if (androidInfo.version.sdkInt >= 30) {
       // Scoped storage: plain read access is enough to list the library.
-      if (await Permission.storage.isDenied) {
+      if (request && await Permission.storage.isDenied) {
         await Permission.storage.request();
       }
       return await Permission.storage.isGranted;
     }
 
     // --- 3. Older Android (SDK < 30) ---
-    if (await Permission.storage.isDenied) {
+    if (request && await Permission.storage.isDenied) {
       await Permission.storage.request();
     }
     return await Permission.storage.isGranted;

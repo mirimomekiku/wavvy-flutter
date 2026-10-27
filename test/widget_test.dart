@@ -6,7 +6,9 @@ void main() {
     test('formatDuration handles minutes and hours', () {
       expect(PlayerUtils.formatDuration(const Duration(seconds: 65)), '1:05');
       expect(
-        PlayerUtils.formatDuration(const Duration(hours: 1, minutes: 2, seconds: 3)),
+        PlayerUtils.formatDuration(
+          const Duration(hours: 1, minutes: 2, seconds: 3),
+        ),
         '1:02:03',
       );
     });

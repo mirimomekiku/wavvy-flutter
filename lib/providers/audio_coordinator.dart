@@ -195,6 +195,24 @@ final audioCoordinatorProvider = Provider<void>((ref) {
       });
   ref.onDispose(sessionSub.cancel);
 
+  // ------------------------------------- 8. Reload the library on resume
+  // New songs appear without a restart, and granting storage access in the
+  // system settings recovers a denied library. Silent: never re-prompts.
+  var lastResumeFetch = DateTime.fromMillisecondsSinceEpoch(0);
+  final lifecycle = AppLifecycleListener(
+    onResume: () {
+      final denied = ref.read(libraryProvider).permissionDenied;
+      final now = DateTime.now();
+      if (!denied &&
+          now.difference(lastResumeFetch) < const Duration(seconds: 10)) {
+        return;
+      }
+      lastResumeFetch = now;
+      ref.read(libraryProvider.notifier).fetchAllSongs(silent: true);
+    },
+  );
+  ref.onDispose(lifecycle.dispose);
+
   // ------------------------------------------------------ 7. First frame
   WidgetsBinding.instance.addPostFrameCallback((_) {
     ref.read(libraryProvider.notifier).fetchAllSongs();

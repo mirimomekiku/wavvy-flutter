@@ -1,106 +1,77 @@
-import 'package:flutter/material.dart' hide AppBar;
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_appbar/flutter_appbar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:wavvy/core/navigation.dart';
-import 'package:wavvy/providers/settings_provider.dart';
-import 'package:wavvy/screens/downloader/downloader.screen.dart';
-import 'package:wavvy/screens/home/view/library_view.dart';
-import 'package:wavvy/screens/home/widgets/songs_header_app_bar.dart';
+import 'package:wavvy/screens/home/view/home_view.dart';
+import 'package:wavvy/screens/library/library_tab.dart';
+import 'package:wavvy/screens/search/search_tab.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
-import 'package:wavvy/screens/home/view/songs_view.dart';
-import 'package:wavvy/widgets/floating_app_bar.dart';
 
+/// The app shell: Home / Library / Search tabs over the mini-player and nav.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final enableDownloader = ref.watch(
-      settingsProvider.select((s) => s.enableDownloader),
-    );
-    final showStats = ref.watch(settingsProvider.select((s) => s.showStats));
-
-    final backgroundColor = Theme.of(context).scaffoldBackgroundColor;
-    final navBarColor = Aqua.of(context).toolbar[1];
-
-    final Brightness iconBrightness =
-        ThemeData.estimateBrightnessForColor(navBarColor) == Brightness.dark
-        ? Brightness.light
-        : Brightness.dark;
+    final theme = Theme.of(context);
+    final a = Wv.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        systemNavigationBarColor: navBarColor,
-        systemNavigationBarIconBrightness: iconBrightness,
+        // Matches the Expressive navigation bar surface.
+        systemNavigationBarColor: a.surface,
+        systemNavigationBarIconBrightness: theme.brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark,
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Theme.of(context).brightness == Brightness.dark
+        statusBarIconBrightness: theme.brightness == Brightness.dark
             ? Brightness.light
             : Brightness.dark,
       ),
       child: DefaultTabController(
-        length: enableDownloader ? 3 : 2,
+        length: 3,
         child: Scaffold(
-          backgroundColor: backgroundColor,
-          bottomNavigationBar: BottomMiniPlayer(),
-          body: SafeArea(
+          extendBody: true,
+          backgroundColor: a.background,
+          bottomNavigationBar: const BottomMiniPlayer(),
+          body: const SafeArea(
+            bottom: false,
             child: TabBarView(
+              // Pages scroll horizontally inside (shelves, chips), so switching
+              // tabs is done from the bottom nav only.
+              physics: NeverScrollableScrollPhysics(),
               children: [
-                AppBarConnection(
-                  appBars: [
-                    if (showStats)
-                      AppBar(
-                        behavior: const MaterialAppBarBehavior(
-                          dragOnlyExpanding: true,
-                        ),
-                        body: SongsHeaderAppBar(),
-                      ),
-                    AppBar(
-                      behavior: const MaterialAppBarBehavior(floating: true),
-                      body: FloatingAppBar(
-                        showSearch: true,
-                        title: "Wavvy",
-                        actions: [
-                          GelButton(
-                            tooltip: "Settings",
-                            circular: true,
-                            onPressed: () => AppNav.pushNamed("/settings"),
-                            child: const Icon(Icons.settings_rounded),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                  child: SongsView(),
-                ),
-                AppBarConnection(
-                  appBars: [
-                    AppBar(
-                      behavior: const MaterialAppBarBehavior(floating: true),
-                      body: FloatingAppBar(showSearch: true, title: "Library"),
-                    ),
-                  ],
-                  child: LibraryView(),
-                ),
-                if (enableDownloader)
-                  AppBarConnection(
-                    appBars: [
-                      AppBar(
-                        behavior: const MaterialAppBarBehavior(floating: true),
-                        body: FloatingAppBar(
-                          showSearch: true,
-                          title: "Downloads",
-                        ),
-                      ),
-                    ],
-                    child: DownloaderHubScreen(),
-                  ),
+                _KeepAlive(child: HomeView()),
+                _KeepAlive(child: LibraryTab()),
+                _KeepAlive(child: SearchTab()),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+/// Keeps a tab's state (scroll position, typed search text) alive while
+/// another tab is showing.
+class _KeepAlive extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAlive({required this.child});
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
