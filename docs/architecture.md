@@ -328,3 +328,6 @@ dock are the same in all of them.
   by Album colors), a large sharp cover, 30 sp bold title, thin seek bar, a round
   play button and few controls; a "Queue" handle opens the queue on a tap or an
   upward swipe. Text contrast over the scrim is checked in tests.
+- **Lyrics first:** a small header (cover, title, artist, heart, full-screen
+  lyrics) with the lyrics filling the rest through `LyricsView`, and compact
+  controls below. With lyrics off, or none found, it offers "Show the cover".
