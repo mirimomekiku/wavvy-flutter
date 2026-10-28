@@ -189,6 +189,14 @@ class SettingsScreen extends ConsumerWidget {
                         s.rememberRates,
                         n.toggleRememberRates,
                       ),
+                      toggle(
+                        'Smart shuffle',
+                        'Keep songs by one artist apart; favor liked and less played ones',
+                        Icons.shuffle_rounded,
+                        s.smartShuffle,
+                        n.toggleSmartShuffle,
+                      ),
+                      toggle(
                     ],
                   ),
                   const GroupHeader('Sound leveling'),

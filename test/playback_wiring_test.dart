@@ -16,6 +16,7 @@ import 'package:wavvy/playback/coordination.dart';
 import 'package:wavvy/playback/rates.dart';
 import 'package:wavvy/playback/replay_gain.dart';
 import 'package:wavvy/playback/session.dart';
+import 'package:wavvy/playback/smart_shuffle.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
@@ -161,6 +162,8 @@ class _H {
       overrides: [
         audioPlayerProvider.overrideWithValue(player),
         audioHandlerProvider.overrideWithValue(handler),
+        playCountsLoaderProvider.overrideWithValue(() async => {3: 9}),
+        mediaStoreProvider.overrideWithValue(media),
         sessionStoreProvider.overrideWithValue(store),
         libraryProvider.overrideWith(() => library),
         settingsProvider.overrideWith(() => _Settings(settings)),
@@ -420,6 +423,49 @@ void main() {
       );
       expect(h.handler.fadeOuts, hasLength(1));
     });
+  });
+
+        expect(on.player.lastShuffleOrder, isA<SmartShuffleOrder>());
+
+        final off = _H(
+          songs: songs,
+          settings: const SettingsState(smartShuffle: false),
+        );
+        addTearDown(off.dispose);
+        await off.notifier.playSong(songs[0], contextList: songs);
+        expect(off.player.lastShuffleOrder, isNot(isA<SmartShuffleOrder>()));
+      },
+    );
+
+    test(
+      'the order sees the queue: index, play count and a liked weight',
+      () async {
+        final h = _H(songs: songs);
+        addTearDown(h.dispose);
+        await h.notifier.playSong(songs[0], contextList: songs);
+        final order = h.player.lastShuffleOrder! as SmartShuffleOrder;
+        expect(order.describe(2).index, 2);
+        expect(order.describe(99).weight, 1); // outside the queue
+        await h.notifier.toggleShuffle(); // loads the play counts
+        // Song 3 (index 2) was played 9 times: it weighs less than an unplayed one.
+        expect(order.describe(2).weight, lessThan(order.describe(1).weight));
+      },
+    );
+
+    test(
+      'turning shuffle on remakes the order; turning it off does not',
+      () async {
+        final h = _H(songs: songs);
+        addTearDown(h.dispose);
+        await h.notifier.playSong(songs[1], contextList: songs);
+        await h.notifier.toggleShuffle();
+        expect(h.player.shuffled, isTrue);
+        expect(h.player.reshuffles, 1);
+        await h.notifier.toggleShuffle();
+        expect(h.player.shuffled, isFalse);
+        expect(h.player.reshuffles, 1);
+      },
+    );
   });
 
   // ================================================================= wiring

@@ -36,6 +36,11 @@ class SettingsState {
   /// Keep the speed and pitch you choose for each album.
   final bool rememberRates;
 
+  /// Shuffle that keeps an artist's songs apart and favors liked and rarely
+  /// played songs.
+  final bool smartShuffle;
+
+  /// A shake near the end of the sleep timer adds more time.
   /// 0 off, 1 track gain, 2 album gain.
   final int replayGainMode;
 
@@ -69,6 +74,7 @@ class SettingsState {
     this.resumeAfterInterruption = true,
     this.resumeOnReconnect = false,
     this.rememberRates = true,
+    this.smartShuffle = true,
     this.replayGainMode = 0,
     this.crossfadeSeconds = 0,
     this.enableWakeLock = false,
@@ -98,6 +104,7 @@ class SettingsState {
     bool? resumeAfterInterruption,
     bool? resumeOnReconnect,
     bool? rememberRates,
+    bool? smartShuffle,
     int? replayGainMode,
     int? crossfadeSeconds,
     bool? enableWakeLock,
@@ -123,6 +130,7 @@ class SettingsState {
         resumeAfterInterruption ?? this.resumeAfterInterruption,
     resumeOnReconnect: resumeOnReconnect ?? this.resumeOnReconnect,
     rememberRates: rememberRates ?? this.rememberRates,
+    smartShuffle: smartShuffle ?? this.smartShuffle,
     replayGainMode: replayGainMode ?? this.replayGainMode,
     crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
     enableWakeLock: enableWakeLock ?? this.enableWakeLock,
@@ -159,6 +167,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       'feature_resume_after_interruption';
   static const String _kResumeOnReconnect = 'feature_resume_on_reconnect';
   static const String _kRememberRates = 'feature_remember_rates';
+  static const String _kSmartShuffle = 'feature_smart_shuffle';
   static const String _kReplayGainMode = 'feature_replay_gain';
   static const String _kCrossfadeSeconds = 'feature_crossfade_seconds';
   static const String _kWakeLock = 'feature_wake_lock';
@@ -194,6 +203,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
           await _prefs.getBool(_kResumeAfterInterruption) ?? true,
       resumeOnReconnect: await _prefs.getBool(_kResumeOnReconnect) ?? false,
       rememberRates: await _prefs.getBool(_kRememberRates) ?? true,
+      smartShuffle: await _prefs.getBool(_kSmartShuffle) ?? true,
       replayGainMode: (await _prefs.getInt(_kReplayGainMode)) ?? 0,
       crossfadeSeconds: (await _prefs.getInt(_kCrossfadeSeconds)) ?? 0,
       enableWakeLock: await _prefs.getBool(_kWakeLock) ?? false,
@@ -281,6 +291,11 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<void> toggleRememberRates(bool value) async {
     state = state.copyWith(rememberRates: value);
     await _prefs.setBool(_kRememberRates, value);
+  }
+
+  Future<void> toggleSmartShuffle(bool value) async {
+    state = state.copyWith(smartShuffle: value);
+    await _prefs.setBool(_kSmartShuffle, value);
   }
 
   Future<void> setReplayGainMode(int value) async {

@@ -13,6 +13,9 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
   bool shuffled = false;
   List<int> shuffleOrder = [];
 
+  /// The shuffle order the last [setAudioSources] was given.
+  audio.ShuffleOrder? lastShuffleOrder;
+
   /// Makes the next source change throw, to exercise rollback.
   bool failNextEdit = false;
 
@@ -42,6 +45,11 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
 
   @override
   Future<void> setShuffleModeEnabled(bool enabled) async => shuffled = enabled;
+
+  /// How many times the shuffle order was remade.
+  int reshuffles = 0;
+  @override
+  Future<void> shuffle() async => reshuffles++;
 
   final _speedChanges = StreamController<double>.broadcast(sync: true);
   final _pitchChanges = StreamController<double>.broadcast(sync: true);
@@ -95,6 +103,7 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
       throw StateError('load failed');
     }
     sources = [...audioSources];
+    lastShuffleOrder = shuffleOrder;
     lastInitialIndex = initialIndex;
     lastInitialPosition = initialPosition;
     emit(initialIndex ?? 0);

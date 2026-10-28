@@ -6,8 +6,12 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/media_store.dart';
 import 'package:wavvy/instances/audio_handler.instance.dart';
+import 'package:wavvy/db/db.dart';
+import 'package:wavvy/playback/favorites.dart';
 import 'package:wavvy/playback/session.dart';
+import 'package:wavvy/playback/smart_shuffle.dart';
 import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
 
 /// Overridden in main() with the initialized audio handler.
@@ -23,6 +27,14 @@ final audioPlayerProvider = Provider<AudioPlayer>(
 
 /// What the sleep timer is waiting for.
 enum SleepMode { off, minutes, endOfTrack, endOfQueue }
+final playCountsLoaderProvider = Provider<Future<Map<int, int>> Function()>(
+  (ref) => () async {
+    final rows = await DbHelper().getMostPlayed(100000);
+    return {
+      for (final r in rows) r['song_id'] as int: (r['play_count'] as int?) ?? 0,
+    };
+  },
+);
 
 /// Playback state: queue, current song and index, play/shuffle/repeat and the
 /// sleep timer.
@@ -198,9 +210,11 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
       state = state.copyWith(queue: List<SongModel>.from(newQueue));
 
-      await _player.setAudioSources([
-        for (final s in newQueue) _createAudioSource(s),
-      ], initialIndex: index);
+      await _player.setAudioSources(
+        [for (final s in newQueue) _createAudioSource(s)],
+        initialIndex: index,
+        shuffleOrder: _newShuffleOrder(),
+      );
       _hasSources = true;
       // play() completes when playback stops, so it is deliberately not awaited.
       unawaited(_player.play());
@@ -362,8 +376,50 @@ class PlayerNotifier extends Notifier<PlayerState> {
     }
   }
 
+  /// The order the player shuffles in: smart (artists apart, liked and less
+  /// played songs earlier) unless the setting is off.
+  ShuffleOrder _newShuffleOrder() {
+    if (!ref.read(settingsProvider).smartShuffle) return DefaultShuffleOrder();
+    return SmartShuffleOrder(
+      describe: (index) {
+        final queue = state.queue;
+        if (index < 0 || index >= queue.length) {
+          return ShuffleCandidate(index: index);
+        }
+        final song = queue[index];
+        final artist = (song.artist ?? '').trim().toLowerCase();
+        return ShuffleCandidate(
+          index: index,
+          artist: artist == '<unknown>' ? '' : artist,
+          weight: shuffleWeight(
+            plays: _playCounts[song.id] ?? 0,
+            liked: ref.read(favoritesProvider).containsKey(song.id),
+          ),
+        );
+      },
+    );
+  }
+
+  Map<int, int> _playCounts = const {};
+
+  Future<void> _loadPlayCounts() async {
+    if (!ref.read(settingsProvider).smartShuffle) return;
+    try {
+      _playCounts = await ref.read(playCountsLoaderProvider)();
+    } catch (e) {
+      // Without play counts the shuffle still keeps artists apart.
+      debugPrint('could not load play counts: $e');
+    }
+  }
+
   Future<void> toggleShuffle() async {
     final enable = !state.isShuffleModeEnabled;
+    if (enable && _hasSources) {
+      // A fresh order each time shuffle is turned on, with the current song
+      // first.
+      await _loadPlayCounts();
+      await _player.shuffle();
+    }
     await _player.setShuffleModeEnabled(enable);
     state = state.copyWith(isShuffleModeEnabled: enable);
   }
@@ -511,6 +567,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
         [for (final s in queue) _createAudioSource(s)],
         initialIndex: index,
         initialPosition: position,
+        shuffleOrder: _newShuffleOrder(),
       );
       _hasSources = true;
       await _player.setLoopMode(

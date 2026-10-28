@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:wavvy/downloader/engine.dart';
 import 'package:wavvy/downloader/engine_provider.dart';
 import 'package:wavvy/downloader/models.dart';
@@ -26,6 +28,9 @@ void main() {
     late ProviderContainer container;
     late PlayerNotifier queue;
     setUp(() async {
+      // PlayerNotifier reads the settings (smart shuffle).
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.empty();
       player = MemoryPlayer();
       container = ProviderContainer(
         overrides: [audioPlayerProvider.overrideWithValue(player)],
