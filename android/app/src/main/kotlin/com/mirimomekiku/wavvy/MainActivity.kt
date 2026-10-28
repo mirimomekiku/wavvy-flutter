@@ -29,12 +29,15 @@ class MainActivity : AudioServiceActivity() {
         private const val WIDGET_CHANNEL = "com.mirimomekiku.wavvy/widget"
         private const val MEDIA_CHANNEL = "com.mirimomekiku.wavvy/media_store"
         private const val REQUEST_MEDIA = 4101
-    }
 
-    // Effects
-    private var bassBoost: BassBoost? = null
-    private var virtualizer: Virtualizer? = null
-    private var presetReverb: PresetReverb? = null
+        // Effects belong to the player's audio session, which the playback
+        // service keeps after this Activity is gone (swiped from recents), so
+        // they live with the process. initEffects replaces them when the
+        // session changes.
+        private var bassBoost: BassBoost? = null
+        private var virtualizer: Virtualizer? = null
+        private var presetReverb: PresetReverb? = null
+    }
 
     // A MediaStore request is waiting on the system consent dialog.
     private var pendingResult: MethodChannel.Result? = null
@@ -133,11 +136,6 @@ class MainActivity : AudioServiceActivity() {
                 else -> result.notImplemented()
             }
         }
-    }
-
-    override fun onDestroy() {
-        releaseAudioEffects()
-        super.onDestroy()
     }
 
     // ------------------------------------------------------------ Restart

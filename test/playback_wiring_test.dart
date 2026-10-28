@@ -501,6 +501,36 @@ void main() {
       expect(h.store.clears, 1);
     });
 
+    test('a restore that fails keeps the stored session', () async {
+      final h = _H(songs: songs);
+      addTearDown(h.dispose);
+      h.player.failNextLoad = true;
+      h.store.saved = const PlaybackSnapshot(
+        songIds: [1, 2],
+        index: 0,
+        positionMs: 0,
+      );
+      h.wire();
+      await h.pump(800); // past the save delay
+      expect(h.state.queue, isEmpty);
+      expect(h.store.clears, 0);
+      expect(h.store.saved, isNotNull);
+    });
+
+    test('does not replace what the user starts while it loads', () async {
+      final h = _H(songs: songs);
+      addTearDown(h.dispose);
+      h.store.saved = const PlaybackSnapshot(
+        songIds: [1, 2],
+        index: 0,
+        positionMs: 0,
+      );
+      h.wire(); // starts loading the stored session
+      await h.notifier.playSong(songs[4], contextList: [songs[4]]);
+      await h.pump(50);
+      expect(h.state.queue.map((s) => s.id), [5]);
+    });
+
     test('does not save when the setting is off', () async {
       final h = _H(
         songs: songs,

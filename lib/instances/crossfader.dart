@@ -90,6 +90,21 @@ class Crossfader {
     }
   }
 
+  /// True when the first player was paused, changed track or jumped in time
+  /// since the fade began, whoever asked for it (the in-app buttons, the A-B
+  /// loop, a queue tap, a call or unplugged headphones).
+  bool _userMovedPrimary(
+    int? startIndex,
+    Duration startPosition,
+    Duration elapsed,
+  ) {
+    if (!primary.playing) return true;
+    if (primary.currentIndex != startIndex) return true;
+    final expected = startPosition + elapsed * primary.speed;
+    final drift = (primary.position - expected).abs();
+    return drift > const Duration(seconds: 2);
+  }
+
   Future<void> _prepare() async {
     if (_secondary == null) {
       _secondaryEnhancer = AndroidLoudnessEnhancer();
@@ -133,9 +148,17 @@ class Crossfader {
 
       // Fade out the old track and in the new one, in step.
       final total = fade;
+      final startIndex = primary.currentIndex;
+      final startPosition = primary.position;
       final clock = Stopwatch()..start();
       while (clock.elapsed < total) {
         if (token != _token) return;
+        if (_userMovedPrimary(startIndex, startPosition, clock.elapsed)) {
+          // A skip, seek or pause that did not come through the handler: the
+          // crossfade no longer matches what the user is hearing.
+          cancel();
+          return;
+        }
         final t = clock.elapsedMilliseconds / total.inMilliseconds;
         final level = crossfadeLevels(t);
         setPrimaryLevel(level.outgoing);
@@ -143,6 +166,10 @@ class Crossfader {
         await Future<void>.delayed(const Duration(milliseconds: 80));
       }
       if (token != _token) return;
+      if (_userMovedPrimary(startIndex, startPosition, clock.elapsed)) {
+        cancel();
+        return;
+      }
 
       // Hand over: move the first player to where the second has got to.
       await player.setVolume(baseVolume().clamp(0, 1));

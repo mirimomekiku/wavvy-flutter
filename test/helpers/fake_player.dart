@@ -16,6 +16,8 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
   /// Makes the next source change throw, to exercise rollback.
   bool failNextEdit = false;
 
+  bool failNextLoad = false;
+
   // What the tests look at.
   int? lastInitialIndex;
   Duration? lastInitialPosition;
@@ -88,6 +90,10 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
     Duration? initialPosition,
     audio.ShuffleOrder? shuffleOrder,
   }) async {
+    if (failNextLoad) {
+      failNextLoad = false;
+      throw StateError('load failed');
+    }
     sources = [...audioSources];
     lastInitialIndex = initialIndex;
     lastInitialPosition = initialPosition;

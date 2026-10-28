@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/instances/crossfader.dart';
@@ -79,7 +80,14 @@ class WavvyAudioHandler extends BaseAudioHandler
     // A seek (or a new track) can bring a crossfade back into range.
     _player.currentIndexStream.listen((_) => crossfader.reset());
 
+    // Playback can start without going through play() (a tap on a song calls
+    // the player directly), so take the focus whenever it starts.
+    _player.playingStream.distinct().listen((playing) {
+      if (playing) unawaited(_ensureFocus());
+    });
+
     _player.playbackEventStream.listen((PlaybackEvent event) {
+      if (event.processingState == ProcessingState.ready) _failedInARow = 0;
       final playing = _player.playing;
       playbackState.add(
         playbackState.value.copyWith(
@@ -109,7 +117,7 @@ class WavvyAudioHandler extends BaseAudioHandler
           queueIndex: event.currentIndex,
         ),
       );
-    });
+    }, onError: _onPlaybackError);
 
     // Broadcast Current Song Metadata to System Notification
     _player.sequenceStateStream.listen((state) {
@@ -135,7 +143,33 @@ class WavvyAudioHandler extends BaseAudioHandler
           artUri: artUri,
         ),
       );
-    });
+    }, onError: (Object e) => debugPrint('sequence state error: $e'));
+  }
+
+  int _failedInARow = 0;
+
+  /// A file that cannot be played (deleted, corrupt, unreadable): move on to
+  /// the next song instead of stalling, but give up once a whole queue's worth
+  /// has failed in a row.
+  void _onPlaybackError(Object error, StackTrace stack) {
+    debugPrint('playback error: $error');
+    final queueLength = _player.sequence.length;
+    if (!_player.hasNext || ++_failedInARow >= queueLength) return;
+    unawaited(
+      _player.seekToNext().catchError((Object e) {
+        debugPrint('could not skip the unplayable song: $e');
+      }),
+    );
+  }
+
+  /// Takes the audio focus for playback that began without [play]; pauses if
+  /// another app refuses to give it up.
+  Future<void> _ensureFocus() async {
+    try {
+      if (!await _takeFocus() && _player.playing) await _player.pause();
+    } catch (e) {
+      debugPrint('could not take audio focus: $e');
+    }
   }
 
   AudioPlayer get player => _player;
@@ -279,7 +313,11 @@ class _HandlerFocusTarget implements FocusTarget {
   bool get playing => _h._player.playing;
 
   @override
-  Future<void> pause() => _h._player.pause();
+  Future<void> pause() {
+    // A call or unplugged headphones: stop the incoming crossfade track too.
+    _h.crossfader.cancel();
+    return _h._player.pause();
+  }
 
   @override
   Future<void> play() => _h.play();

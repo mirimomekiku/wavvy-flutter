@@ -141,11 +141,21 @@ class PlayerNotifier extends Notifier<PlayerState> {
   PlayerState build() {
     final player = ref.read(audioPlayerProvider);
 
-    final stateSub = player.playerStateStream.listen((s) {
-      if (state.isPlaying != s.playing) {
-        state = state.copyWith(isPlaying: s.playing);
-      }
-    });
+    final stateSub = player.playerStateStream.listen(
+      (s) {
+        if (state.isPlaying != s.playing) {
+          state = state.copyWith(isPlaying: s.playing);
+        }
+      },
+      onError: (Object e) {
+        // The handler skips to the next song; this is just the notice.
+        debugPrint('player error: $e');
+        AppSnackbar.showErrorSnackBar(
+          'Playback error',
+          'A song could not be played.',
+        );
+      },
+    );
 
     final seqSub = player.sequenceStateStream.listen((seq) {
       final source = seq.currentSource;
@@ -167,6 +177,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
       );
       state = next;
     });
+    }, onError: (Object e) => debugPrint('sequence error: $e'));
 
     ref.onDispose(() {
       stateSub.cancel();
@@ -509,6 +520,9 @@ class PlayerNotifier extends Notifier<PlayerState> {
       return true;
     } catch (e) {
       debugPrint("restoreSession failed: $e");
+      // The queue loaded but the loop or shuffle mode did not: keep the queue,
+      // which still matches the player's sources.
+      if (_hasSources) return true;
       state = state.copyWith(queue: const [], clearCurrentSong: true);
       return false;
     }

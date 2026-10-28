@@ -48,6 +48,7 @@ void _wireSession(Ref ref) {
   final player = ref.read(playerProvider.notifier);
   var restored = false;
   var savedQueue = <int>[];
+  var restoreFailed = false;
   Timer? debounce;
 
   Future<void> saveProgress() async {
@@ -66,11 +67,14 @@ void _wireSession(Ref ref) {
     if (!ref.read(settingsProvider).resumeSession) return;
     final queue = ref.read(playerProvider).queue;
     if (queue.isEmpty) {
-      // The user emptied the queue; do not bring it back next time.
-      if (restored) await store.clear();
+      // The user emptied the queue; do not bring it back next time. A restore
+      // that failed leaves the queue empty too, and must not erase the stored
+      // session.
+      if (restored && !restoreFailed) await store.clear();
       savedQueue = const [];
       return;
     }
+    restoreFailed = false;
     final ids = [for (final s in queue) s.id];
     if (!listEquals(ids, savedQueue)) {
       savedQueue = ids;
@@ -121,8 +125,14 @@ void _wireSession(Ref ref) {
     if (ref.read(playerProvider).queue.isNotEmpty) return;
     final saved = await store.load();
     if (saved == null) return;
+    // The user may have started something while the session was loading.
+    if (ref.read(playerProvider).queue.isNotEmpty) return;
     final ok = await player.restoreSession(saved, songs);
-    if (ok) savedQueue = [for (final s in ref.read(playerProvider).queue) s.id];
+    if (ok) {
+      savedQueue = [for (final s in ref.read(playerProvider).queue) s.id];
+    } else {
+      restoreFailed = true;
+    }
   }
 
   ref.listen(libraryProvider.select((s) => s.songs), (_, _) => tryRestore());
