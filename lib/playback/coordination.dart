@@ -16,6 +16,7 @@ import 'package:wavvy/playback/focus.dart';
 import 'package:wavvy/playback/rates.dart';
 import 'package:wavvy/playback/replay_gain.dart';
 import 'package:wavvy/playback/session.dart';
+import 'package:wavvy/providers/album_art_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
@@ -332,17 +333,21 @@ void _wireWidget(Ref ref) {
     } else if (artFor != song.id) {
       artFor = song.id;
       try {
-        art =
-            await ref
-                .read(audioQueryProvider)
-                .queryArtwork(
-                  song.id,
-                  ArtworkType.AUDIO,
-                  format: ArtworkFormat.JPEG,
-                  size: 220,
-                  quality: 85,
-                ) ??
-            Uint8List(0);
+        // A file opened from outside the library has no MediaStore artwork.
+        if (song.id < 0) throw StateError('no artwork');
+        art = await ref
+            .read(audioQueryProvider)
+            .queryArtwork(
+              song.id,
+              ArtworkType.AUDIO,
+              format: ArtworkFormat.JPEG,
+              size: 220,
+              quality: 85,
+            );
+        // No embedded art: a fetched cover, scaled down for the widget.
+        if (art == null || art.isEmpty) {
+          art = await cachedArtThumbForSong(ref, song.id) ?? Uint8List(0);
+        }
       } catch (_) {
         art = Uint8List(0);
       }

@@ -9,10 +9,10 @@ import 'package:wavvy/screens/audio_effects/effects.screen.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
-import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/player.utils.dart';
 import 'package:wavvy/utils/snackbar.utils.dart';
+import 'package:wavvy/widgets/album_art_fallback.dart';
 import 'package:wavvy/widgets/audio_dialogs.dart';
 import 'package:wavvy/player_sheets/player_dialogs.dart';
 import 'package:wavvy/widgets/playlist_dialogs.dart';
@@ -218,7 +218,12 @@ class SongMenuHelper {
                 artworkFit: BoxFit.cover,
                 artworkWidth: 52,
                 artworkHeight: 52,
-                nullArtworkWidget: WvMediaPlaceholder(seed: song.id, size: 52),
+                nullArtworkWidget: AlbumArtFallback(
+                  id: song.id,
+                  type: ArtworkType.AUDIO,
+                  size: 52,
+                  seed: song.id,
+                ),
               ),
             ),
           ),

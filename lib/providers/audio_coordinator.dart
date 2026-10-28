@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:wavvy/playback/coordination.dart';
+import 'package:wavvy/providers/album_art_provider.dart';
 import 'package:wavvy/providers/artist_info_provider.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
@@ -36,6 +37,9 @@ import 'package:wavvy/providers/settings_provider.dart';
 /// 10. Last session, audio focus, ReplayGain, crossfade, A-B loop, remembered
 ///     speed and the sleep timer's end-of-track rule (lib/playback/).
 final audioCoordinatorProvider = Provider<void>((ref) {
+  // Missing album covers (off unless the setting is on) and the notification art.
+  ref.watch(albumArtAutoProvider);
+
   // ------------------------------------------------ 1. Song change (debounce)
   Timer? songDebounce;
   ref.listen(playerProvider.select((s) => s.currentSong), (prev, song) {

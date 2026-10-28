@@ -42,6 +42,11 @@ class WavvyAudioHandler extends BaseAudioHandler
   /// app once the audio session is available.
   FocusController? focus;
 
+  /// A fetched cover (a file URI) for a song's album, if the app has one; it
+  /// is used instead of the MediaStore album art for the notification.
+  Uri? Function(SongModel song)? cachedArtUri;
+
+  /// Handles taps on the notification's Like / Shuffle / Repeat buttons. Set by
   /// Fade the volume in on play and out on pause (Settings > Playback).
   bool fadeEnabled = false;
   int _fadeId = 0;
@@ -127,8 +132,8 @@ class WavvyAudioHandler extends BaseAudioHandler
       final tag = state.currentSource!.tag;
       if (tag is! SongModel) return;
       final song = tag;
-      Uri? artUri;
-      if (song.albumId != null) {
+      Uri? artUri = cachedArtUri?.call(song);
+      if (artUri == null && song.albumId != null) {
         artUri = Uri.parse(
           "content://media/external/audio/albumart/${song.albumId}",
         );

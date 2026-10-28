@@ -15,6 +15,11 @@ class SettingsState {
   final bool enableDynamicColors;
   final bool enableLyricsFetching;
   final bool enableArtistInfoFetching;
+
+  /// Look up missing album covers on MusicBrainz and the Cover Art Archive
+  /// (sends album and artist names). Off by default.
+  final bool fetchMissingArt;
+
   final bool showStats;
   final bool enableDownloader;
 
@@ -68,6 +73,7 @@ class SettingsState {
     this.enableDynamicColors = false,
     this.enableLyricsFetching = true,
     this.enableArtistInfoFetching = true,
+    this.fetchMissingArt = false,
     this.showStats = true,
     this.enableDownloader = true,
     this.downloadWifiOnly = false,
@@ -99,6 +105,7 @@ class SettingsState {
     bool? enableDynamicColors,
     bool? enableLyricsFetching,
     bool? enableArtistInfoFetching,
+    bool? fetchMissingArt,
     bool? showStats,
     bool? enableDownloader,
     bool? downloadWifiOnly,
@@ -125,6 +132,7 @@ class SettingsState {
     enableLyricsFetching: enableLyricsFetching ?? this.enableLyricsFetching,
     enableArtistInfoFetching:
         enableArtistInfoFetching ?? this.enableArtistInfoFetching,
+    fetchMissingArt: fetchMissingArt ?? this.fetchMissingArt,
     showStats: showStats ?? this.showStats,
     enableDownloader: enableDownloader ?? this.enableDownloader,
     downloadWifiOnly: downloadWifiOnly ?? this.downloadWifiOnly,
@@ -163,6 +171,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
   static const String _kDynamicColors = 'feature_dynamic_colors';
   static const String _kFetchLyrics = 'feature_fetch_lyrics';
   static const String _kFetchArtistInfo = 'feature_fetch_artist_info';
+  static const String _kFetchMissingArt = 'feature_fetch_missing_art';
   static const String _kShowStats = 'feature_show_stats';
   static const String _kEnableDownloader = 'feature_enable_downloader';
   static const String _kDownloadWifiOnly = 'feature_download_wifi_only';
@@ -200,6 +209,7 @@ class SettingsNotifier extends Notifier<SettingsState> {
       enableDynamicColors: await _prefs.getBool(_kDynamicColors) ?? false,
       enableLyricsFetching: await _prefs.getBool(_kFetchLyrics) ?? true,
       enableArtistInfoFetching: await _prefs.getBool(_kFetchArtistInfo) ?? true,
+      fetchMissingArt: await _prefs.getBool(_kFetchMissingArt) ?? false,
       showStats: await _prefs.getBool(_kShowStats) ?? true,
       enableDownloader: await _prefs.getBool(_kEnableDownloader) ?? true,
       downloadWifiOnly: await _prefs.getBool(_kDownloadWifiOnly) ?? false,
@@ -259,6 +269,11 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<void> toggleArtistInfoFetching(bool value) async {
     state = state.copyWith(enableArtistInfoFetching: value);
     await _prefs.setBool(_kFetchArtistInfo, value);
+  }
+
+  Future<void> toggleFetchMissingArt(bool value) async {
+    state = state.copyWith(fetchMissingArt: value);
+    await _prefs.setBool(_kFetchMissingArt, value);
   }
 
   Future<void> toggleShowStats(bool value) async {

@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
-import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/album_art_fallback.dart';
 import 'package:wavvy/widgets/vinyl_deck.dart';
 
 class AnimatedSeekableArtwork extends ConsumerStatefulWidget {
@@ -77,9 +77,11 @@ class _AnimatedSeekableArtworkState
               artworkWidth: widget.size,
               artworkHeight: widget.size,
               size: 1000,
-              nullArtworkWidget: WvMediaPlaceholder(
-                seed: widget.song.id,
+              nullArtworkWidget: AlbumArtFallback(
+                id: widget.song.id,
+                type: ArtworkType.AUDIO,
                 size: widget.size,
+                seed: widget.song.id,
               ),
             ),
           ),

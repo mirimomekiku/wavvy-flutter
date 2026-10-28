@@ -12,7 +12,7 @@ Android-only Flutter app, offline first, with optional online enrichment.
 | Playback | `providers/player_provider.dart`, `instances/audio_handler.instance.dart` | Queue, transport, shuffle/repeat, sleep timer; the handler owns the `just_audio` player, notification and fade |
 | Coordination | `providers/audio_coordinator.dart` | Cross-provider effects: palette, lyrics, artist info, play logging, shake, effects session, settings, library reload |
 | Library | `providers/library_provider.dart`, `playlists_provider.dart`, `home_feed_provider.dart` | Device music, SQLite playlists and history, derived Home feed |
-| Online | `lyrics_provider.dart`, `artist_info_provider.dart` | LRCLib and Genius |
+| Online | `lyrics_provider.dart`, `artist_info_provider.dart` | LRCLib and Genius; album covers (`album_art_provider.dart`, `artwork/`), see "Missing album covers" |
 | Downloader (full flavor) | `lib/downloader/`, `android/app/src/full/` | yt-dlp search, downloads and publishing; see `docs/flavors.md` |
 | Platform | `core/storage_permissions.dart`, `core/media_store.dart`, `core/app_restart.dart`, `MainActivity.kt` | Runtime permissions, scoped-storage consent, restart, native audio effects |
 
@@ -82,4 +82,48 @@ actions: `PlayerNotifier.playNextAll`, `addAllToQueue` (one `_edit`, rolled
 back as a whole), `deleteSongs` (one `createDeleteRequest` on Android 11+),
 `FavoritesNotifier.setAll`, `PlaylistsNotifier.addSongsToLocalPlaylist` (one
 transaction) and `PlayerUtils.shareSongs`.
+
+## Missing album covers
+
+Albums and songs with no embedded art can get a cover from MusicBrainz and the
+Cover Art Archive. Off by default (`fetchMissingArt`, `feature_fetch_missing_art`,
+Settings > Library & online content).
+
+- Sent: only the album and artist names, as a MusicBrainz release search
+  (`musicbrainz.org/ws/2/release/`, `release:"..." AND artist:"..."`, quotes and
+  backslashes escaped), then the front image from `coverartarchive.org`
+  (`/release/<mbid>/front-500`, else the release group's). Always https. Nothing
+  else leaves the device. Albums with an unknown name or artist, "Various Artists"
+  and singles without an album are never looked up.
+- Etiquette and limits (`artwork/album_art_client.dart`): a User-Agent with the app
+  name, version and a contact URL (`kArtContactUrl`, still a placeholder), one
+  request per second through one shared `RateLimiter`, a 12 s timeout on every
+  request, only `image/jpeg` or `image/png` whose first bytes match, at most 2 MB.
+  Offline, 429/503 and malformed answers are quiet: a batch stops and nothing
+  throws into the UI. The best release is chosen by normalized title and artist
+  similarity times MusicBrainz's score (`artwork/album_art_match.dart`).
+- Cache (`artwork/album_art_cache.dart`): `<app support dir>/album_art/<key>.jpg|png`,
+  key `id<albumId>` (else a hash of the normalized artist and album), plus
+  `misses.json`: a miss is not asked again for 30 days. Failures from the network are
+  not recorded as misses. The folder is listed once; `albumArtIndexProvider` keeps
+  the files by key in memory.
+- Where it shows: `AlbumArtFallback` (`widgets/album_art_fallback.dart`) is the
+  `nullArtworkWidget` of `wvArtwork` and the direct `QueryArtworkWidget`s, so every
+  place that fell back to the pixel placeholder shows the cached cover when there is
+  one. A row only reads memory (a `select` on its own album key). The palette and the
+  home widget read a downscaled copy (`cachedArtThumbForSong`), and the notification
+  gets the file as `MediaItem.artUri` (set through `WavvyAudioHandler.cachedArtUri`;
+  the notification keeps the old picture until the next track).
+- Triggers (`providers/album_art_provider.dart`): the Settings row "Find missing
+  artwork" (shown when the setting is on) runs `AlbumArtBatchNotifier.startManual`:
+  one album at a time, progress "12 of 48 albums, 9 found", Cancel, a summary; it
+  lives in the notifier, so it survives leaving the screen, and a second start while
+  running is ignored. With the setting on, a library load starts small automatic
+  batches (25 albums, 2 minute pause, only while the app is in the foreground; an
+  error or offline stops it for an hour). The album screen's cover button has "Find
+  cover" (explicit tap, works with the setting off) and "Remove fetched cover".
+- Albums "without art" are those for which `queryArtwork` returns null or nothing
+  (`albumArtProbeProvider`); no image is decoded to find out.
+- No tag writing: covers are never embedded into the audio files (that would need
+  the per-file write consent of "Edit tags"). Other apps do not see them.
 

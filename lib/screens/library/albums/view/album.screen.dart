@@ -7,6 +7,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/song_selection.dart';
 import 'package:wavvy/widgets/song_menu.dart';
+import 'package:wavvy/widgets/album_cover_menu.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
 
 class AlbumDetailScreen extends ConsumerWidget {
@@ -27,31 +28,44 @@ class AlbumDetailScreen extends ConsumerWidget {
         body: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
-              child: WvDetailHeader(
-                artwork: wvArtwork(
-                  context,
-                  id: album.id,
-                  type: ArtworkType.ALBUM,
-                  size: 240,
-                  placeholder: Icons.album_rounded,
-                ),
-                kicker: 'ALBUM',
-                title: album.album,
-                subtitle: album.artist ?? "Unknown Artist",
-                detail: "${albumSongs.length} Songs",
-                onPlay: albumSongs.isEmpty
-                    ? null
-                    : () => ref
-                          .read(playerProvider.notifier)
-                          .playSong(albumSongs.first, contextList: albumSongs),
-                onShuffle: albumSongs.isEmpty
-                    ? null
-                    : () {
-                        final shuffled = [...albumSongs]..shuffle();
-                        ref
-                            .read(playerProvider.notifier)
-                            .playSong(shuffled.first, contextList: shuffled);
-                      },
+              child: Stack(
+                children: [
+                  WvDetailHeader(
+                    artwork: wvArtwork(
+                      context,
+                      id: album.id,
+                      type: ArtworkType.ALBUM,
+                      size: 240,
+                      placeholder: Icons.album_rounded,
+                    ),
+                    kicker: 'ALBUM',
+                    title: album.album,
+                    subtitle: album.artist ?? "Unknown Artist",
+                    detail: "${ordered.length} Songs",
+                    onPlay: ordered.isEmpty
+                        ? null
+                        : () => ref
+                              .read(playerProvider.notifier)
+                              .playSong(ordered.first, contextList: ordered),
+                    onShuffle: ordered.isEmpty
+                        ? null
+                        : () {
+                            final shuffled = [...ordered]..shuffle();
+                            ref
+                                .read(playerProvider.notifier)
+                                .playSong(
+                                  shuffled.first,
+                                  contextList: shuffled,
+                                );
+                          },
+                  ),
+                  // Find / remove a fetched cover, beside the back button row.
+                  Positioned(
+                    top: MediaQuery.paddingOf(context).top,
+                    right: 8,
+                    child: AlbumCoverMenuButton(album: album),
+                  ),
+                ],
               ),
             ),
             SliverList(

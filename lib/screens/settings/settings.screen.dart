@@ -5,6 +5,7 @@ import 'package:wavvy/downloader/flavor.dart';
 import 'package:wavvy/downloader/ui/engine_card.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
+import 'package:wavvy/screens/settings/album_art_setting.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/page_heading.dart';
@@ -305,6 +306,17 @@ class SettingsScreen extends ConsumerWidget {
                         s.enableArtistInfoFetching,
                         n.toggleArtistInfoFetching,
                       ),
+                      toggle(
+                        'Find missing album covers',
+                        'Looks up albums that have no picture on MusicBrainz '
+                            'and the Cover Art Archive. Only the album and '
+                            'artist names are sent. Covers are kept on this '
+                            'device; your music files are not changed.',
+                        Icons.image_search_rounded,
+                        s.fetchMissingArt,
+                        n.toggleFetchMissingArt,
+                      ),
+                      if (s.fetchMissingArt) const FindMissingArtRow(),
                       if (kDownloaderAvailable)
                         toggle(
                           'Downloads',

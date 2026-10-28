@@ -6,6 +6,7 @@ import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_texture.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/album_art_fallback.dart';
 import 'package:wavvy/widgets/page_heading.dart';
 import 'package:wavvy/utils/player.utils.dart';
 
@@ -546,6 +547,15 @@ Widget wvArtwork(
   artworkBorder: BorderRadius.zero,
   nullArtworkWidget: WvMediaPlaceholder(seed: id, size: size),
 );
+    nullArtworkWidget: AlbumArtFallback(
+      id: id,
+      type: type,
+      size: size,
+      seed: id,
+    ),
+  );
+}
+
 Widget wvBackButton() => IconButton(
   tooltip: 'Back',
   onPressed: AppNav.pop,

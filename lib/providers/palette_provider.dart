@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:palette_generator/palette_generator.dart';
+import 'package:wavvy/providers/album_art_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
@@ -48,7 +49,7 @@ class PaletteNotifier extends Notifier<PaletteState> {
     }
 
     try {
-      final Uint8List? bytes = await ref
+      Uint8List? bytes = await ref
           .read(audioQueryProvider)
           .queryArtwork(
             songId,
@@ -56,6 +57,10 @@ class PaletteNotifier extends Notifier<PaletteState> {
             format: ArtworkFormat.JPEG,
             size: 512,
           );
+      // No embedded art: a fetched cover (see album_art_provider.dart).
+      if (bytes == null || bytes.isEmpty) {
+        bytes = await cachedArtThumbForSong(ref, songId);
+      }
       if (isStale() || !dynamicOn()) return;
 
       if (bytes == null) {

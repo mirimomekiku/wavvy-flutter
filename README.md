@@ -37,6 +37,10 @@ build has no downloader (see [Builds](#builds)).
 ### Lyrics & metadata
 - Time-synced lyrics from [LRCLib](https://lrclib.net).
 - Artist biographies and photos from Genius.
+- Missing album covers from MusicBrainz and the Cover Art Archive: off by default
+  (Settings > Find missing album covers); sends only album and artist names, keeps the
+  pictures in the app's private folder and never writes into your music files. A "Find
+  cover" action on each album works even with the setting off.
 - Lyric cards: pick up to four lines and share them as an image.
 - Tag editing (title, artist, album, year, genre).
 

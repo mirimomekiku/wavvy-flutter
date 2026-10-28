@@ -9,6 +9,7 @@ import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
+import 'package:wavvy/widgets/album_art_fallback.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/song_selection.dart';
 
@@ -192,7 +193,12 @@ Widget _art(int id, ArtworkType type, double size) => QueryArtworkWidget(
   artworkWidth: size,
   artworkHeight: size,
   artworkBorder: BorderRadius.zero,
-  nullArtworkWidget: WvMediaPlaceholder(seed: id * 31 + type.index, size: size),
+  nullArtworkWidget: AlbumArtFallback(
+    id: id,
+    type: type,
+    size: size,
+    seed: id * 31 + type.index,
+  ),
 );
 
 class _SongResult extends ConsumerWidget {
