@@ -17,6 +17,7 @@ import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/playlist_dialogs.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
+import 'package:wavvy/widgets/song_selection.dart';
 import 'package:wavvy/widgets/page_heading.dart';
 import 'package:wavvy/playback/favorites.dart';
 import 'package:wavvy/screens/library/liked/liked.screen.dart';
@@ -483,9 +484,10 @@ class _SongRow extends ConsumerWidget {
       options: const SongMenuOptions(showDelete: true),
     );
 
-    return WvSongRow(
+    return SelectableSongRow(
       song: song,
       index: index,
+      scope: ref.read(librarySongsProvider),
       isCurrent: isCurrent,
       isPlaying: isPlaying,
       secondary: song.artist ?? 'Unknown Artist',

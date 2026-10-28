@@ -218,6 +218,16 @@ class LibraryNotifier extends Notifier<LibraryState> {
     );
   }
 
+  /// Removes several songs at once (after a bulk file delete).
+  void removeSongsLocally(Set<int> songIds) {
+    state = state.copyWith(
+      songs: state.songs.where((s) => !songIds.contains(s.id)).toList(),
+      filteredSongs: state.filteredSongs
+          .where((s) => !songIds.contains(s.id))
+          .toList(),
+    );
+  }
+
   /// Removes a song from songs + filteredSongs (after a file delete).
   void removeSongLocally(int songId) {
     state = state.copyWith(

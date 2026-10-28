@@ -42,6 +42,8 @@ build has no downloader (see [Builds](#builds)).
 
 ### Library
 - Songs, albums, artists and playlists, with in-place filtering and sorting.
+- Select several songs (long press) to play, queue, add to a playlist, like, share
+  or delete them together.
 - Home feed built from your own listening history (incognito mode pauses it).
 - Search your library. In the full build, also search online or paste a link
   (YouTube, TikTok and many other sites) and download the audio into your

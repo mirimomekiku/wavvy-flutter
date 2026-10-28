@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/providers/selection_provider.dart';
 import 'package:wavvy/screens/home/view/home_view.dart';
 import 'package:wavvy/screens/library/library_tab.dart';
 import 'package:wavvy/screens/search/search_tab.dart';
@@ -31,22 +32,26 @@ class HomeScreen extends ConsumerWidget {
       ),
       child: DefaultTabController(
         length: 3,
-        child: Scaffold(
-          extendBody: true,
-          backgroundColor: a.background,
-          bottomNavigationBar: const BottomMiniPlayer(),
-          // No SafeArea: each tab's heading pads itself below the status bar so
-          // its background paints behind it.
-          body: const TabBarView(
-            // Pages scroll horizontally inside (shelves, chips), so switching
-            // tabs is done from the bottom nav only.
-            physics: NeverScrollableScrollPhysics(),
-            children: [
-              _KeepAlive(child: HomeView()),
-              _KeepAlive(child: LibraryTab()),
-              _KeepAlive(child: SearchTab()),
-            ],
-          ),
+        child: Builder(
+          builder: (context) {
+            final tabs = DefaultTabController.of(context);
+            final selecting = ref.watch(
+              selectionProvider.select((s) => s.active),
+            );
+            // Back first stops picking songs, then returns to the Home tab,
+            // and only from there leaves the app.
+            return ListenableBuilder(
+              listenable: tabs,
+              builder: (context, _) => PopScope(
+                canPop: tabs.index == 0 && !selecting,
+                onPopInvokedWithResult: (didPop, _) {
+                  if (didPop) return;
+                  if (selecting) {
+                    ref.read(selectionProvider.notifier).clear();
+                  } else {
+                    tabs.animateTo(0);
+                  }
+                },
                 child: WvBackdrop(
                   child: Scaffold(
                     extendBody: true,

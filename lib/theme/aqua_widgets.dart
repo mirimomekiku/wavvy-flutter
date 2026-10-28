@@ -261,6 +261,161 @@ class AquaCheckMark extends StatelessWidget {
   );
 }
 
+/// The Aqua check box: a glossy rounded square, silver when off and blue gel
+/// with a white tick when on, as in Mac OS X.
+///
+/// With no [onChanged] it only shows the state (a row that handles the tap
+/// itself); set [disabled] to dim it.
+class AquaCheckbox extends StatelessWidget {
+  const AquaCheckbox({
+    super.key,
+    required this.value,
+    this.onChanged,
+    this.size = 18,
+    this.disabled = false,
+  });
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final double size;
+  final bool disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    final still = MediaQuery.disableAnimationsOf(context);
+    final box = TweenAnimationBuilder<double>(
+      tween: Tween(end: value ? 1.0 : 0.0),
+      duration: still ? Duration.zero : const Duration(milliseconds: 140),
+      curve: Curves.easeOut,
+      builder: (context, t, _) =>
+          CustomPaint(size: Size.square(size), painter: _CheckboxPainter(a, t)),
+    );
+    return Semantics(
+      checked: value,
+      enabled: !disabled,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: disabled || onChanged == null ? null : () => onChanged!(!value),
+        child: Opacity(
+          opacity: disabled ? 0.5 : 1,
+          child: ExcludeSemantics(child: box),
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckboxPainter extends CustomPainter {
+  _CheckboxPainter(this.a, this.on);
+  final WvPalette a;
+
+  /// 0 off, 1 on; in between while it changes.
+  final double on;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final radius = Radius.circular(w * 0.24);
+    final box = RRect.fromRectAndRadius(
+      (Offset.zero & size).deflate(0.5),
+      radius,
+    );
+
+    // Silver glass when off, the theme's blue gel when on, blended while it
+    // changes. Both have four stops so they can be blended color by color.
+    final off = a.dark
+        ? const [
+            Color(0xFF59616C),
+            Color(0xFF454C56),
+            Color(0xFF353B44),
+            Color(0xFF424953),
+          ]
+        : const [
+            Color(0xFFFFFFFF),
+            Color(0xFFF1F3F6),
+            Color(0xFFD9DEE5),
+            Color(0xFFEBEEF3),
+          ];
+    final gel = aquaGel(a.accent).colors;
+    canvas.drawRRect(
+      box,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [for (var i = 0; i < 4; i++) Color.lerp(off[i], gel[i], on)!],
+          stops: const [0, 0.45, 0.52, 1],
+        ).createShader(box.outerRect),
+    );
+
+    // The gloss: a soft highlight over the top half.
+    final gloss = RRect.fromLTRBAndCorners(
+      w * 0.1,
+      w * 0.07,
+      w * 0.9,
+      w * 0.5,
+      topLeft: Radius.circular(w * 0.2),
+      topRight: Radius.circular(w * 0.2),
+      bottomLeft: Radius.circular(w * 0.35),
+      bottomRight: Radius.circular(w * 0.35),
+    );
+    canvas.drawRRect(
+      gloss,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: a.dark ? 0.22 : 0.7),
+            Colors.white.withValues(alpha: 0.04),
+          ],
+        ).createShader(gloss.outerRect),
+    );
+
+    canvas.drawRRect(
+      box,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = Color.lerp(
+          a.outline.withValues(alpha: 0.9),
+          Color.lerp(a.accent, Colors.black, 0.35)!,
+          on,
+        )!,
+    );
+
+    // The tick draws itself in from its short stroke to its long one.
+    if (on > 0) {
+      final tick = Path()
+        ..moveTo(w * 0.25, w * 0.54)
+        ..lineTo(w * 0.43, w * 0.72)
+        ..lineTo(w * 0.77, w * 0.28);
+      final metric = tick.computeMetrics().first;
+      final shown = metric.extractPath(0, metric.length * on);
+      final stroke = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = w * 0.15;
+      canvas.drawPath(
+        shown.shift(Offset(0, w * 0.04)),
+        stroke
+          ..color = Colors.black.withValues(alpha: 0.35 * on)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.8),
+      );
+      canvas.drawPath(
+        shown,
+        stroke
+          ..maskFilter = null
+          ..color = Colors.white,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CheckboxPainter old) => old.on != on || old.a != a;
+}
+
 /// The Aqua activity spinner: twelve spokes with a bright head that moves round
 /// in steps, like the Mac OS X progress indicator. Holds still when the system
 /// asks for reduced motion.

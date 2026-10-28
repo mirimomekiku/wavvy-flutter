@@ -10,7 +10,7 @@ import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/song_menu.dart';
-import 'package:wavvy/widgets/wv_song_list.dart';
+import 'package:wavvy/widgets/song_selection.dart';
 
 /// Aqua empty state shared by the Search sources: a gel orb, a title and an
 /// optional hint.
@@ -204,9 +204,10 @@ class _SongResult extends ConsumerWidget {
   @override
   Widget build(BuildContext buildContext, WidgetRef ref) {
     final player = ref.watch(playerProvider);
-    return WvSongRow(
+    return SelectableSongRow(
       song: song,
       index: matches.indexOf(song),
+      scope: matches,
       isCurrent: player.currentSong?.id == song.id,
       isPlaying: player.isPlaying,
       secondary: song.artist ?? 'Unknown Artist',
@@ -214,7 +215,6 @@ class _SongResult extends ConsumerWidget {
           .read(playerProvider.notifier)
           .playSong(song, contextList: matches),
       onAction: () => SongMenuHelper.show(buildContext, ref, song),
-      onLongPress: () => SongMenuHelper.show(buildContext, ref, song),
     );
   }
 }

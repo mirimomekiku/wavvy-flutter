@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/core/app_context.dart';
 import 'package:wavvy/providers/palette_provider.dart';
+import 'package:wavvy/providers/selection_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/theme/theme_crossfade.dart';
 import 'package:wavvy/theme/wavvy_theme.dart';
@@ -41,6 +42,7 @@ class WavvyMaterialApp extends ConsumerWidget {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [ref.read(selectionObserverProvider)],
       scaffoldMessengerKey: messengerKey,
       title: 'Wavvy',
       debugShowCheckedModeBanner: false,

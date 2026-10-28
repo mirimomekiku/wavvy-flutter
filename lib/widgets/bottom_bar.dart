@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/providers/selection_provider.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/open_player.dart';
+import 'package:wavvy/widgets/selection_bar.dart';
+import 'package:wavvy/widgets/tray.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 
 /// Two floating Aqua trays: now playing above Home / Search / Library.
@@ -13,6 +16,11 @@ class BottomMiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // While songs are being picked, the actions for them take the place of
+    // the player and the tabs.
+    if (ref.watch(selectionProvider.select((s) => s.active))) {
+      return const SelectionBar();
+    }
     final a = Wv.of(context);
     final state = ref.watch(playerProvider);
     final song = state.currentSong;
@@ -20,22 +28,7 @@ class BottomMiniPlayer extends ConsumerWidget {
     if (song == null && tabs == null) return const SizedBox.shrink();
     final actions = ref.read(playerProvider.notifier);
 
-    BoxDecoration tray(double radius) => BoxDecoration(
-      gradient: a.chromeGradient,
-      borderRadius: BorderRadius.circular(radius),
-      border: Border.all(color: a.outline.withValues(alpha: 0.55)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: a.dark ? 0.3 : 0.12),
-          blurRadius: 18,
-          offset: const Offset(0, 6),
-        ),
-        BoxShadow(
-          color: Colors.white.withValues(alpha: a.dark ? 0.04 : 0.7),
-          offset: const Offset(0, -1),
-        ),
-      ],
-    );
+    BoxDecoration tray(double radius) => wvTrayDecoration(a, radius);
 
     return SafeArea(
       top: false,

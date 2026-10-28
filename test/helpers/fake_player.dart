@@ -124,6 +124,21 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
   }
 
   @override
+  Future<void> addAudioSources(List<audio.AudioSource> audioSources) async {
+    _check();
+    sources.addAll(audioSources);
+  }
+
+  @override
+  Future<void> insertAudioSources(
+    int index,
+    List<audio.AudioSource> audioSources,
+  ) async {
+    _check();
+    sources.insertAll(index, audioSources);
+  }
+
+  @override
   Future<void> insertAudioSource(
     int index,
     audio.AudioSource audioSource,

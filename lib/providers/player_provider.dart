@@ -270,6 +270,49 @@ class PlayerNotifier extends Notifier<PlayerState> {
     if (added) AppSnackbar.showSuccess("Will play next", song.title);
   }
 
+  /// "Track 3" for one song, "4 songs" for several.
+  static String _described(List<SongModel> songs) =>
+      songs.length == 1 ? songs.first.title : '${songs.length} songs';
+
+  /// Adds [songs] to the end of the queue (playing them if nothing is queued).
+  Future<void> addAllToQueue(List<SongModel> songs) async {
+    if (songs.isEmpty) return;
+    if (!_hasSources) {
+      await playSong(songs.first, contextList: songs);
+      return;
+    }
+    final added = await _edit(
+      (queue) => _QueueEdit(
+        [...queue, ...songs],
+        () => _player.addAudioSources([
+          for (final s in songs) _createAudioSource(s),
+        ]),
+      ),
+    );
+    if (added) AppSnackbar.showSuccess("Added to Queue", _described(songs));
+  }
+
+  /// Inserts [songs], in order, right after the current one. With shuffle on
+  /// they are queued but not guaranteed to be the very next to play (see
+  /// [playNext]).
+  Future<void> playNextAll(List<SongModel> songs) async {
+    if (songs.isEmpty) return;
+    if (!_hasSources || state.currentIndex == -1) {
+      await playSong(songs.first, contextList: songs);
+      return;
+    }
+    final added = await _edit((queue) {
+      final at = (state.currentIndex + 1).clamp(0, queue.length);
+      return _QueueEdit(
+        [...queue]..insertAll(at, songs),
+        () => _player.insertAudioSources(at, [
+          for (final s in songs) _createAudioSource(s),
+        ]),
+      );
+    });
+    if (added) AppSnackbar.showSuccess("Will play next", _described(songs));
+  }
+
   /// Runs queue changes one at a time. [plan] sees the queue as it is when the
   /// change's turn comes, and returns null to do nothing. Resolves true when
   /// the change was applied.
@@ -697,6 +740,59 @@ class PlayerNotifier extends Notifier<PlayerState> {
 
   /// Deletes the file through the system's delete confirmation, then removes
   /// the song from the queue and library. Nothing changes if the user declines.
+  /// Deletes several files with one system confirmation (Android 11+), then
+  /// removes them from the queue and library. Songs Android would not delete
+  /// stay where they are.
+  Future<void> deleteSongs(List<SongModel> songs) async {
+    if (songs.length < 2) {
+      for (final song in songs) {
+        await deleteSong(song);
+      }
+      return;
+    }
+    try {
+      final gone = (await ref.read(mediaStoreProvider).deleteAudios([
+        for (final s in songs) s.id,
+      ])).toSet();
+      if (gone.isEmpty) {
+        AppSnackbar.showSnackbar(
+          "Not deleted",
+          "The songs are still on your device.",
+        );
+        return;
+      }
+
+      await _edit((queue) {
+        final doomed = [
+          for (var i = 0; i < queue.length; i++)
+            if (gone.contains(queue[i].id)) i,
+        ];
+        if (!_hasSources || doomed.isEmpty) return null;
+        return _QueueEdit([
+          for (final s in queue)
+            if (!gone.contains(s.id)) s,
+        ], () => _removeIndices(doomed));
+      });
+
+      ref.read(libraryProvider.notifier).removeSongsLocally(gone);
+
+      final left = songs.length - gone.length;
+      AppSnackbar.showSuccess(
+        "Deleted",
+        left == 0
+            ? "${gone.length} songs removed from device."
+            : "${gone.length} songs removed; $left could not be deleted.",
+      );
+      await ref.read(libraryProvider.notifier).fetchAllSongs(silent: true);
+    } catch (e) {
+      debugPrint("deleteSongs failed: $e");
+      AppSnackbar.showErrorSnackBar(
+        "Could not delete",
+        "Android did not allow deleting those songs.",
+      );
+    }
+  }
+
   Future<void> deleteSong(SongModel song) async {
     try {
       final deleted = await ref.read(mediaStoreProvider).deleteAudio(song.id);

@@ -51,6 +51,31 @@ class FavoritesNotifier extends Notifier<Map<int, int>> {
 
   bool isFavorite(int songId) => state.containsKey(songId);
 
+  /// Likes every one of [songs], or unlikes them all when [liked] is false.
+  Future<void> setAll(List<SongModel> songs, {required bool liked}) async {
+    final store = ref.read(favoritesStoreProvider);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final next = {...state};
+    final changed = <int>[];
+    for (final song in songs) {
+      if (liked && !next.containsKey(song.id)) {
+        next[song.id] = now;
+        changed.add(song.id);
+      } else if (!liked && next.remove(song.id) != null) {
+        changed.add(song.id);
+      }
+    }
+    if (changed.isEmpty) return;
+    state = liked ? {for (final id in changed) id: now, ...state} : next;
+    for (final id in changed) {
+      if (liked) {
+        await store.add(id, now);
+      } else {
+        await store.remove(id);
+      }
+    }
+  }
+
   Future<void> toggle(SongModel song) async {
     final store = ref.read(favoritesStoreProvider);
     if (state.containsKey(song.id)) {

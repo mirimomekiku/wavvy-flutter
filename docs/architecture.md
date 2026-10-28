@@ -68,3 +68,18 @@ device's band count.
 
 The suite uses fakes. Real playback, notification controls, native effects,
 MediaStore consent dialogs, downloads and sharing need a device.
+
+## Picking several songs
+
+A long press on a song row starts picking (`selection_provider.dart`); while
+picking, a tap picks or drops a song and the selection bar
+(`widgets/selection_bar.dart`) replaces the mini-player tray in
+`BottomMiniPlayer`, so every screen with song lists gets it. Rows use
+`SelectableSongRow` (a `WvSongRow` plus the picked state); Home and the artist
+tab keep the plain row. Picking ends on a page change (a `NavigatorObserver`)
+and on Back, which leaves picking first, then returns to the Home tab. Bulk
+actions: `PlayerNotifier.playNextAll`, `addAllToQueue` (one `_edit`, rolled
+back as a whole), `deleteSongs` (one `createDeleteRequest` on Android 11+),
+`FavoritesNotifier.setAll`, `PlaylistsNotifier.addSongsToLocalPlaylist` (one
+transaction) and `PlayerUtils.shareSongs`.
+

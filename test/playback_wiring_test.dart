@@ -9,6 +9,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 // ignore: depend_on_referenced_packages
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:wavvy/core/home_widget.dart';
+import 'package:wavvy/core/media_store.dart';
 import 'package:wavvy/instances/audio_handler.instance.dart';
 import 'package:wavvy/instances/crossfader.dart';
 import 'package:wavvy/playback/ab_loop.dart';
@@ -86,6 +87,22 @@ class _Library extends LibraryNotifier {
   LibraryState build() => LibraryState(songs: initial, filteredSongs: initial);
   void load(List<SongModel> songs) =>
       state = LibraryState(songs: songs, filteredSongs: songs);
+  @override
+  Future<void> fetchAllSongs({bool silent = false}) async {}
+}
+
+class _Media extends MediaStoreChannel {
+  /// Ids the system refuses to delete.
+  final refused = <int>{};
+  final asked = <List<int>>[];
+  @override
+  Future<List<int>> deleteAudios(List<int> ids) async {
+    asked.add(ids);
+    return [
+      for (final id in ids)
+        if (!refused.contains(id)) id,
+    ];
+  }
 }
 
 class _Settings extends SettingsNotifier {
@@ -157,6 +174,7 @@ class _H {
        store = _Store(),
        widget = _Widget(),
        rateStore = _RateStore(),
+       media = _Media(),
        library = _Library(songs ?? const []) {
     container = ProviderContainer(
       overrides: [
@@ -185,6 +203,7 @@ class _H {
   final _Widget widget;
   final _RateStore rateStore;
   final _Library library;
+  final _Media media;
   late final ProviderContainer container;
 
   PlayerNotifier get notifier => container.read(playerProvider.notifier);
@@ -538,6 +557,75 @@ void main() {
       final h = _H(songs: songs);
       addTearDown(h.dispose);
       await h.notifier.playSong(songs[0], contextList: songs.sublist(0, 2));
+      await h.notifier.addAllToQueue([songs[3], songs[4]]);
+      expect(ids(h.state.queue), [1, 2, 4, 5]);
+      expect(h.player.sources, hasLength(4));
+    });
+
+    test('add several to an empty queue starts playing them', () async {
+      final h = _H(songs: songs);
+      addTearDown(h.dispose);
+      await h.notifier.addAllToQueue([songs[2], songs[3]]);
+      expect(ids(h.state.queue), [3, 4]);
+      expect(h.player.playCalls, 1);
+    });
+
+    test(
+      'play next several puts them after the current song, in order',
+      () async {
+        final h = _H(songs: songs);
+        addTearDown(h.dispose);
+        await h.notifier.playSong(songs[1], contextList: songs.sublist(0, 3));
+        h.player.emit(1);
+        await h.notifier.playNextAll([songs[3], songs[4]]);
+        expect(ids(h.state.queue), [1, 2, 4, 5, 3]);
+        expect(h.player.sources, hasLength(5));
+      },
+    );
+
+    test('a failed bulk add rolls the queue back', () async {
+      final h = _H(songs: songs);
+      addTearDown(h.dispose);
+      await h.notifier.playSong(songs[0], contextList: songs.sublist(0, 2));
+      h.player.failNextEdit = true;
+      await h.notifier.addAllToQueue([songs[3], songs[4]]);
+      expect(ids(h.state.queue), [1, 2]);
+      expect(h.player.sources, hasLength(2));
+    });
+
+    test(
+      'delete several: gone songs leave the queue and the library',
+      () async {
+        final h = _H(songs: songs);
+        addTearDown(h.dispose);
+        await h.notifier.playSong(songs[0], contextList: songs);
+        h.media.refused.add(2);
+        await h.notifier.deleteSongs([songs[0], songs[1], songs[2]]);
+        expect(h.media.asked, hasLength(1)); // one request for all three
+        expect(ids(h.state.queue), [2, 4, 5]);
+        expect(ids(h.container.read(libraryProvider).songs), [2, 4, 5]);
+        expect(h.player.sources, hasLength(3));
+      },
+    );
+
+    test('delete several: when the system refuses, nothing changes', () async {
+      final h = _H(songs: songs);
+      addTearDown(h.dispose);
+      await h.notifier.playSong(songs[0], contextList: songs);
+      h.media.refused.addAll([1, 2]);
+      await h.notifier.deleteSongs([songs[0], songs[1]]);
+      expect(ids(h.state.queue), [1, 2, 3, 4, 5]);
+      expect(ids(h.container.read(libraryProvider).songs), [1, 2, 3, 4, 5]);
+    });
+  });
+
+  group('smart shuffle', () {
+    test(
+      'new queues get a smart shuffle order, unless the setting is off',
+      () async {
+        final on = _H(songs: songs);
+        addTearDown(on.dispose);
+        await on.notifier.playSong(songs[0], contextList: songs);
         expect(on.player.lastShuffleOrder, isA<SmartShuffleOrder>());
 
         final off = _H(

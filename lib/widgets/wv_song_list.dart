@@ -365,6 +365,8 @@ class WvSongRow extends StatelessWidget {
     this.onLongPress,
     this.actionIcon = Icons.more_horiz_rounded,
     this.actionTooltip = 'More options',
+    this.selecting = false,
+    this.selected = false,
   });
   final SongModel song;
   final int index;
@@ -376,15 +378,27 @@ class WvSongRow extends StatelessWidget {
   final VoidCallback? onLongPress;
   final IconData actionIcon;
   final String actionTooltip;
+
+  /// Songs are being picked for a bulk action: the row shows a check mark in
+  /// place of the options button.
+  final bool selecting;
+
+  /// This song is one of the picked ones.
+  final bool selected;
+
   @override
   Widget build(BuildContext context) {
     final a = Wv.of(context);
+    // A picked row takes the selection color even when it is the playing one.
+    final hot = isCurrent && !selected;
     return Semantics(
-      selected: isCurrent,
+      selected: isCurrent || selected,
       button: true,
       label: '${song.title}, $secondary',
       child: Material(
-        color: isCurrent
+        color: selected
+            ? a.primaryContainer
+            : hot
             ? a.accent
             : index.isOdd
             ? a.stripe
@@ -397,7 +411,7 @@ class WvSongRow extends StatelessWidget {
             decoration: BoxDecoration(
               border: Border(
                 left: BorderSide(
-                  color: isCurrent ? a.accent : Colors.transparent,
+                  color: isCurrent || selected ? a.accent : Colors.transparent,
                   width: 3,
                 ),
                 bottom: BorderSide(color: a.separator.withValues(alpha: 0.35)),
@@ -431,7 +445,7 @@ class WvSongRow extends StatelessWidget {
                                     ? Icons.equalizer_rounded
                                     : Icons.pause_rounded,
                                 size: 15,
-                                color: a.onAccent,
+                                color: hot ? a.onAccent : a.accent,
                               ),
                               const SizedBox(width: 5),
                             ],
@@ -442,7 +456,7 @@ class WvSongRow extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: isCurrent ? a.onAccent : a.text,
+                                  color: hot ? a.onAccent : a.text,
                                   fontWeight: isCurrent
                                       ? FontWeight.w600
                                       : FontWeight.w500,
@@ -458,7 +472,7 @@ class WvSongRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
-                            color: isCurrent ? a.onAccent : a.textSecondary,
+                            color: hot ? a.onAccent : a.textSecondary,
                           ),
                         ),
                       ],
@@ -474,7 +488,7 @@ class WvSongRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
-                        color: isCurrent ? a.onAccent : a.textSecondary,
+                        color: hot ? a.onAccent : a.textSecondary,
                       ),
                     ),
                   ),
@@ -484,19 +498,28 @@ class WvSongRow extends StatelessWidget {
                     PlayerUtils.formatDurationInt(song.duration),
                     style: TextStyle(
                       fontSize: 10,
-                      color: isCurrent ? a.onAccent : a.textSecondary,
+                      color: hot ? a.onAccent : a.textSecondary,
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: actionTooltip,
-                  onPressed: onAction,
-                  icon: Icon(
-                    actionIcon,
-                    size: 19,
-                    color: isCurrent ? a.onAccent : a.textSecondary,
+                if (selecting)
+                  SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Center(
+                      child: AquaCheckbox(value: selected, size: 22),
+                    ),
+                  )
+                else
+                  IconButton(
+                    tooltip: actionTooltip,
+                    onPressed: onAction,
+                    icon: Icon(
+                      actionIcon,
+                      size: 19,
+                      color: hot ? a.onAccent : a.textSecondary,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

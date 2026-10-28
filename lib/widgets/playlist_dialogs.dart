@@ -116,11 +116,19 @@ void showAddToPlaylistSheet(
   BuildContext context,
   WidgetRef ref,
   SongModel song,
-) {
+) => showAddSongsToPlaylistSheet(context, ref, [song]);
+
+/// The playlist picker for one or several songs.
+void showAddSongsToPlaylistSheet(
+  BuildContext context,
+  WidgetRef ref,
+  List<SongModel> songs, {
+  VoidCallback? onAdded,
+}) {
   showAquaSheet<void>(
     context: context,
     title: 'Add to Playlist',
-    subtitle: song.title,
+    subtitle: songs.length == 1 ? songs.first.title : '${songs.length} songs',
     builder: (sheetContext) => Consumer(
       builder: (context, ref, _) {
         final playlists = ref.watch(
@@ -150,10 +158,19 @@ void showAddToPlaylistSheet(
                       icon: Icons.queue_music_rounded,
                       label: '${playlist['name']}',
                       onTap: () {
-                        ref
-                            .read(playlistsProvider.notifier)
-                            .addSongToLocalPlaylist(playlist['id'], song.id);
+                        final notifier = ref.read(playlistsProvider.notifier);
+                        if (songs.length == 1) {
+                          notifier.addSongToLocalPlaylist(
+                            playlist['id'],
+                            songs.first.id,
+                          );
+                        } else {
+                          notifier.addSongsToLocalPlaylist(playlist['id'], [
+                            for (final s in songs) s.id,
+                          ]);
+                        }
                         Navigator.pop(sheetContext);
+                        onAdded?.call();
                       },
                     ),
                 ],
@@ -176,3 +193,14 @@ void showAddToPlaylistSheet(
     ),
   );
 }
+    await notifier.addSongsToLocalPlaylist(
+      ids.reduce((a, b) => a > b ? a : b),
+      [for (final s in widget.songs) s.id],
+    );
+    widget.onSaved?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return WvDialog(

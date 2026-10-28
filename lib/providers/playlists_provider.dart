@@ -111,6 +111,39 @@ class PlaylistsNotifier extends Notifier<PlaylistsState> {
     _bumpRevision();
   }
 
+  /// Adds several songs in one go, skipping the ones already in the
+  /// playlist, and says how many were new.
+  Future<void> addSongsToLocalPlaylist(
+    int playlistId,
+    List<int> songIds,
+  ) async {
+    final db = await _dbHelper.db;
+    var added = 0;
+    await db.transaction((txn) async {
+      for (final songId in songIds) {
+        final rowId = await txn.insert('playlist_songs', {
+          'playlist_id': playlistId,
+          'song_id': songId,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
+        if (rowId > 0) added++;
+      }
+    });
+    if (added == 0) {
+      AppSnackbar.showSnackbar("Notice", "Already in this playlist");
+    } else if (added == songIds.length) {
+      AppSnackbar.showSuccess(
+        "Success",
+        added == 1 ? "Added to your playlist" : "Added $added songs",
+      );
+    } else {
+      AppSnackbar.showSuccess(
+        "Success",
+        "Added $added songs; ${songIds.length - added} were already there",
+      );
+    }
+    _bumpRevision();
+  }
+
   Future<void> removeFromLocalPlaylist(int playlistId, int songId) async {
     final db = await _dbHelper.db;
     await db.delete(

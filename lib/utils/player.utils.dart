@@ -149,6 +149,25 @@ class PlayerUtils {
     }
   }
 
+  /// Shares several song files at once; files that are gone are skipped.
+  static Future<void> shareSongs(List<SongModel> songs) async {
+    final files = <XFile>[];
+    for (final song in songs) {
+      if (await File(song.data).exists()) files.add(XFile(song.data));
+    }
+    if (files.isEmpty) {
+      AppSnackbar.showErrorSnackBar("Error", "Those files were not found");
+      return;
+    }
+    try {
+      await SharePlus.instance.share(
+        ShareParams(text: "Sharing ${files.length} songs", files: files),
+      );
+    } catch (e) {
+      AppSnackbar.showErrorSnackBar("Error", "Could not share the files: $e");
+    }
+  }
+
   static IconData getLoopIcon(LoopMode mode) {
     switch (mode) {
       case LoopMode.one:

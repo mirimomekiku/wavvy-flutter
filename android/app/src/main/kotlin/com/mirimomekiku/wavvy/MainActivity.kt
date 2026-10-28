@@ -125,6 +125,15 @@ class MainActivity : AudioServiceActivity() {
                 }
                 return@setMethodCallHandler
             }
+            if (call.method == "deleteAudios") {
+                val ids = call.argument<List<Number>>("ids")?.map { it.toLong() }
+                if (ids.isNullOrEmpty()) {
+                    result.error("bad_argument", "No songs to delete", null)
+                } else {
+                    deleteAudios(ids, result)
+                }
+                return@setMethodCallHandler
+            }
             val id = call.argument<Number>("id")?.toLong()
             if (id == null) {
                 result.notImplemented()
@@ -201,6 +210,30 @@ class MainActivity : AudioServiceActivity() {
                 result.error("denied", e.message, null)
             }
         }
+    }
+
+    /**
+     * Deletes several audio files. Android 11+ asks once for all of them and
+     * completes with true or false; older versions delete what they can and
+     * complete with the ids that are gone (a file that needs its own consent
+     * on Android 10 is left for the user to delete on its own).
+     */
+    private fun deleteAudios(ids: List<Long>, result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            pendingDelete = null
+            val request = MediaStore.createDeleteRequest(contentResolver, ids.map { audioUri(it) })
+            launchConsent(request.intentSender, result)
+            return
+        }
+        val deleted = ArrayList<Long>()
+        for (id in ids) {
+            try {
+                if (contentResolver.delete(audioUri(id), null, null) > 0) deleted.add(id)
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Could not delete audio $id", e)
+            }
+        }
+        result.success(deleted)
     }
 
     /**

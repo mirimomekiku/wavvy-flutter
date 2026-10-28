@@ -6,6 +6,7 @@ import 'package:wavvy/theme/pixel_art.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
+import 'package:wavvy/widgets/song_selection.dart';
 
 /// The color of a favorite heart.
 const Color kHeartColor = Color(0xFFD8453B);
@@ -69,9 +70,10 @@ class LikedSongsScreen extends ConsumerWidget {
                       final current = ref.watch(
                         playerProvider.select((s) => s.currentSong?.id),
                       );
-                      return WvSongRow(
+                      return SelectableSongRow(
                         song: song,
                         index: index,
+                        scope: songs,
                         isCurrent: current == song.id,
                         isPlaying: ref.watch(
                           playerProvider.select((s) => s.isPlaying),
