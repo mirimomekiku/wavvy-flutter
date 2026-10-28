@@ -16,6 +16,7 @@ What the audio core does beyond play, pause and queue, and where it lives
 | A-B loop, 15 s skip | `ab_loop.dart`, the player | One button: set A, set B, clear. The loop is marked on the seek bar and belongs to one song. Jumps are checked on each position tick (about 200 ms). |
 | Remembered speed | `rates.dart` | Speed and pitch are kept per album (or per folder without one) and applied when the album changes. Setting: Remember speed. |
 | Home-screen widget | `core/home_widget.dart`, `android/.../widget/` | Shows the playing song and previous / play-pause / next. The buttons send media-button events to audio_service, like a headset does. |
+| Notification buttons | `notification_actions.dart`, the handler, `res/drawable/ic_notif_*.xml` | Like (heart, outline or filled), Shuffle and Repeat (off, all, one) as `MediaControl.custom` buttons after Previous, Play/Pause and Next, chosen in Settings > Playback > Notification buttons (Like on by default). Android shows at most five: Stop is dropped when two extras are on, and Repeat when all three are; the collapsed view stays Previous, Play/Pause, Next. Like is hidden when nothing plays or the file is external. The handler exists before the providers, so it has `updateCustomControls` and a `customActionDelegate` that `wireNotificationActions` sets. The icons are looked up by name in the app package (no resource shrinking is configured). Only the Dart side is tested; the notification itself has not been run. |
 
 ## Crossfade
 

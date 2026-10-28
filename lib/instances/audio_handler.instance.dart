@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/instances/crossfader.dart';
 import 'package:wavvy/playback/focus.dart';
+import 'package:wavvy/playback/notification_actions.dart';
 
 class WavvyAudioHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
@@ -47,6 +48,35 @@ class WavvyAudioHandler extends BaseAudioHandler
   Uri? Function(SongModel song)? cachedArtUri;
 
   /// Handles taps on the notification's Like / Shuffle / Repeat buttons. Set by
+  /// the app once the providers exist (see wireNotificationActions).
+  CustomActionDelegate? customActionDelegate;
+
+  NotificationExtras _extras = const NotificationExtras();
+
+  /// Which custom buttons the notification has and the state they show. The
+  /// buttons are rebuilt now, not on the next player event.
+  void updateCustomControls(NotificationExtras extras) {
+    if (extras == _extras) return;
+    _extras = extras;
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: buildNotificationControls(
+          playing: _player.playing,
+          extras: extras,
+        ),
+        androidCompactActionIndices: kCompactActionIndices,
+      ),
+    );
+  }
+
+  @override
+  Future<dynamic> customAction(
+    String name, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    await customActionDelegate?.call(name, extras);
+  }
+
   /// Fade the volume in on play and out on pause (Settings > Playback).
   bool fadeEnabled = false;
   int _fadeId = 0;
@@ -97,18 +127,16 @@ class WavvyAudioHandler extends BaseAudioHandler
       final playing = _player.playing;
       playbackState.add(
         playbackState.value.copyWith(
-          controls: [
-            MediaControl.skipToPrevious,
-            if (playing) MediaControl.pause else MediaControl.play,
-            MediaControl.skipToNext,
-            MediaControl.stop,
-          ],
+          controls: buildNotificationControls(
+            playing: playing,
+            extras: _extras,
+          ),
           systemActions: const {
             MediaAction.seek,
             MediaAction.seekForward,
             MediaAction.seekBackward,
           },
-          androidCompactActionIndices: const [0, 1, 2],
+          androidCompactActionIndices: kCompactActionIndices,
           processingState: const {
             ProcessingState.idle: AudioProcessingState.idle,
             ProcessingState.loading: AudioProcessingState.loading,

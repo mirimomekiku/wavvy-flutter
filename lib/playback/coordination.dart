@@ -13,6 +13,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/home_widget.dart';
 import 'package:wavvy/playback/ab_loop.dart';
 import 'package:wavvy/playback/focus.dart';
+import 'package:wavvy/playback/notification_actions.dart';
 import 'package:wavvy/playback/rates.dart';
 import 'package:wavvy/playback/replay_gain.dart';
 import 'package:wavvy/playback/session.dart';
@@ -32,6 +33,7 @@ import 'package:wavvy/providers/settings_provider.dart';
 ///  6. Remembered speed and pitch per album.
 ///  7. Sleep timer "end of track / queue".
 ///  8. Home-screen widget: what is playing.
+///  9. Notification buttons: Like, Shuffle and Repeat.
 void wirePlayback(Ref ref) {
   _wireSession(ref);
   _wireFocus(ref);
@@ -40,6 +42,7 @@ void wirePlayback(Ref ref) {
   _wirePositionRules(ref);
   _wireRates(ref);
   _wireWidget(ref);
+  wireNotificationActions(ref);
 }
 
 // ------------------------------------------------------------ 1. Session

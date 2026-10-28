@@ -14,6 +14,8 @@ import 'package:wavvy/instances/audio_handler.instance.dart';
 import 'package:wavvy/instances/crossfader.dart';
 import 'package:wavvy/playback/ab_loop.dart';
 import 'package:wavvy/playback/coordination.dart';
+import 'package:wavvy/playback/favorites.dart';
+import 'package:wavvy/playback/notification_actions.dart';
 import 'package:wavvy/playback/rates.dart';
 import 'package:wavvy/playback/replay_gain.dart';
 import 'package:wavvy/playback/session.dart';
@@ -42,6 +44,15 @@ class _Handler extends Fake implements WavvyAudioHandler {
 
   @override
   Future<void> setReplayGain(double db) async => gains.add(db);
+
+  int plays = 0;
+  @override
+  Future<void> play() async => plays++;
+
+  @override
+  CustomActionDelegate? customActionDelegate;
+  @override
+  void updateCustomControls(NotificationExtras extras) {}
 
   @override
   Future<void> fadeOutAndPause({
@@ -160,6 +171,15 @@ class _RateStore implements RateStore {
   }
 }
 
+class _NoFavorites implements FavoritesStore {
+  @override
+  Future<Map<int, int>> load() async => {};
+  @override
+  Future<void> add(int songId, int addedAt) async {}
+  @override
+  Future<void> remove(int songId) async {}
+}
+
 final _wire = Provider<void>((ref) => wirePlayback(ref));
 
 // ------------------------------------------------------------------- harness
@@ -180,6 +200,7 @@ class _H {
       overrides: [
         audioPlayerProvider.overrideWithValue(player),
         audioHandlerProvider.overrideWithValue(handler),
+        favoritesStoreProvider.overrideWithValue(_NoFavorites()),
         playCountsLoaderProvider.overrideWithValue(() async => {3: 9}),
         mediaStoreProvider.overrideWithValue(media),
         sessionStoreProvider.overrideWithValue(store),

@@ -24,6 +24,9 @@ build has no downloader (see [Builds](#builds)).
   depth, marked Lossy, Lossless or Hi-Res Lossless (sample rate and bit depth can be
   unknown for some files).
 - Favorites with a Liked songs list, and a home-screen widget.
+- Optional Like, Shuffle and Repeat buttons in the media notification and on the lock
+  screen (Settings > Playback). Android shows only a few buttons in the collapsed
+  notification. Not yet seen on a device.
 - Hold volume up for the next song and volume down for the previous one (Settings,
   off by default). Android only passes the keys to Wavvy while it is on screen, so
   this does not work with the screen off or in another app.

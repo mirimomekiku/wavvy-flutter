@@ -267,6 +267,30 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                     ],
                   ),
+                  const GroupHeader('Notification buttons'),
+                  InsetGroup(
+                    children: [
+                      toggle(
+                        'Like',
+                        'A heart for the playing song. Android shows only a few buttons in the collapsed notification; the rest appear when it is expanded',
+                        Icons.favorite_border_rounded,
+                        s.notifLike,
+                        n.toggleNotifLike,
+                      ),
+                      toggle(
+                        'Repeat',
+                        'Off, all or one, in the notification and on the lock screen',
+                        Icons.repeat_rounded,
+                        s.notifRepeat,
+                        n.toggleNotifRepeat,
+                      ),
+                      toggle(
+                        'Shuffle',
+                        'Turn shuffle on or off from the notification',
+                        Icons.shuffle_rounded,
+                        s.notifShuffle,
+                        n.toggleNotifShuffle,
+                      ),
                     ],
                   ),
                   const GroupHeader('Sound leveling'),

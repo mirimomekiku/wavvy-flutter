@@ -67,6 +67,11 @@ class SettingsState {
   /// 0 is off.
   final int crossfadeSeconds;
 
+  /// Extra buttons in the media notification and on the lock screen.
+  final bool notifLike;
+  final bool notifShuffle;
+  final bool notifRepeat;
+
   /// Only start downloads on an unmetered (Wi-Fi) connection.
   final bool downloadWifiOnly;
   final bool enableWakeLock;
@@ -103,6 +108,9 @@ class SettingsState {
     this.playerLayoutAdaptive = true,
     this.replayGainMode = 0,
     this.crossfadeSeconds = 0,
+    this.notifLike = true,
+    this.notifShuffle = false,
+    this.notifRepeat = false,
     this.enableWakeLock = false,
     this.isDarkMode = false,
     this.isIncognitoMode = false,
@@ -139,6 +147,9 @@ class SettingsState {
     bool? playerLayoutAdaptive,
     int? replayGainMode,
     int? crossfadeSeconds,
+    bool? notifLike,
+    bool? notifShuffle,
+    bool? notifRepeat,
     bool? enableWakeLock,
     bool? isDarkMode,
     bool? isIncognitoMode,
@@ -171,6 +182,9 @@ class SettingsState {
     playerLayoutAdaptive: playerLayoutAdaptive ?? this.playerLayoutAdaptive,
     replayGainMode: replayGainMode ?? this.replayGainMode,
     crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
+    notifLike: notifLike ?? this.notifLike,
+    notifShuffle: notifShuffle ?? this.notifShuffle,
+    notifRepeat: notifRepeat ?? this.notifRepeat,
     enableWakeLock: enableWakeLock ?? this.enableWakeLock,
     isDarkMode: isDarkMode ?? this.isDarkMode,
     isIncognitoMode: isIncognitoMode ?? this.isIncognitoMode,
@@ -214,6 +228,9 @@ class SettingsNotifier extends Notifier<SettingsState> {
   static const String _kPlayerLayoutAdaptive = 'feature_player_layout_adaptive';
   static const String _kReplayGainMode = 'feature_replay_gain';
   static const String _kCrossfadeSeconds = 'feature_crossfade_seconds';
+  static const String _kNotifLike = 'feature_notif_like';
+  static const String _kNotifShuffle = 'feature_notif_shuffle';
+  static const String _kNotifRepeat = 'feature_notif_repeat';
   static const String _kWakeLock = 'feature_wake_lock';
   static const String _kDarkMode = 'feature_dark_mode';
   static const String _kIncognito = 'feature_incognito';
@@ -257,6 +274,9 @@ class SettingsNotifier extends Notifier<SettingsState> {
           await _prefs.getBool(_kPlayerLayoutAdaptive) ?? true,
       replayGainMode: (await _prefs.getInt(_kReplayGainMode)) ?? 0,
       crossfadeSeconds: (await _prefs.getInt(_kCrossfadeSeconds)) ?? 0,
+      notifLike: await _prefs.getBool(_kNotifLike) ?? true,
+      notifShuffle: await _prefs.getBool(_kNotifShuffle) ?? false,
+      notifRepeat: await _prefs.getBool(_kNotifRepeat) ?? false,
       enableWakeLock: await _prefs.getBool(_kWakeLock) ?? false,
       isIncognitoMode: await _prefs.getBool(_kIncognito) ?? false,
       // Existing saved indices remain compatible.
@@ -387,6 +407,21 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<void> setCrossfadeSeconds(int value) async {
     state = state.copyWith(crossfadeSeconds: value);
     await _prefs.setInt(_kCrossfadeSeconds, value);
+  }
+
+  Future<void> toggleNotifLike(bool value) async {
+    state = state.copyWith(notifLike: value);
+    await _prefs.setBool(_kNotifLike, value);
+  }
+
+  Future<void> toggleNotifShuffle(bool value) async {
+    state = state.copyWith(notifShuffle: value);
+    await _prefs.setBool(_kNotifShuffle, value);
+  }
+
+  Future<void> toggleNotifRepeat(bool value) async {
+    state = state.copyWith(notifRepeat: value);
+    await _prefs.setBool(_kNotifRepeat, value);
   }
 
   Future<void> toggleDownloadWifiOnly(bool value) async {
