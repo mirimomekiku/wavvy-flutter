@@ -237,6 +237,7 @@ Future<void> _saveTags(
 /// Sleep timer picker: a menu of durations with the current one checked.
 void openSleepTimerDialog(WidgetRef ref) {
   const options = [15, 30, 45, 60, 90];
+  const trackOptions = [2, 3, 5];
   showAppDialog<void>(
     builder: (dialogContext) => Consumer(
       builder: (context, ref, _) {
@@ -245,6 +246,9 @@ void openSleepTimerDialog(WidgetRef ref) {
         );
         final mode = ref.watch(playerProvider.select((s) => s.sleepMode));
         final endsAt = ref.watch(playerProvider.select((s) => s.sleepEndsAt));
+        final tracksLeft = ref.watch(
+          playerProvider.select((s) => s.sleepTracksLeft),
+        );
         final a = Wv.of(context);
         final status = switch (mode) {
           SleepMode.off => 'Music plays until you stop it',
@@ -254,6 +258,10 @@ void openSleepTimerDialog(WidgetRef ref) {
                 : 'Music stops at ${TimeOfDay.fromDateTime(endsAt).format(context)}',
           SleepMode.endOfTrack => 'Music stops after this track',
           SleepMode.endOfQueue => 'Music stops after the last track',
+          SleepMode.afterTracks =>
+            (tracksLeft ?? 1) <= 1
+                ? 'Music stops after this track'
+                : 'Music stops after $tracksLeft more tracks',
         };
         void choose(int? minutes) {
           Navigator.of(dialogContext).pop();
@@ -301,6 +309,26 @@ void openSleepTimerDialog(WidgetRef ref) {
                   ),
                 ),
                 const SizedBox(height: 12),
+                if (mode == SleepMode.minutes ||
+                    mode == SleepMode.endOfTrack ||
+                    mode == SleepMode.afterTracks) ...[
+                  AquaMenuGroup(
+                    margin: EdgeInsets.zero,
+                    rows: [
+                      AquaMenuRow(
+                        icon: Icons.add_alarm_rounded,
+                        label: mode == SleepMode.minutes
+                            ? 'Add 10 minutes'
+                            : 'Add one more track',
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          ref.read(playerProvider.notifier).extendSleep();
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 AquaMenuGroup(
                   margin: EdgeInsets.zero,
                   rows: [
@@ -322,6 +350,19 @@ void openSleepTimerDialog(WidgetRef ref) {
                             .setSleepAtEnd(SleepMode.endOfTrack);
                       },
                     ),
+                    for (final n in trackOptions)
+                      AquaMenuRow(
+                        icon: Icons.skip_next_rounded,
+                        label: 'After $n tracks',
+                        selected:
+                            mode == SleepMode.afterTracks && tracksLeft == n,
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          ref
+                              .read(playerProvider.notifier)
+                              .setSleepAfterTracks(n);
+                        },
+                      ),
                     AquaMenuRow(
                       icon: Icons.queue_music_rounded,
                       label: 'End of the queue',

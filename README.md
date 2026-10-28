@@ -13,7 +13,8 @@ build has no downloader (see [Builds](#builds)).
 - Background playback with notification and lock-screen controls.
 - Editable queue: play next, add, reorder, remove, clear upcoming.
 - Shuffle, repeat, speed and pitch (remembered per album), A-B loop and 15 second skips.
-- Sleep timer: minutes, end of the track or end of the queue, with a fade-out.
+- Sleep timer: minutes, end of the track, after N tracks or end of the queue, with a
+  fade-out. Add time from the dialog, or by shaking the phone near the end.
 - Smart shuffle: keeps an artist's songs apart and favors liked and less played songs.
 - Reopens with the queue and position you left; headphone and call handling you can tune.
 - Volume leveling from ReplayGain tags; crossfade (experimental).

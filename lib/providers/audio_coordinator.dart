@@ -150,16 +150,25 @@ final audioCoordinatorProvider = Provider<void>((ref) {
         final now = DateTime.now().millisecondsSinceEpoch;
         if (now - lastShakeTime > shakeDebounceMs) {
           lastShakeTime = now;
-          if (ref.read(audioPlayerProvider).hasNext) {
-            ref.read(playerProvider.notifier).next();
+          final settings = ref.read(settingsProvider);
+          final player = ref.read(playerProvider.notifier);
+          if (settings.shakeExtendsSleep &&
+              player.sleepNearEnd &&
+              player.extendSleep()) {
+            // The timer was about to stop the music: a shake adds time.
+          } else if (settings.enableShakeToSkip &&
+              ref.read(audioPlayerProvider).hasNext) {
+            player.next();
           }
         }
       }
     });
   }
 
-  if (ref.read(settingsProvider).enableShakeToSkip) startShake();
-  ref.listen(settingsProvider.select((s) => s.enableShakeToSkip), (_, enabled) {
+  bool wantsShake(SettingsState s) =>
+      s.enableShakeToSkip || s.shakeExtendsSleep;
+  if (wantsShake(ref.read(settingsProvider))) startShake();
+  ref.listen(settingsProvider.select(wantsShake), (_, enabled) {
     if (enabled) {
       startShake();
     } else {

@@ -425,6 +425,119 @@ void main() {
     });
   });
 
+  group('sleep timer extras', () {
+    Future<_H> playing() async {
+      final h = _H(songs: songs);
+      await h.notifier.playSong(songs[0], contextList: songs);
+      h.player.emit(0);
+      return h;
+    }
+
+    const duration = Duration(minutes: 3);
+    const nearEnd = Duration(minutes: 2, seconds: 57);
+
+    test(
+      'after N tracks: counts each track and stops at the end of the last',
+      () async {
+        final h = await playing();
+        addTearDown(h.dispose);
+        h.notifier.setSleepAfterTracks(2);
+        expect(h.state.sleepMode, SleepMode.afterTracks);
+        expect(h.state.sleepTracksLeft, 2);
+
+        // The first of the two tracks runs out: no fade yet.
+        h.notifier.onPosition(nearEnd, duration);
+        expect(h.handler.fadeOuts, isEmpty);
+
+        h.player.emit(1);
+        expect(h.state.sleepTracksLeft, 1);
+        h.notifier.onPosition(nearEnd, duration);
+        expect(h.handler.fadeOuts, hasLength(1));
+        expect(h.state.sleepMode, SleepMode.off);
+      },
+    );
+
+    test('after 1 track behaves like the end of this track', () async {
+      final h = await playing();
+      addTearDown(h.dispose);
+      h.notifier.setSleepAfterTracks(1);
+      h.notifier.onPosition(nearEnd, duration);
+      expect(h.handler.fadeOuts, hasLength(1));
+    });
+
+    test('skipping past the last track stops at once', () async {
+      final h = await playing();
+      addTearDown(h.dispose);
+      h.notifier.setSleepAfterTracks(1);
+      h.player.emit(1);
+      expect(h.handler.fadeOuts, hasLength(1));
+      expect(h.state.sleepMode, SleepMode.off);
+    });
+
+    test('a minutes timer can be extended', () async {
+      final h = await playing();
+      addTearDown(h.dispose);
+      h.notifier.setSleepTimer(5);
+      final before = h.state.sleepEndsAt!;
+      expect(h.notifier.extendSleep(minutes: 10), isTrue);
+      expect(h.state.sleepEndsAt!.difference(before).inMinutes, 10);
+      expect(h.state.sleepMode, SleepMode.minutes);
+    });
+
+    test('a track timer gains a track; end of track becomes two', () async {
+      final h = await playing();
+      addTearDown(h.dispose);
+      h.notifier.setSleepAtEnd(SleepMode.endOfTrack);
+      expect(h.notifier.extendSleep(), isTrue);
+      expect(h.state.sleepMode, SleepMode.afterTracks);
+      expect(h.state.sleepTracksLeft, 2);
+      expect(h.notifier.extendSleep(), isTrue);
+      expect(h.state.sleepTracksLeft, 3);
+    });
+
+    test(
+      'there is nothing to extend without a timer or at the queue end',
+      () async {
+        final h = await playing();
+        addTearDown(h.dispose);
+        expect(h.notifier.extendSleep(), isFalse);
+        h.notifier.setSleepAtEnd(SleepMode.endOfQueue);
+        expect(h.notifier.extendSleep(), isFalse);
+      },
+    );
+
+    test('a shake counts as near the end only in the last minute', () async {
+      final h = await playing();
+      addTearDown(h.dispose);
+      h.notifier.setSleepTimer(30);
+      expect(h.notifier.sleepNearEnd, isFalse);
+      h.notifier.setSleepTimer(1);
+      expect(h.notifier.sleepNearEnd, isTrue);
+    });
+
+    test(
+      'extending just after the timer stopped the music resumes it',
+      () async {
+        final h = await playing();
+        addTearDown(h.dispose);
+        h.notifier.setSleepAtEnd(SleepMode.endOfTrack);
+        h.notifier.onPosition(nearEnd, duration); // fires the fade
+        expect(h.notifier.sleepNearEnd, isTrue);
+        expect(h.notifier.extendSleep(minutes: 15), isTrue);
+        expect(h.handler.plays, 1);
+        expect(h.state.sleepMode, SleepMode.minutes);
+        expect(h.state.sleepTimerMinutes, 15);
+      },
+    );
+  });
+
+  group('bulk queue and delete', () {
+    List<int> ids(Iterable<SongModel> s) => [for (final x in s) x.id];
+
+    test('add several to the queue keeps queue and player aligned', () async {
+      final h = _H(songs: songs);
+      addTearDown(h.dispose);
+      await h.notifier.playSong(songs[0], contextList: songs.sublist(0, 2));
         expect(on.player.lastShuffleOrder, isA<SmartShuffleOrder>());
 
         final off = _H(

@@ -26,7 +26,10 @@ final audioPlayerProvider = Provider<AudioPlayer>(
 );
 
 /// What the sleep timer is waiting for.
-enum SleepMode { off, minutes, endOfTrack, endOfQueue }
+enum SleepMode { off, minutes, endOfTrack, endOfQueue, afterTracks }
+
+/// How often each song was played (song id to count), for the smart shuffle.
+/// Overridden in tests.
 final playCountsLoaderProvider = Provider<Future<Map<int, int>> Function()>(
   (ref) => () async {
     final rows = await DbHelper().getMostPlayed(100000);
@@ -51,6 +54,9 @@ class PlayerState {
   /// When a minutes timer will stop playback.
   final DateTime? sleepEndsAt;
 
+  /// For [SleepMode.afterTracks]: tracks still to play, counting the current one.
+  final int? sleepTracksLeft;
+
   const PlayerState({
     this.queue = const [],
     this.currentSong,
@@ -61,6 +67,7 @@ class PlayerState {
     this.sleepTimerMinutes,
     this.sleepMode = SleepMode.off,
     this.sleepEndsAt,
+    this.sleepTracksLeft,
   });
 
   PlayerState copyWith({
@@ -74,6 +81,7 @@ class PlayerState {
     int? sleepTimerMinutes,
     SleepMode? sleepMode,
     DateTime? sleepEndsAt,
+    int? sleepTracksLeft,
     bool clearSleepTimer = false,
   }) => PlayerState(
     queue: queue ?? this.queue,
@@ -87,6 +95,9 @@ class PlayerState {
         : (sleepTimerMinutes ?? this.sleepTimerMinutes),
     sleepMode: clearSleepTimer ? SleepMode.off : (sleepMode ?? this.sleepMode),
     sleepEndsAt: clearSleepTimer ? null : (sleepEndsAt ?? this.sleepEndsAt),
+    sleepTracksLeft: clearSleepTimer
+        ? null
+        : (sleepTracksLeft ?? this.sleepTracksLeft),
   );
 }
 
@@ -188,7 +199,7 @@ class PlayerNotifier extends Notifier<PlayerState> {
         loopMode: seq.loopMode,
       );
       state = next;
-    });
+      _countSleepTrack();
     }, onError: (Object e) => debugPrint('sequence error: $e'));
 
     ref.onDispose(() {
@@ -466,6 +477,102 @@ class PlayerNotifier extends Notifier<PlayerState> {
     _sleepTimer = Timer(Duration(minutes: minutes), () => _sleepNow());
   }
 
+  /// Stops at the end of the [count]th track from now, counting the one that
+  /// is playing.
+  void setSleepAfterTracks(int count) {
+    assert(count >= 1);
+    _sleepTimer?.cancel();
+    _sleepFiring = false;
+    _sleepTrackKey = (state.currentIndex, state.currentSong?.id);
+    state = state
+        .copyWith(clearSleepTimer: true)
+        .copyWith(sleepMode: SleepMode.afterTracks, sleepTracksLeft: count);
+    AppSnackbar.showSnackbar(
+      "Sleep Timer",
+      count == 1
+          ? "Music will stop after this track"
+          : "Music will stop after $count tracks",
+    );
+  }
+
+  /// The track the "after N tracks" timer last counted.
+  (int, int?)? _sleepTrackKey;
+
+  /// Counts a track change for "after N tracks", and stops if that was the last.
+  void _countSleepTrack() {
+    if (state.sleepMode != SleepMode.afterTracks) return;
+    final key = (state.currentIndex, state.currentSong?.id);
+    if (key == _sleepTrackKey) return;
+    _sleepTrackKey = key;
+    final left = (state.sleepTracksLeft ?? 1) - 1;
+    if (left <= 0) {
+      // The last track was skipped (or ended before the fade began).
+      _sleepNow(fade: const Duration(seconds: 2));
+      return;
+    }
+    state = state.copyWith(sleepTracksLeft: left);
+  }
+
+  /// Whether a shake should add sleep time now: the timer is in its last
+  /// minute, or has just stopped the music.
+  bool get sleepNearEnd {
+    if (_sleepFiring) return true;
+    switch (state.sleepMode) {
+      case SleepMode.off || SleepMode.endOfQueue:
+        return false;
+      case SleepMode.minutes:
+        final ends = state.sleepEndsAt;
+        return ends != null &&
+            ends.difference(DateTime.now()) <= const Duration(minutes: 1);
+      case SleepMode.endOfTrack || SleepMode.afterTracks:
+        if ((state.sleepTracksLeft ?? 1) > 1) return false;
+        final duration = ref.read(durationProvider);
+        final remaining = duration - ref.read(positionProvider);
+        return duration > Duration.zero &&
+            remaining <= const Duration(minutes: 1);
+    }
+  }
+
+  /// Adds time to the sleep timer: [minutes] more on a minutes timer, one more
+  /// track on a track timer. If the timer has only just stopped the music,
+  /// resumes it with a new timer. Returns false when there is nothing to add
+  /// to (no timer, or "end of the queue").
+  bool extendSleep({int minutes = 10}) {
+    if (_sleepFiring) {
+      _sleepFiring = false;
+      unawaited(ref.read(audioHandlerProvider).play());
+      setSleepTimer(minutes);
+      return true;
+    }
+    switch (state.sleepMode) {
+      case SleepMode.off || SleepMode.endOfQueue:
+        return false;
+      case SleepMode.minutes:
+        final ends = (state.sleepEndsAt ?? DateTime.now()).add(
+          Duration(minutes: minutes),
+        );
+        _sleepTimer?.cancel();
+        _sleepTimer = Timer(ends.difference(DateTime.now()), _sleepNow);
+        state = state.copyWith(sleepEndsAt: ends);
+        AppSnackbar.showSnackbar("Sleep Timer", "Added $minutes minutes");
+        return true;
+      case SleepMode.endOfTrack:
+        _sleepTrackKey = (state.currentIndex, state.currentSong?.id);
+        state = state.copyWith(
+          sleepMode: SleepMode.afterTracks,
+          sleepTracksLeft: 2,
+        );
+        AppSnackbar.showSnackbar("Sleep Timer", "One more track");
+        return true;
+      case SleepMode.afterTracks:
+        state = state.copyWith(
+          sleepTracksLeft: (state.sleepTracksLeft ?? 1) + 1,
+        );
+        AppSnackbar.showSnackbar("Sleep Timer", "One more track");
+        return true;
+    }
+  }
+
   /// Stops at the end of the current track, or of the queue.
   void setSleepAtEnd(SleepMode mode) {
     assert(mode == SleepMode.endOfTrack || mode == SleepMode.endOfQueue);
@@ -516,8 +623,11 @@ class PlayerNotifier extends Notifier<PlayerState> {
   }) {
     final mode = state.sleepMode;
     if (_sleepFiring || !state.isPlaying || duration <= Duration.zero) return;
-    if (mode != SleepMode.endOfTrack && mode != SleepMode.endOfQueue) return;
+    if (mode == SleepMode.off || mode == SleepMode.minutes) return;
     if (mode == SleepMode.endOfQueue && !_onLastTrack) return;
+    if (mode == SleepMode.afterTracks && (state.sleepTracksLeft ?? 1) > 1) {
+      return;
+    }
     final remaining = duration - position;
     const fade = Duration(seconds: 4);
     if (remaining > fade + lead) return;

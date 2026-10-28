@@ -197,6 +197,12 @@ class SettingsScreen extends ConsumerWidget {
                         n.toggleSmartShuffle,
                       ),
                       toggle(
+                        'Shake to extend sleep timer',
+                        'Shake the phone in the last minute of the timer for 10 more minutes',
+                        Icons.vibration_rounded,
+                        s.shakeExtendsSleep,
+                        n.toggleShakeExtendsSleep,
+                      ),
                     ],
                   ),
                   const GroupHeader('Sound leveling'),
