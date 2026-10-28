@@ -10,7 +10,7 @@ import 'package:wavvy/theme/wavvy_theme.dart';
 ///
 ///  * light/dark comes from [SettingsState.isDarkMode];
 ///  * the accent comes from the selected color theme (Aqua, an accent turned
-///    from it, or Graphite) or, when Album colors is on, from the current album
+///    from it, Graphite, Pinstripe or Brushed Metal) or, when Album colors is on, from the current album
 ///    art ([PaletteState.accent]), which becomes a full tonal scheme.
 ///
 /// Kept separate from `MyApp` so the theming can be tested without starting

@@ -68,7 +68,7 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
     final nav = _SheetNav(page: page, pages: visible, onSelect: goTo);
     return WvSystemUi(
       child: Material(
-        color: a.background,
+        color: a.pageColor,
         // The modal route strips the top inset from MediaQuery, so read it from
         // the window; the header paints behind the status bar and is padded.
         child: Column(
@@ -76,6 +76,7 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
             Container(
               decoration: BoxDecoration(
                 gradient: a.chromeGradient,
+                image: a.chromeGrain,
                 border: Border(bottom: BorderSide(color: a.separator)),
               ),
               padding: EdgeInsets.fromLTRB(8, 4 + statusBar, 8, 4),
@@ -486,6 +487,7 @@ class _SheetToolbar extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         gradient: a.chromeGradient,
+        image: a.chromeGrain,
         border: Border(
           top: BorderSide(color: a.outline.withValues(alpha: 0.55)),
         ),

@@ -21,7 +21,7 @@ class AudioEffectsScreen extends StatelessWidget {
       child: DefaultTabController(
         length: 2,
         child: Scaffold(
-          backgroundColor: a.background,
+          backgroundColor: a.pageColor,
           bottomNavigationBar: const BottomMiniPlayer(showTabView: false),
           // No SafeArea: the heading pads itself below the status bar so its
           // toolbar paints behind it.

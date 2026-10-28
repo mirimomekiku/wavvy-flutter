@@ -4,6 +4,7 @@ import 'package:wavvy/core/navigation.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/pixel_art.dart';
+import 'package:wavvy/theme/wavvy_texture.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/page_heading.dart';
 import 'package:wavvy/utils/player.utils.dart';
@@ -23,7 +24,8 @@ class WvSystemUi extends StatelessWidget {
             ? Brightness.light
             : Brightness.dark,
       ),
-      child: child,
+      // Textured looks put their page behind the screen; plain ones add nothing.
+      child: WvBackdrop(child: child),
     );
   }
 }

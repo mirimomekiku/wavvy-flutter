@@ -21,7 +21,7 @@ class AlbumDetailScreen extends ConsumerWidget {
 
     return WvSystemUi(
       child: Scaffold(
-        backgroundColor: Wv.of(context).background,
+        backgroundColor: Wv.of(context).pageColor,
         bottomNavigationBar: BottomMiniPlayer(showTabView: false),
         body: CustomScrollView(
           slivers: [

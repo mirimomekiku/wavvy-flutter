@@ -27,7 +27,7 @@ class PlaylistDetailScreen extends ConsumerWidget {
 
     return WvSystemUi(
       child: Scaffold(
-        backgroundColor: a.background,
+        backgroundColor: a.pageColor,
         bottomNavigationBar: BottomMiniPlayer(showTabView: false),
         body: Builder(
           builder: (context) {

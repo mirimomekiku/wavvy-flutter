@@ -25,6 +25,9 @@ build has no downloader (see [Builds](#builds)).
 - Aqua design: silver toolbars, recessed LCD display, gel buttons, paper content.
 - Appearances: Aqua (default), Graphite and System (Material You wallpaper
   colors), each in light and dark.
+- **Pinstripe** (Mac OS X Panther: fine horizontal pinstripes on the page) and
+  **Brushed Metal** (Tiger: brushed-aluminum grain on toolbars, trays, sheet
+  headers and the page, steel-blue accent), each in light and dark.
 - Optional **Album colors**: tint the whole app from the current artwork.
 - A vinyl-and-tonearm player sheet with Player, Queue, Lyrics and Artist tabs.
 

@@ -7,7 +7,8 @@ class WavvyTheme {
   WavvyTheme._();
 
   /// The saved theme index of each appearance. 5 and 6 are the original Aqua
-  /// and Graphite and keep their numbers; the accents follow.
+  /// and Graphite and keep their numbers; the accents follow, then the two
+  /// textured looks, Pinstripe and Brushed Metal.
   static const Map<int, WvAppearance> byIndex = {
     5: WvAppearance.aqua,
     6: WvAppearance.graphite,
@@ -17,6 +18,8 @@ class WavvyTheme {
     10: WvAppearance.pink,
     11: WvAppearance.red,
     12: WvAppearance.teal,
+    13: WvAppearance.pinstripe,
+    14: WvAppearance.brushedMetal,
   };
 
   static const int defaultIndex = 5;
@@ -41,7 +44,7 @@ class WavvyTheme {
   /// album color reuses the finished theme instead of rebuilding it. Oldest
   /// entries go first, so album colors don't pile up.
   static final Map<(bool, WvAppearance, int?), ThemeData> _cache = {};
-  static const int _cacheLimit = 24;
+  static const int _cacheLimit = 32;
 
   static ThemeData _themed(bool dark, WvAppearance appearance, Color? seed) {
     final key = (dark, appearance, seed?.toARGB32());

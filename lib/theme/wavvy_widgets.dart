@@ -1,13 +1,26 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:wavvy/theme/wavvy_texture.dart';
 
 /// Kaisu-inspired paper surfaces, silver chrome and Aqua selection states.
 ///
 /// The color themes are Kaisu's: Aqua (blue) and its accent colors, made by
 /// turning Aqua's blue around the color wheel (see [WvPalette.hueShift]), plus
-/// Graphite.
-enum WvAppearance { aqua, orange, green, purple, pink, red, teal, graphite }
+/// Graphite, and two textured looks from Mac OS X: Pinstripe (Panther) and
+/// Brushed Metal (Tiger). The textures live in `wavvy_texture.dart`.
+enum WvAppearance {
+  aqua,
+  orange,
+  green,
+  purple,
+  pink,
+  red,
+  teal,
+  graphite,
+  pinstripe,
+  brushedMetal,
+}
 
 /// Colors for the current brightness + accent, exposed as a [ThemeExtension]
 /// so every widget reads it with [Wv.of].
@@ -139,8 +152,22 @@ class WvPalette extends ThemeExtension<WvPalette> {
       );
     }
 
-    // Album colors: the whole scheme comes from the artwork.
-    if (_usable(seed)) return from(seed!);
+    // Album colors: the whole scheme comes from the artwork (the textured
+    // looks keep their own neutral page and surfaces).
+    if (_usable(seed)) return _neutrals(from(seed!), dark, appearance);
+
+    if (appearance == WvAppearance.brushedMetal) {
+      // Steel blue accent; the controls keep Aqua's gel.
+      final primary = dark ? const Color(0xFFA6BCD8) : const Color(0xFF3A5A82);
+      return _neutrals(
+        from(const Color(0xFF3F5F86)).copyWith(
+          primary: primary,
+          onPrimary: dark ? const Color(0xFF14202E) : Colors.white,
+        ),
+        dark,
+        appearance,
+      );
+    }
 
     if (appearance == WvAppearance.graphite) {
       return from(const Color(0xFF526174)).copyWith(
@@ -151,19 +178,60 @@ class WvPalette extends ThemeExtension<WvPalette> {
 
     // Aqua, and its accents turned around the color wheel.
     final shift = hueShift[appearance] ?? 0;
+    final pinstripe = appearance == WvAppearance.pinstripe;
     final page = dark ? const Color(0xFF1E242D) : const Color(0xFFECECEC);
     final primary = _readable(
-      _turn(dark ? const Color(0xFF8CB9F5) : const Color(0xFF356FCB), shift),
+      _turn(
+        dark
+            ? Color(pinstripe ? 0xFF7FB0F7 : 0xFF8CB9F5)
+            : Color(pinstripe ? 0xFF2B68C9 : 0xFF356FCB),
+        shift,
+      ),
       page,
       darker: !dark,
     );
-    return from(_turn(const Color(0xFF2563B2), shift), shift: shift).copyWith(
-      primary: primary,
-      onPrimary: _onColor(
-        primary,
-        _turn(dark ? const Color(0xFF10233D) : Colors.white, shift),
-      ),
-    );
+    final scheme = from(_turn(const Color(0xFF2563B2), shift), shift: shift)
+        .copyWith(
+          primary: primary,
+          onPrimary: _onColor(
+            primary,
+            _turn(dark ? const Color(0xFF10233D) : Colors.white, shift),
+          ),
+        );
+    return pinstripe ? _neutrals(scheme, dark, appearance) : scheme;
+  }
+
+  /// The page and surface colors of the textured looks, over any accent.
+  static ColorScheme _neutrals(ColorScheme s, bool dark, WvAppearance a) {
+    switch (a) {
+      case WvAppearance.pinstripe:
+        // Panther: near-white paper with white cards; dark slate at night.
+        return s.copyWith(
+          surface: dark ? const Color(0xFF1A1F26) : const Color(0xFFF1F1F1),
+          surfaceContainerHigh: dark
+              ? const Color(0xFF262E39)
+              : const Color(0xFFF7F7F8),
+        );
+      case WvAppearance.brushedMetal:
+        // Tiger: silver aluminum, cool steel in the dark.
+        return s.copyWith(
+          surface: dark ? const Color(0xFF23272D) : const Color(0xFFD7D9DD),
+          surfaceContainer: dark
+              ? const Color(0xFF2C3138)
+              : const Color(0xFFEDEEF0),
+          surfaceContainerHigh: dark
+              ? const Color(0xFF353B43)
+              : const Color(0xFFF3F4F6),
+          surfaceContainerHighest: dark
+              ? const Color(0xFF414852)
+              : const Color(0xFFDCDFE4),
+          outlineVariant: dark
+              ? const Color(0xFF444B55)
+              : const Color(0xFFB4B9C1),
+        );
+      default:
+        return s;
+    }
   }
 
   // ------------------------------------------------------------- Surfaces
@@ -176,12 +244,57 @@ class WvPalette extends ThemeExtension<WvPalette> {
   Color get outline => scheme.outline;
   Color get shellBottom =>
       dark ? const Color(0xFF222A34) : const Color(0xFFE4E9EF);
-  Color get stripe => dark ? const Color(0xFF1B222C) : const Color(0xFFF1F5FB);
+  Color get stripe => switch (appearance) {
+    WvAppearance.brushedMetal =>
+      dark ? const Color(0xFF30363D) : const Color(0xFFE3E5E9),
+    _ => dark ? const Color(0xFF1B222C) : const Color(0xFFF1F5FB),
+  };
+
+  // ------------------------------------------------------------- Textures
+
+  /// The texture of this look, or null for the plain ones.
+  WvTextureKind? get textureKind => switch (appearance) {
+    WvAppearance.pinstripe => WvTextureKind.pinstripe,
+    WvAppearance.brushedMetal => WvTextureKind.brushed,
+    _ => null,
+  };
+
+  /// What a Scaffold on a screen wrapped in a `WvBackdrop` (or `WvSystemUi`)
+  /// uses as its background: transparent when textured, so the texture
+  /// behind it shows, otherwise [background].
+  Color get pageColor => textureKind == null ? background : Colors.transparent;
+
+  /// A silver sheen under the brushed grain, or null.
+  Gradient? get backdropGradient => appearance == WvAppearance.brushedMetal
+      ? LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: dark
+              ? const [Color(0x14FFFFFF), Color(0x00FFFFFF), Color(0x14000000)]
+              : const [Color(0x66FFFFFF), Color(0x00FFFFFF), Color(0x14000000)],
+        )
+      : null;
+
+  /// Brushed grain for toolbars, trays and sheet headers
+  /// (`BoxDecoration.image`); null for every other look.
+  DecorationImage? get chromeGrain => appearance == WvAppearance.brushedMetal
+      ? WvTextures.decoration(WvTextureKind.brushed, dark)
+      : null;
+
+  /// The page texture as a [DecorationImage], for small previews.
+  DecorationImage? get pageTexture {
+    final kind = textureKind;
+    return kind == null ? null : WvTextures.decoration(kind, dark);
+  }
 
   LinearGradient get chromeGradient => LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: dark
+    colors: appearance == WvAppearance.brushedMetal
+        ? (dark
+              ? const [Color(0xFF50565F), Color(0xFF3A4048), Color(0xFF2C3036)]
+              : const [Color(0xFFF4F5F7), Color(0xFFDCDFE3), Color(0xFFC3C7CE)])
+        : dark
         ? const [Color(0xFF3B414A), Color(0xFF2B3038), Color(0xFF22272F)]
         : const [Color(0xFFF7F7F7), Color(0xFFE2E3E5), Color(0xFFCDD0D4)],
     stops: const [0, 0.48, 1],

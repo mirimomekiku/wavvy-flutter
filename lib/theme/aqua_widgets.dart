@@ -711,6 +711,7 @@ class AquaWindow extends StatelessWidget {
                 padding: EdgeInsets.fromLTRB(12, 4, action == null ? 12 : 4, 4),
                 decoration: BoxDecoration(
                   gradient: a.chromeGradient,
+                  image: a.chromeGrain,
                   border: Border(
                     bottom: BorderSide(
                       color: a.outline.withValues(alpha: 0.55),
@@ -903,6 +904,7 @@ class AquaSheet extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(4, statusBar, 4, 0),
               decoration: BoxDecoration(
                 gradient: a.chromeGradient,
+                image: a.chromeGrain,
                 border: Border(
                   bottom: BorderSide(color: a.outline.withValues(alpha: 0.6)),
                 ),

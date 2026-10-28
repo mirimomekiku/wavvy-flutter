@@ -103,7 +103,7 @@ class SettingsScreen extends ConsumerWidget {
     );
     return WvSystemUi(
       child: Scaffold(
-        backgroundColor: a.background,
+        backgroundColor: a.pageColor,
         bottomNavigationBar: const BottomMiniPlayer(showTabView: false),
         // No SafeArea: the heading pads itself below the status bar.
         body: Column(

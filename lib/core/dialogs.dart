@@ -70,6 +70,7 @@ class WvDialog extends StatelessWidget {
                   constraints: const BoxConstraints(minHeight: 36),
                   decoration: BoxDecoration(
                     gradient: a.chromeGradient,
+                    image: a.chromeGrain,
                     border: Border(
                       bottom: BorderSide(
                         color: a.outline.withValues(alpha: 0.6),

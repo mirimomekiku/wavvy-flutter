@@ -298,6 +298,8 @@ void main() {
         'red',
         'teal',
         'graphite',
+        'pinstripe',
+        'brushedMetal',
       });
     });
   });

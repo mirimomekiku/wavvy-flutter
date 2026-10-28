@@ -4,8 +4,8 @@ import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/theme/wavvy_theme.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 
-/// The color themes, in the order they are shown: Kaisu's Aqua, its accent
-/// colors, then Graphite.
+/// The looks, in the order they are shown: Kaisu's Aqua, its accent colors,
+/// Graphite, then the two textured ones from Mac OS X.
 const _items = [
   (5, 'Aqua'),
   (7, 'Orange'),
@@ -15,7 +15,12 @@ const _items = [
   (11, 'Red'),
   (12, 'Teal'),
   (6, 'Graphite'),
+  (13, 'Pinstripe'),
+  (14, 'Brushed Metal'),
 ];
+
+/// The textured looks are shown two to a row, twice as wide, so their names fit.
+const _wideFrom = 8;
 
 /// A grid of color themes, each a small window in its own accent.
 class ThemeSelector extends ConsumerWidget {
@@ -58,7 +63,11 @@ class ThemeSelector extends ConsumerWidget {
                 Container(
                   height: 42,
                   decoration: BoxDecoration(
-                    color: a.surfaceHigh,
+                    color: palette.textureKind == null
+                        ? a.surfaceHigh
+                        : palette.background,
+                    // The preview shows the texture itself.
+                    image: palette.pageTexture,
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: a.separator),
                   ),
@@ -67,7 +76,13 @@ class ThemeSelector extends ConsumerWidget {
                       Container(
                         width: 11,
                         decoration: BoxDecoration(
-                          color: a.shellBottom,
+                          color: palette.textureKind == null
+                              ? a.shellBottom
+                              : null,
+                          gradient: palette.textureKind == null
+                              ? null
+                              : palette.chromeGradient,
+                          image: palette.chromeGrain,
                           borderRadius: const BorderRadius.horizontal(
                             left: Radius.circular(3),
                           ),
@@ -119,7 +134,7 @@ class ThemeSelector extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const GroupHeader('Color theme'),
-        for (var row = 0; row < _items.length; row += 4) ...[
+        for (var row = 0; row < _wideFrom; row += 4) ...[
           if (row > 0) const SizedBox(height: 10),
           Row(
             children: [
@@ -130,6 +145,15 @@ class ThemeSelector extends ConsumerWidget {
             ],
           ),
         ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            for (var i = _wideFrom; i < _items.length; i++) ...[
+              if (i > _wideFrom) const SizedBox(width: 10),
+              Expanded(child: tile(_items[i])),
+            ],
+          ],
+        ),
       ],
     );
   }

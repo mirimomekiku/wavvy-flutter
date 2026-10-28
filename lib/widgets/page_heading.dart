@@ -38,6 +38,7 @@ class WvPageHeading extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         gradient: a.chromeGradient,
+        image: a.chromeGrain,
         border: Border(
           bottom: BorderSide(color: a.outline.withValues(alpha: 0.55)),
         ),

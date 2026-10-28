@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/screens/home/view/home_view.dart';
 import 'package:wavvy/screens/library/library_tab.dart';
 import 'package:wavvy/screens/search/search_tab.dart';
+import 'package:wavvy/theme/wavvy_texture.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
 
@@ -46,6 +47,28 @@ class HomeScreen extends ConsumerWidget {
               _KeepAlive(child: SearchTab()),
             ],
           ),
+                child: WvBackdrop(
+                  child: Scaffold(
+                    extendBody: true,
+                    backgroundColor: a.pageColor,
+                    bottomNavigationBar: const BottomMiniPlayer(),
+                    // No SafeArea: each tab's heading pads itself below the
+                    // status bar so its background paints behind it.
+                    body: const TabBarView(
+                      // Pages scroll horizontally inside (shelves, chips), so
+                      // switching tabs is done from the bottom nav only.
+                      physics: NeverScrollableScrollPhysics(),
+                      children: [
+                        _KeepAlive(child: HomeView()),
+                        _KeepAlive(child: LibraryTab()),
+                        _KeepAlive(child: SearchTab()),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

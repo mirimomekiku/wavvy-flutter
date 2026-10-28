@@ -52,7 +52,17 @@ device's band count.
 - SQLite (`wavvy_playlists.db`, version 3): `playlists`, `playlist_songs`
   (unique per playlist and song), `song_stats`.
 - SharedPreferences: `feature_*` flags and `theme_scheme_index`. Theme index 5
-  is Aqua (default), 6 Graphite, 2 System; older indices migrate to Aqua.
+  is Aqua (default), 6 Graphite, 7-12 the accents, 13 Pinstripe, 14 Brushed
+  Metal; older indices (including the retired System, 2) migrate.
+- Textures (`theme/wavvy_texture.dart`): Pinstripe and Brushed Metal use a tiny
+  `ui.Image` tile per kind and brightness, built once from a seeded generator
+  and kept (`WvTextures`). The page uses `WvBackdrop` (opaque page color, then
+  one `RepaintBoundary` painting the tile shader), applied by `WvSystemUi` and
+  the tab shell; their Scaffolds use `pageColor` (transparent only when
+  textured), so every page is still opaque during transitions. Chrome adds
+  `image: a.chromeGrain` to its `BoxDecoration` (brushed only). The other looks
+  get no extra layer. Album colors tint the accent only; textures stay neutral.
+
 
 ## Not covered by tests
 

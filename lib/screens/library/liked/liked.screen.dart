@@ -22,7 +22,7 @@ class LikedSongsScreen extends ConsumerWidget {
 
     return WvSystemUi(
       child: Scaffold(
-        backgroundColor: a.background,
+        backgroundColor: a.pageColor,
         bottomNavigationBar: const BottomMiniPlayer(showTabView: false),
         body: CustomScrollView(
           slivers: [
