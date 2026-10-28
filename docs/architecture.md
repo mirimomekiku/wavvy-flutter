@@ -308,3 +308,9 @@ dock are the same in all of them.
   thin bezel with a glass reflection (a flipped, faded copy in its own
   repaint boundary), and the shared controls. Its LCD has its own copy of the seek
   logic, so a fix to `PlayerSeekRow` does not reach it by itself.
+- **Cover Flow:** the queue as a row of tilted covers with reflections (a lazy
+  `PageView`, only the covers near the middle are built, so queue length does not
+  matter). Settling on a cover jumps the player there once; other track changes
+  slide the row without telling the player again. Tapping the middle cover turns it
+  over to show the next 20 songs. With reduced motion the covers are flat and the
+  flip is instant. Swiping while paused does not start playback.
