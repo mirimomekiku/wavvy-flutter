@@ -22,6 +22,13 @@ import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/open_player.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 
+/// Total length of the library in milliseconds, summed once per library
+/// change rather than on every rebuild of Home.
+final _libraryTotalMsProvider = Provider<int>((ref) {
+  final songs = ref.watch(libraryProvider.select((s) => s.songs));
+  return songs.fold<int>(0, (sum, s) => sum + (s.duration ?? 0));
+});
+
 class HomeView extends ConsumerWidget {
   const HomeView({super.key});
   static String greeting({DateTime? now}) {
@@ -43,9 +50,12 @@ class HomeView extends ConsumerWidget {
     final library = ref.watch(libraryProvider);
     final feed = ref.watch(homeFeedProvider);
     final stats = ref.watch(settingsProvider.select((s) => s.showStats));
-    final player = ref.watch(playerProvider);
+    // Only what this screen shows: the playing song and whether it is playing,
+    // not the whole player state (queue edits, shuffle, sleep timer...).
+    final song = ref.watch(playerProvider.select((p) => p.currentSong));
+    final isPlaying = ref.watch(playerProvider.select((p) => p.isPlaying));
     final liked = ref.watch(likedSongsProvider);
-    final song = player.currentSong;
+    final totalMs = ref.watch(_libraryTotalMsProvider);
     final actions = ref.read(playerProvider.notifier);
 
     void toLibrary([LibrarySection? section]) {
@@ -251,13 +261,13 @@ class HomeView extends ConsumerWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                player.isPlaying
+                                isPlaying
                                     ? Icons.pause_rounded
                                     : Icons.play_arrow_rounded,
                                 size: 18,
                               ),
                               const SizedBox(width: 4),
-                              Text(player.isPlaying ? 'Pause' : 'Play'),
+                              Text(isPlaying ? 'Pause' : 'Play'),
                             ],
                           ),
                         ),
@@ -327,7 +337,7 @@ class HomeView extends ConsumerWidget {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      '${totalTime(library.songs.fold<int>(0, (sum, s) => sum + (s.duration ?? 0)))} of music',
+                      '${totalTime(totalMs)} of music',
                       style: TextStyle(fontSize: 12, color: a.textSecondary),
                     ),
                   ],
@@ -709,12 +719,16 @@ class _HomeTrack extends ConsumerWidget {
   final List<SongModel> songs;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final player = ref.watch(playerProvider);
+    final isCurrent = ref.watch(
+      playerProvider.select((p) => p.currentSong?.id == song.id),
+    );
+    final isPlaying =
+        isCurrent && ref.watch(playerProvider.select((p) => p.isPlaying));
     return WvSongRow(
       song: song,
       index: index,
-      isCurrent: player.currentSong?.id == song.id,
-      isPlaying: player.isPlaying,
+      isCurrent: isCurrent,
+      isPlaying: isPlaying,
       secondary: song.artist ?? 'Unknown Artist',
       onTap: () =>
           ref.read(playerProvider.notifier).playSong(song, contextList: songs),

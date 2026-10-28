@@ -53,7 +53,8 @@ class WavvyMaterialApp extends ConsumerWidget {
       // Material rebuilding the whole app on every frame of a theme tween.
       themeAnimationDuration: Duration.zero,
       builder: (context, child) => ThemeCrossFade(
-        themeKey: (isDark, themeIndex, seed?.toARGB32()),
+        themeKey: (isDark, themeIndex, seed != null),
+        tintKey: seed?.toARGB32(),
         child: child ?? const SizedBox.shrink(),
       ),
       home: home,

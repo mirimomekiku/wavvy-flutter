@@ -7,6 +7,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:metadata_god/metadata_god.dart';
+import 'package:wavvy/core/error_hooks.dart';
 import 'package:wavvy/instances/audio_handler.instance.dart';
 import 'package:wavvy/providers/audio_coordinator.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
@@ -22,6 +23,7 @@ import 'package:wavvy/wavvy_app.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  installErrorHooks();
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks([
       'Work Sans',

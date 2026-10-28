@@ -55,7 +55,8 @@ class PaletteNotifier extends Notifier<PaletteState> {
             songId,
             ArtworkType.AUDIO,
             format: ArtworkFormat.JPEG,
-            size: 512,
+            // The palette only needs the broad colors.
+            size: 200,
           );
       // No embedded art: a fetched cover (see album_art_provider.dart).
       if (bytes == null || bytes.isEmpty) {

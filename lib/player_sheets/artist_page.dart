@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/artist_info_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
@@ -14,6 +15,19 @@ import 'package:wavvy/widgets/wv_song_list.dart';
 /// The player's Artist tab as three Aqua windows: the artist (photo, name and
 /// an LCD readout of what you own), the biography, and their songs on this
 /// device.
+/// The library's songs by one artist, found once per library change instead
+/// of on every rebuild of the page.
+final _artistSongsProvider = Provider.family<List<SongModel>, String?>((
+  ref,
+  artist,
+) {
+  final songs = ref.watch(libraryProvider.select((s) => s.songs));
+  return [
+    for (final s in songs)
+      if (s.artist == artist) s,
+  ];
+});
+
 class ArtistInfoPage extends ConsumerWidget {
   const ArtistInfoPage({super.key});
 
@@ -21,17 +35,17 @@ class ArtistInfoPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final a = Wv.of(context);
     final info = ref.watch(artistInfoProvider);
-    final player = ref.watch(playerProvider);
-    final song = player.currentSong;
-    final library = ref.watch(libraryProvider);
+    final song = ref.watch(playerProvider.select((p) => p.currentSong));
+    final isPlaying = ref.watch(playerProvider.select((p) => p.isPlaying));
+    final artists = ref.watch(libraryProvider.select((s) => s.artists));
 
     final name = song?.artist ?? 'Unknown Artist';
     final known =
         song != null && song.artist != null && song.artist != '<unknown>';
-    final mine = library.songs.where((s) => s.artist == song?.artist).toList();
+    final mine = ref.watch(_artistSongsProvider(song?.artist));
     final albums = {for (final s in mine) s.album}.length;
     final totalMs = mine.fold<int>(0, (sum, s) => sum + (s.duration ?? 0));
-    final artistModel = library.artists
+    final artistModel = artists
         .where((x) => x.id == song?.artistId)
         .firstOrNull;
 
@@ -198,7 +212,7 @@ class ArtistInfoPage extends ConsumerWidget {
                           song: mine[i],
                           index: i,
                           isCurrent: song?.id == mine[i].id,
-                          isPlaying: player.isPlaying,
+                          isPlaying: isPlaying,
                           secondary: mine[i].album ?? 'Unknown Album',
                           onTap: () => ref
                               .read(playerProvider.notifier)

@@ -1620,7 +1620,7 @@ class _VerticalSliderPainter extends CustomPainter {
 
 /// The Now Playing scrubber: a recessed groove that fills with blue gel up to
 /// a glossy knob, like the iTunes progress bar. Tap or drag to seek.
-class AquaSeekBar extends StatelessWidget {
+class AquaSeekBar extends StatefulWidget {
   const AquaSeekBar({
     super.key,
     required this.value,
@@ -1633,7 +1633,12 @@ class AquaSeekBar extends StatelessWidget {
   });
   final double value;
   final double max;
+
+  /// The thumb moved (a tap, or each step of a drag).
   final ValueChanged<double> onChanged;
+
+  /// The interaction is over, at the value it ended on. Seeking here, rather
+  /// than in [onChanged], asks the player once per gesture.
   final ValueChanged<double>? onChangeEnd;
 
   /// An A-B loop to mark on the bar, in the same units as [value]. A start
@@ -1647,10 +1652,29 @@ class AquaSeekBar extends StatelessWidget {
   static const double _pad = 11;
 
   @override
+  State<AquaSeekBar> createState() => _AquaSeekBarState();
+}
+
+class _AquaSeekBarState extends State<AquaSeekBar> {
+  double _last = 0;
+  bool _dragging = false;
+
+  double _at(double dx, double width) {
+    final span = width - AquaSeekBar._pad * 2;
+    if (span <= 0) return 0;
+    return ((dx - AquaSeekBar._pad) / span).clamp(0.0, 1.0) * widget.max;
+  }
+
+  void _end() => widget.onChangeEnd?.call(_last);
+
+  @override
   Widget build(BuildContext context) {
     final a = Wv.of(context);
-    final v = value.clamp(0.0, max);
-    final s = step ?? max / 20;
+    final max = widget.max;
+    final v = widget.value.clamp(0.0, max);
+    final s = widget.step ?? max / 20;
+    final loopStart = widget.loopStart;
+    final loopEnd = widget.loopEnd;
     return Semantics(
       slider: true,
       label: 'Seek',
@@ -1659,26 +1683,45 @@ class AquaSeekBar extends StatelessWidget {
           '${(max > 0 ? (v + s).clamp(0.0, max) / max * 100 : 0).round()}%',
       decreasedValue:
           '${(max > 0 ? (v - s).clamp(0.0, max) / max * 100 : 0).round()}%',
-      onIncrease: () => onChanged((v + s).clamp(0.0, max)),
-      onDecrease: () => onChanged((v - s).clamp(0.0, max)),
+      onIncrease: () {
+        final next = (v + s).clamp(0.0, max);
+        widget.onChanged(next);
+        widget.onChangeEnd?.call(next);
+      },
+      onDecrease: () {
+        final next = (v - s).clamp(0.0, max);
+        widget.onChanged(next);
+        widget.onChangeEnd?.call(next);
+      },
       child: ExcludeSemantics(
         child: LayoutBuilder(
           builder: (context, c) {
             final width = c.maxWidth;
-            double at(double dx) {
-              final span = width - _pad * 2;
-              if (span <= 0) return 0;
-              return ((dx - _pad) / span).clamp(0.0, 1.0) * max;
-            }
-
-            double last = v;
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTapDown: (d) => onChanged(last = at(d.localPosition.dx)),
-              onTapUp: (_) => onChangeEnd?.call(last),
-              onHorizontalDragUpdate: (d) =>
-                  onChanged(last = at(d.localPosition.dx)),
-              onHorizontalDragEnd: (_) => onChangeEnd?.call(last),
+              onTapDown: (d) {
+                widget.onChanged(_last = _at(d.localPosition.dx, width));
+              },
+              onTapUp: (_) => _end(),
+              // A tap that a drag (or a parent's scroll) takes over is
+              // cancelled. If a drag took it over, the drag ends it; if
+              // not, nothing else will, so end it here once that is known.
+              onTapCancel: () => Future<void>.microtask(() {
+                if (mounted && !_dragging) _end();
+              }),
+              onHorizontalDragStart: (_) => _dragging = true,
+              onHorizontalDragUpdate: (d) {
+                widget.onChanged(_last = _at(d.localPosition.dx, width));
+              },
+              onHorizontalDragEnd: (_) {
+                _dragging = false;
+                _end();
+              },
+              onHorizontalDragCancel: () {
+                if (!_dragging) return;
+                _dragging = false;
+                _end();
+              },
               child: SizedBox(
                 height: 32,
                 width: double.infinity,
@@ -1688,10 +1731,10 @@ class AquaSeekBar extends StatelessWidget {
                       a,
                       max > 0 ? v / max : 0,
                       max > 0 && loopStart != null
-                          ? (loopStart! / max).clamp(0.0, 1.0)
+                          ? (loopStart / max).clamp(0.0, 1.0)
                           : null,
                       max > 0 && loopEnd != null
-                          ? (loopEnd! / max).clamp(0.0, 1.0)
+                          ? (loopEnd / max).clamp(0.0, 1.0)
                           : null,
                     ),
                   ),

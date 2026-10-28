@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -34,6 +36,29 @@ class LibraryQueryNotifier extends Notifier<String> {
   void set(String query) => state = query;
 }
 
+/// What each song is searched on, lowercased once per library change instead
+/// of once per keystroke.
+final _searchKeysProvider = Provider<List<String>>((ref) {
+  final songs = ref.watch(libraryProvider.select((s) => s.songs));
+  return [
+    for (final s in songs)
+      '${s.title} ${s.artist ?? ''} ${s.album ?? ''}'.toLowerCase(),
+  ];
+});
+
+/// The songs that match the filter field (all of them when it is empty).
+final librarySongsProvider = Provider<List<SongModel>>((ref) {
+  final songs = ref.watch(libraryProvider.select((s) => s.songs));
+  final q = ref.watch(libraryQueryProvider).trim().toLowerCase();
+  if (q.isEmpty) return songs;
+  final keys = ref.watch(_searchKeysProvider);
+  return [
+    for (var i = 0; i < songs.length; i++)
+      if (keys[i].contains(q)) songs[i],
+  ];
+});
+
+/// The albums that match the filter field.
 const _sectionLabels = ['Songs', 'Albums', 'Artists', 'Playlists'];
 
 const _sortLabels = ['Title', 'Artist', 'Recently added'];
@@ -128,6 +153,14 @@ class LibraryTab extends ConsumerWidget {
   }
 }
 
+        final songs = ref.watch(librarySongsProvider);
+        count = songs.length;
+        labelAt = switch (ref.watch(libraryProvider.select((s) => s.sort))) {
+          SortOption.titleAZ || SortOption.titleZA => (i) => songs[i].title,
+          SortOption.artistAZ => (i) => songs[i].artist ?? '',
+          SortOption.dateNewest || SortOption.dateOldest => null,
+        };
+      case LibrarySection.albums:
 class _Header extends ConsumerWidget {
   final LibrarySection section;
 
@@ -162,8 +195,34 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
   late final TextEditingController _query = TextEditingController(
     text: ref.read(libraryQueryProvider),
   );
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _hadText = _query.text.isNotEmpty;
+    _query.addListener(_onText);
+  }
+
+  bool _hadText = false;
+
+  /// Redraws only when the clear button has to appear or go.
+  void _onText() {
+    final has = _query.text.isNotEmpty;
+    if (has != _hadText) setState(() => _hadText = has);
+  }
+
+  /// Filters after a short pause in typing, not on every key.
+  void _filterSoon(String text) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 200), () {
+      ref.read(libraryQueryProvider.notifier).set(text);
+    });
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _query.dispose();
     super.dispose();
   }
@@ -176,7 +235,7 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
       child: AquaSearchFrame(
         child: TextField(
           controller: _query,
-          onChanged: (v) => ref.read(libraryQueryProvider.notifier).set(v),
+          onChanged: _filterSoon,
           style: const TextStyle(fontSize: 14),
           decoration: aquaSearchDecoration(
             context,
@@ -186,7 +245,7 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
               size: 19,
               color: a.textSecondary,
             ),
-            suffix: ref.watch(libraryQueryProvider).isEmpty
+            suffix: !_hadText
                 ? null
                 : IconButton(
                     tooltip: 'Clear filter',
@@ -196,6 +255,7 @@ class _LibrarySearchState extends ConsumerState<_LibrarySearch> {
                       color: a.textSecondary,
                     ),
                     onPressed: () {
+                      _debounce?.cancel();
                       _query.clear();
                       ref.read(libraryQueryProvider.notifier).set('');
                     },
@@ -356,14 +416,7 @@ class _SongsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final all = ref.watch(libraryProvider.select((s) => s.songs));
-    final q = ref.watch(libraryQueryProvider).trim().toLowerCase();
-    final songs = all
-        .where(
-          (s) => '${s.title} ${s.artist ?? ''} ${s.album ?? ''}'
-              .toLowerCase()
-              .contains(q),
-        )
-        .toList();
+    final songs = ref.watch(librarySongsProvider);
 
     if (songs.isEmpty) {
       return SliverFillRemaining(
@@ -475,7 +528,10 @@ class _SongRow extends ConsumerWidget {
     final isCurrent = ref.watch(
       playerProvider.select((s) => s.currentSong?.id == song.id),
     );
-    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    // Only the current row shows play or pause, so the others do not rebuild
+    // when playback toggles.
+    final isPlaying =
+        isCurrent && ref.watch(playerProvider.select((s) => s.isPlaying));
 
     void showMenu() => SongMenuHelper.show(
       context,
@@ -493,21 +549,7 @@ class _SongRow extends ConsumerWidget {
       secondary: song.artist ?? 'Unknown Artist',
       onTap: () => ref
           .read(playerProvider.notifier)
-          .playSong(
-            song,
-            contextList: ref
-                .read(libraryProvider)
-                .songs
-                .where(
-                  (s) => '${s.title} ${s.artist ?? ""} ${s.album ?? ""}'
-                      .toLowerCase()
-                      .contains(
-                        ref.read(libraryQueryProvider).trim().toLowerCase(),
-                      ),
-                )
-                .toList(),
-          ),
-      onLongPress: showMenu,
+          .playSong(song, contextList: ref.read(librarySongsProvider)),
       onAction: showMenu,
     );
   }

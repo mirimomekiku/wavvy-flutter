@@ -127,3 +127,17 @@ Settings > Library & online content).
 - No tag writing: covers are never embedded into the audio files (that would need
   the per-file write consent of "Edit tags"). Other apps do not see them.
 
+## Performance notes
+
+- The seek bar reports `onChangeEnd` and the player sheet seeks once per
+  gesture, not per touch event.
+- `wvArtwork` asks for the size it is shown at, in device pixels.
+- The Library filter is debounced and its matches are a provider
+  (`librarySongsProvider`) over search keys built once per library change.
+- Home, the artist tab and song rows watch only what they show.
+- `ThemeCrossFade.tintKey` makes the album-color fade cheap: screen
+  resolution, short, skipped while fading, in the background or when the color
+  hardly changed.
+- `installErrorHooks` (`core/error_hooks.dart`) logs and remembers framework
+  and unhandled async errors.
+

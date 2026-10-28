@@ -253,7 +253,10 @@ void main() {
       phone(tester);
       await tester.pumpWidget(_app());
       await tester.enterText(find.byType(TextField), 'Song 2');
-      await tester.pump();
+      // The filter waits for a pause in typing, not every key.
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('Song 1'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 250));
       expect(find.text('Song 1'), findsNothing);
       expect(
         find.byWidgetPredicate(

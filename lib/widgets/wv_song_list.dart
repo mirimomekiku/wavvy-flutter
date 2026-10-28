@@ -530,23 +530,31 @@ class WvSongRow extends StatelessWidget {
   }
 }
 
+/// Album or song art sized for how it is shown: the platform is asked for
+/// [size] logical pixels at the screen's density, not a fixed large image, so a
+/// long list of small thumbnails stays light to load, decode and keep.
 Widget wvArtwork(
   BuildContext context, {
   required int id,
   required ArtworkType type,
   required double size,
   required IconData placeholder,
-}) => QueryArtworkWidget(
-  id: id,
-  type: type,
-  artworkFit: BoxFit.cover,
-  artworkQuality: FilterQuality.high,
-  size: 600,
-  artworkWidth: size,
-  artworkHeight: size,
-  artworkBorder: BorderRadius.zero,
-  nullArtworkWidget: WvMediaPlaceholder(seed: id, size: size),
-);
+}) {
+  final pixels = (size * MediaQuery.devicePixelRatioOf(context)).ceil().clamp(
+    64,
+    1000,
+  );
+  return QueryArtworkWidget(
+    id: id,
+    type: type,
+    artworkFit: BoxFit.cover,
+    artworkQuality: size >= 96 ? FilterQuality.high : FilterQuality.medium,
+    size: pixels,
+    quality: 85,
+    keepOldArtwork: true,
+    artworkWidth: size,
+    artworkHeight: size,
+    artworkBorder: BorderRadius.zero,
     nullArtworkWidget: AlbumArtFallback(
       id: id,
       type: type,
