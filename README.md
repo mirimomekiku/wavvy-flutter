@@ -62,6 +62,9 @@ build has no downloader (see [Builds](#builds)).
   pictures in the app's private folder and never writes into your music files. A "Find
   cover" action on each album works even with the setting off.
 - Lyric cards: pick up to four lines and share them as an image.
+- Now playing card: "Share card" in the song menu previews the song as an image in an Aqua
+  window, Poster or Minimal style (square, 4:5 or 9:16, optional Wavvy mark and time line)
+  and shares it as a PNG, all offline.
 - Tag editing (title, artist, album, year, genre).
 
 ### Library

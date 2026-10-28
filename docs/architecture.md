@@ -342,3 +342,29 @@ Unverified without a device: how each layout looks and feels (tilt and
 perspective values, the wheel and meter motion, blur cost, touch targets), and
 whether the Play build really drops `HifiLiveMeters`.
 
+## Now playing share card
+
+"Share card" in the song menu (`SongMenuOptions.showShareCard`, also for files opened
+from outside, which get a card without a cover) opens `NowPlayingCardScreen`
+(`screens/share/`): a live preview, a style picker (Aqua window, Poster, Minimal), a shape
+picker (Square 1:1, Portrait 4:5, Story 9:16), a toggle for the Wavvy mark and, for the
+playing song only, one for the elapsed/total line. Style and shape are remembered in
+SharedPreferences (`share_card_style`, `share_card_aspect`, `nowPlayingCardPrefsProvider`).
+
+- **Widgets** (`widgets/now_playing_card.dart`): `NowPlayingCard` takes a plain
+  `NowPlayingCardData` (no providers) and draws in the surrounding theme: Aqua, Graphite,
+  Pinstripe stripes, Brushed Metal grain, light or dark, Album colors. It lays out at 360
+  logical px wide with text scaling off; long titles shrink (`fitFontSize`) then get an
+  ellipsis. No cover draws `WvMediaPlaceholder`.
+- **Export:** `nowPlayingCardSizing` maps the aspect to 360 x 360/450/640 logical px and a
+  pixel ratio of 3, so the PNG is 1080 wide (1080x1920 for Story, about 8 MB of pixels).
+  The card is rendered off-screen with `ScreenshotController.captureFromWidget` (the cover
+  is pre-cached so it is in the image), written to one fixed temp file and shared with
+  share_plus as "Title - Artist". The file is overwritten each time, not deleted: the
+  receiving app reads it after the share call returns. The capture and the share are
+  providers (`nowPlayingCardCapturerProvider`, `nowPlayingCardSharerProvider`) that tests
+  override; a busy flag stops a double tap, errors show a toast.
+
+Unverified without a device: the real off-screen capture (cover decoding, blur and texture
+in the PNG), the share sheet, and how the cards look at real sizes.
+

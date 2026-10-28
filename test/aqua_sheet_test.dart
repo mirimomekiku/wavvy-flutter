@@ -145,6 +145,7 @@ void main() {
               showSleepTimer: false,
               showEditTags: false,
               showShare: false,
+              showShareCard: false,
             ),
           ),
         ),

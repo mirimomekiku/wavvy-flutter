@@ -9,6 +9,7 @@ import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/screens/audio_effects/effects.screen.dart';
 import 'package:wavvy/screens/library/albums/view/album.screen.dart';
 import 'package:wavvy/screens/library/artists/view/artist.screen.dart';
+import 'package:wavvy/screens/share/now_playing_card_screen.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/utils/player.utils.dart';
@@ -29,6 +30,7 @@ class SongMenuOptions {
   final bool showEditTags;
   final bool showDelete;
   final bool showShare;
+  final bool showShareCard;
   final bool showCustomEqualizer;
   final bool showSystemEqualizer;
   final bool showSongInfo;
@@ -45,6 +47,7 @@ class SongMenuOptions {
     this.showEditTags = true,
     this.showDelete = false,
     this.showShare = true,
+    this.showShareCard = true,
     this.showCustomEqualizer = false,
     this.showSystemEqualizer = false,
     this.showSongInfo = false,
@@ -159,7 +162,14 @@ class SongMenuHelper {
               label: 'Share',
               onTap: close(() => PlayerUtils.shareSong(song)),
             ),
-          if (options.showEditTags)
+          // Also for a file opened from outside: it gets a card without a cover.
+          if (options.showShareCard)
+            AquaMenuRow(
+              icon: Icons.photo_outlined,
+              label: 'Share card',
+              chevron: true,
+              onTap: close(() => AppNav.push(NowPlayingCardScreen(song: song))),
+            ),
           if (options.showEditTags && inLibrary)
             AquaMenuRow(
               icon: Icons.edit_rounded,
