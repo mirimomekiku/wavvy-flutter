@@ -19,6 +19,9 @@ build has no downloader (see [Builds](#builds)).
 - Reopens with the queue and position you left; headphone and call handling you can tune.
 - Volume leveling from ReplayGain tags; crossfade (experimental).
 - Favorites with a Liked songs list, and a home-screen widget.
+- Hold volume up for the next song and volume down for the previous one (Settings,
+  off by default). Android only passes the keys to Wavvy while it is on screen, so
+  this does not work with the screen off or in another app.
 - Fade in and out on play and pause, and skip silence (both off by default).
 - Sound: a 5-band equalizer with 19 presets, your own saved presets and a preamp
   that prevents clipping, bass boost, virtualizer, reverb and a

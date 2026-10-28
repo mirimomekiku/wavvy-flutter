@@ -116,6 +116,16 @@ back as a whole), `deleteSongs` (one `createDeleteRequest` on Android 11+),
 `FavoritesNotifier.setAll`, `PlaylistsNotifier.addSongsToLocalPlaylist` (one
 transaction) and `PlayerUtils.shareSongs`.
 
+## Volume keys and Open with
+
+Both are a small Kotlin helper plus a Dart wrapper behind an overridable provider
+(`core/volume_keys.dart`, `core/external_audio.dart`, watched in `MyApp`).
+
+- Volume keys (`VolumeKeySkip.kt`, `MainActivity.dispatchKeyEvent`): off by
+  default (`volumeKeySkip`). When on, a press is held back; released early it
+  changes the music volume itself, held past the long-press time it sends `skip`
+  ("next" / "previous") once. Activities only see the keys while their window has
+  focus, so it does nothing with the screen off or in another app.
 ## Fast scroller and Home shelves
 
 `FastScroller` (`widgets/fast_scroller.dart`) wraps the Library scroll view. A

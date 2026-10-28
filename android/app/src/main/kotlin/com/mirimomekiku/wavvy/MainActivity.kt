@@ -15,6 +15,7 @@ import android.os.Looper
 import android.os.Process
 import android.provider.MediaStore
 import android.util.Log
+import android.view.KeyEvent
 import com.mirimomekiku.wavvy.widget.WavvyWidgetProvider
 import com.mirimomekiku.wavvy.ytdlp.YtDlpPlugin
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -43,6 +44,11 @@ class MainActivity : AudioServiceActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingDelete: Uri? = null
 
+    // Hold-a-volume-key skipping and "Open with" (VolumeKeySkip.kt, ExternalAudio.kt).
+    private val volumeKeys by lazy { VolumeKeySkip(this) }
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+        volumeKeys.onKeyEvent(event) || super.dispatchKeyEvent(event)
+
     // Spectrum for the visualizer page; released with the Activity.
     private var visualizerBridge: VisualizerBridge? = null
 
@@ -59,6 +65,7 @@ class MainActivity : AudioServiceActivity() {
         // The downloader exists only in the full flavor; the Play flavor's
         // version of this call does nothing.
         YtDlpPlugin.register(this, flutterEngine)
+        volumeKeys.register(flutterEngine.dartExecutor.binaryMessenger)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         MethodChannel(messenger, EFFECTS_CHANNEL).setMethodCallHandler { call, result ->

@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:wavvy/core/error_hooks.dart';
+import 'package:wavvy/core/volume_keys.dart';
 import 'package:wavvy/instances/audio_handler.instance.dart';
 import 'package:wavvy/providers/audio_coordinator.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
@@ -99,6 +100,7 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Keep app-lifetime providers alive without rebuilding on every event.
     ref.watch(audioCoordinatorProvider);
+    ref.watch(volumeKeysProvider);
     if (kDownloaderAvailable) {
       // Follows downloads (and finishes them) for the whole app lifetime.
       ref.watch(downloadsProvider.notifier);

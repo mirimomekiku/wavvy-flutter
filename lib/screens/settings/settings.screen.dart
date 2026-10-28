@@ -248,6 +248,12 @@ class SettingsScreen extends ConsumerWidget {
                         s.shakeExtendsSleep,
                         n.toggleShakeExtendsSleep,
                       ),
+                        'Volume keys',
+                        'Hold volume up for the next song and volume down for the previous one. Works only while Wavvy is on screen',
+                        Icons.volume_up_rounded,
+                        s.volumeKeySkip,
+                        n.toggleVolumeKeySkip,
+                      ),
                       if (kVisualizerAvailable)
                         toggle(
                           'Visualizer',
