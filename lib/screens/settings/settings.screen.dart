@@ -7,6 +7,7 @@ import 'package:wavvy/downloader/ui/engine_card.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/screens/settings/album_art_setting.dart';
+import 'package:wavvy/screens/settings/player_layout_setting.dart';
 import 'package:wavvy/screens/settings/visualizer_setting.dart';
 import 'package:wavvy/screens/stats/stats.screen.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
@@ -248,6 +249,8 @@ class SettingsScreen extends ConsumerWidget {
                         s.shakeExtendsSleep,
                         n.toggleShakeExtendsSleep,
                       ),
+                      const PlayerLayoutSettingTile(),
+                      toggle(
                         'Volume keys',
                         'Hold volume up for the next song and volume down for the previous one. Works only while Wavvy is on screen',
                         Icons.volume_up_rounded,

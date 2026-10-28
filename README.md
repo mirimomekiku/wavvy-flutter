@@ -43,7 +43,10 @@ build has no downloader (see [Builds](#builds)).
   **Brushed Metal** (Tiger: brushed-aluminum grain on toolbars, trays, sheet
   headers and the page, steel-blue accent), each in light and dark.
 - Optional **Album colors**: tint the whole app from the current artwork.
-- A vinyl-and-tonearm player sheet with Player, Queue, Lyrics and Artist tabs.
+- A player sheet with Player, Queue, Lyrics and Artist tabs, and seven looks for the
+  Player page (Settings > Now Playing layout): Vinyl (record and tonearm), iTunes
+  LCD, Cover Flow, Hi-Fi deck, Poster, Lyrics first and Two panes. In landscape
+  and on tablets it shows two panes by itself (the switch can be turned off).
 - Optional **Visualizer** tab (full build only, off by default): a real spectrum,
   in Aqua gel bars, from Android's audio-effects `Visualizer` on Wavvy's own
   audio session. Android requires the microphone permission for this; nothing is

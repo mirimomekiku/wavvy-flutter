@@ -53,6 +53,14 @@ class SettingsState {
   /// Hold volume up / down for the next / previous song (while the app is open).
   final bool volumeKeySkip;
 
+  /// The Now Playing layout, as an index into `PlayerLayout` (0 is the vinyl
+  /// deck).
+  final int playerLayout;
+
+  /// Show two panes on wide screens (landscape, tablets) whatever layout is
+  /// chosen.
+  final bool playerLayoutAdaptive;
+
   /// 0 off, 1 track gain, 2 album gain.
   final int replayGainMode;
 
@@ -91,6 +99,8 @@ class SettingsState {
     this.smartShuffle = true,
     this.shakeExtendsSleep = false,
     this.volumeKeySkip = false,
+    this.playerLayout = 0,
+    this.playerLayoutAdaptive = true,
     this.replayGainMode = 0,
     this.crossfadeSeconds = 0,
     this.enableWakeLock = false,
@@ -125,6 +135,8 @@ class SettingsState {
     bool? smartShuffle,
     bool? shakeExtendsSleep,
     bool? volumeKeySkip,
+    int? playerLayout,
+    bool? playerLayoutAdaptive,
     int? replayGainMode,
     int? crossfadeSeconds,
     bool? enableWakeLock,
@@ -155,6 +167,8 @@ class SettingsState {
     smartShuffle: smartShuffle ?? this.smartShuffle,
     shakeExtendsSleep: shakeExtendsSleep ?? this.shakeExtendsSleep,
     volumeKeySkip: volumeKeySkip ?? this.volumeKeySkip,
+    playerLayout: playerLayout ?? this.playerLayout,
+    playerLayoutAdaptive: playerLayoutAdaptive ?? this.playerLayoutAdaptive,
     replayGainMode: replayGainMode ?? this.replayGainMode,
     crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
     enableWakeLock: enableWakeLock ?? this.enableWakeLock,
@@ -196,6 +210,8 @@ class SettingsNotifier extends Notifier<SettingsState> {
   static const String _kSmartShuffle = 'feature_smart_shuffle';
   static const String _kShakeExtendsSleep = 'feature_shake_extends_sleep';
   static const String _kVolumeKeySkip = 'feature_volume_key_skip';
+  static const String _kPlayerLayout = 'feature_player_layout';
+  static const String _kPlayerLayoutAdaptive = 'feature_player_layout_adaptive';
   static const String _kReplayGainMode = 'feature_replay_gain';
   static const String _kCrossfadeSeconds = 'feature_crossfade_seconds';
   static const String _kWakeLock = 'feature_wake_lock';
@@ -236,6 +252,9 @@ class SettingsNotifier extends Notifier<SettingsState> {
       smartShuffle: await _prefs.getBool(_kSmartShuffle) ?? true,
       shakeExtendsSleep: await _prefs.getBool(_kShakeExtendsSleep) ?? false,
       volumeKeySkip: await _prefs.getBool(_kVolumeKeySkip) ?? false,
+      playerLayout: (await _prefs.getInt(_kPlayerLayout)) ?? 0,
+      playerLayoutAdaptive:
+          await _prefs.getBool(_kPlayerLayoutAdaptive) ?? true,
       replayGainMode: (await _prefs.getInt(_kReplayGainMode)) ?? 0,
       crossfadeSeconds: (await _prefs.getInt(_kCrossfadeSeconds)) ?? 0,
       enableWakeLock: await _prefs.getBool(_kWakeLock) ?? false,
@@ -348,6 +367,16 @@ class SettingsNotifier extends Notifier<SettingsState> {
   Future<void> toggleVolumeKeySkip(bool value) async {
     state = state.copyWith(volumeKeySkip: value);
     await _prefs.setBool(_kVolumeKeySkip, value);
+  }
+
+  Future<void> setPlayerLayout(int index) async {
+    state = state.copyWith(playerLayout: index);
+    await _prefs.setInt(_kPlayerLayout, index);
+  }
+
+  Future<void> togglePlayerLayoutAdaptive(bool value) async {
+    state = state.copyWith(playerLayoutAdaptive: value);
+    await _prefs.setBool(_kPlayerLayoutAdaptive, value);
   }
 
   Future<void> setReplayGainMode(int value) async {

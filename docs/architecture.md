@@ -279,3 +279,27 @@ Settings > Library & online content).
 - `installErrorHooks` (`core/error_hooks.dart`) logs and remembers framework
   and unhandled async errors.
 
+## Now Playing layouts
+
+Only the Player page of the sheet changes; Queue, Lyrics, About and the
+Visualizer pages, the bottom switcher, the seek bar, the transport and the mode
+dock are the same in all of them.
+
+- **Framework** (`lib/player_sheets/layouts/`): `PlayerLayout` (a saved index:
+  add new ones at the end), the registries `kPlayerLayoutBuilders` and
+  `kPlayerLayoutPreviews`, `PlayerLayoutHost` (resolves the layout and keys it so
+  no state leaks between layouts), `PlayerLayoutData` (the song and the places it
+  can send the user) and `layout_parts.dart`, the shared pieces: `PlayerTitleBlock`,
+  `PlayerSongActions`, `PlayerSeekRow`, `PlayerExtras`, `PlayerTransport`,
+  `PlayerModeDock`, `PlayerCover`. `PlayerQueuePage`, `PlayerLyricsPage` and
+  `LyricsView` (synced lyrics with their own scroll controller, so they never
+  compete with the Lyrics page's shared one) can be embedded.
+- **Choosing:** Settings > Now Playing layout opens a picker with a thumbnail of
+  each (`PlayerLayoutPicker`). `playerLayout` and `playerLayoutAdaptive` (key
+  `feature_player_layout`, `feature_player_layout_adaptive`). With the switch on,
+  `resolvePlayerLayout` picks Two panes on wide screens (`isWidePlayerScreen`:
+  at least 840 wide, or landscape and at least 600), whatever is chosen; the sheet
+  then leaves Queue and Lyrics out of its switcher because they sit beside the
+  player.
+- **Vinyl:** the original: the record and tonearm, then title, seek bar, extras,
+  transport and mode dock.
