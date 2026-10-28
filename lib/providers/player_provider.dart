@@ -107,8 +107,15 @@ class _QueueEdit {
   final List<SongModel> queue;
   final Future<void> Function() apply;
 
-  const _QueueEdit(this.queue, this.apply);
+  /// Where the playing song ends up when the edit moves it; null leaves the
+  /// index to the player's own updates.
+  final int? currentIndex;
+
+  const _QueueEdit(this.queue, this.apply, {this.currentIndex});
 }
+
+/// One call to the player that can be undone, for edits made of several calls.
+typedef _Step = ({Future<void> Function() run, Future<void> Function() undo});
 
 final playerProvider = NotifierProvider<PlayerNotifier, PlayerState>(
   PlayerNotifier.new,
@@ -321,7 +328,11 @@ class PlayerNotifier extends Notifier<PlayerState> {
       final edit = plan(state.queue);
       if (edit == null) return false;
       final previous = state.queue;
-      state = state.copyWith(queue: edit.queue);
+      final previousIndex = state.currentIndex;
+      state = state.copyWith(
+        queue: edit.queue,
+        currentIndex: edit.currentIndex,
+      );
       try {
         await edit.apply();
         if (edit.queue.isEmpty) {
@@ -332,7 +343,10 @@ class PlayerNotifier extends Notifier<PlayerState> {
         return true;
       } catch (e) {
         debugPrint("queue edit failed: $e");
-        state = state.copyWith(queue: previous);
+        state = state.copyWith(
+          queue: previous,
+          currentIndex: edit.currentIndex == null ? null : previousIndex,
+        );
         AppSnackbar.showErrorSnackBar(
           'Queue unchanged',
           'Could not update the play queue.',
@@ -395,6 +409,184 @@ class PlayerNotifier extends Notifier<PlayerState> {
     next.insert(to, next.removeAt(from));
     return _QueueEdit(next, () => _player.moveAudioSource(from, to));
   });
+
+  // ---------------------------------------------- Several rows at once
+  // Picked rows are queue indices (the same song can be queued twice). Each
+  // edit is one [_edit] whose player calls are undone if one of them fails,
+  // so the queue and the player's sources never end up different. With
+  // shuffle on, a queue index is still a source index; just_audio decides where
+  // a moved source falls in the shuffled order, as with [playNext].
+
+  /// The valid indices of [picks], ascending.
+  static List<int> _picked(Set<int> picks, int length) =>
+      picks.where((i) => i >= 0 && i < length).toList()..sort();
+
+  /// Where the playing row is once the rows are in [order] (old indices);
+  /// null when it is not there or nothing is playing.
+  int? _indexAfter(List<int> order) {
+    final current = state.currentIndex;
+    if (current < 0) return null;
+    final at = order.indexOf(current);
+    return at < 0 ? null : at;
+  }
+
+  _Step _moveStep(int from, int to) => (
+    run: () => _player.moveAudioSource(from, to),
+    undo: () => _player.moveAudioSource(to, from),
+  );
+
+  /// Runs [steps] in order; if one throws, undoes the finished ones (last
+  /// first, best effort) and rethrows so [_edit] rolls the queue back.
+  Future<void> _runSteps(List<_Step> steps) async {
+    final done = <_Step>[];
+    try {
+      for (final step in steps) {
+        await step.run();
+        done.add(step);
+      }
+    } catch (_) {
+      for (final step in done.reversed) {
+        try {
+          await step.undo();
+        } catch (e) {
+          debugPrint('queue edit could not be undone: $e');
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Removes the rows at [indices]. Removing the playing row makes the player
+  /// carry on with the next one, as [removeFromQueue] does; removing every row
+  /// stops playback. Resolves true when something was removed.
+  Future<bool> removeQueueIndices(Set<int> indices) async {
+    var count = 0;
+    final done = await _edit((queue) {
+      final picked = _picked(indices, queue.length);
+      if (!_hasSources || picked.isEmpty) return null;
+      count = picked.length;
+      final doomed = picked.toSet();
+      final order = [
+        for (var i = 0; i < queue.length; i++)
+          if (!doomed.contains(i)) i,
+      ];
+      return _QueueEdit(
+        [for (final i in order) queue[i]],
+        () => _runSteps([
+          // Highest first so earlier removals don't shift the later ones.
+          for (final i in picked.reversed)
+            (
+              run: () => _player.removeAudioSourceAt(i),
+              undo: () =>
+                  _player.insertAudioSource(i, _createAudioSource(queue[i])),
+            ),
+        ]),
+        currentIndex: _indexAfter(order),
+      );
+    });
+    if (done) {
+      AppSnackbar.showSuccess(
+        'Removed from Queue',
+        count == 1 ? '1 song' : '$count songs',
+      );
+    }
+    return done;
+  }
+
+  /// Moves the rows at [indices], in their queue order, to right after the
+  /// playing row. If the playing row is among them it stays where it is and
+  /// the others follow it. Does nothing when nothing is playing.
+  Future<bool> moveQueueIndicesToNext(Set<int> indices) async {
+    var count = 0;
+    final done = await _edit((queue) {
+      final current = state.currentIndex;
+      if (!_hasSources || current < 0 || current >= queue.length) return null;
+      final picked = _picked(indices, queue.length)..remove(current);
+      if (picked.isEmpty) return null;
+      final before = [
+        for (final i in picked)
+          if (i < current) i,
+      ];
+      final after = [
+        for (final i in picked)
+          if (i > current) i,
+      ];
+      final doomed = picked.toSet();
+      final order = [
+        for (var i = 0; i <= current; i++)
+          if (i == current || !doomed.contains(i)) i,
+        ...picked,
+        for (var i = current + 1; i < queue.length; i++)
+          if (!doomed.contains(i)) i,
+      ];
+      if (_isIdentity(order)) return null;
+      count = picked.length;
+      return _QueueEdit(
+        [for (final i in order) queue[i]],
+        () => _runSteps([
+          // Rows before the playing one are taken out one by one (the j rows
+          // already taken are gone from in front) and put right after it,
+          // behind the ones moved before; the playing row slides forward.
+          for (var j = 0; j < before.length; j++)
+            _moveStep(before[j] - j, current),
+          // Rows after it are pulled forward in order. Neither the removal nor
+          // the insertion is in front of a later pick, so its place holds.
+          for (var k = 0; k < after.length; k++)
+            if (after[k] != current + 1 + k)
+              _moveStep(after[k], current + 1 + k),
+        ]),
+        currentIndex: _indexAfter(order),
+      );
+    });
+    if (done) {
+      AppSnackbar.showSuccess(
+        'Will play next',
+        count == 1 ? '1 song' : '$count songs',
+      );
+    }
+    return done;
+  }
+
+  /// Moves the rows at [indices], in their queue order, to the end.
+  Future<bool> moveQueueIndicesToEnd(Set<int> indices) async {
+    var count = 0;
+    final done = await _edit((queue) {
+      final picked = _picked(indices, queue.length);
+      if (!_hasSources || picked.isEmpty) return null;
+      final doomed = picked.toSet();
+      final order = [
+        for (var i = 0; i < queue.length; i++)
+          if (!doomed.contains(i)) i,
+        ...picked,
+      ];
+      if (_isIdentity(order)) return null;
+      count = picked.length;
+      final last = queue.length - 1;
+      return _QueueEdit(
+        [for (final i in order) queue[i]],
+        () => _runSteps([
+          // The k rows already moved were in front of this one.
+          for (var k = 0; k < picked.length; k++)
+            if (picked[k] - k != last) _moveStep(picked[k] - k, last),
+        ]),
+        currentIndex: _indexAfter(order),
+      );
+    });
+    if (done) {
+      AppSnackbar.showSuccess(
+        'Moved to the end',
+        count == 1 ? '1 song' : '$count songs',
+      );
+    }
+    return done;
+  }
+
+  static bool _isIdentity(List<int> order) {
+    for (var i = 0; i < order.length; i++) {
+      if (order[i] != i) return false;
+    }
+    return true;
+  }
 
   AudioSource _createAudioSource(SongModel song) {
     return AudioSource.uri(Uri.parse(song.uri!), tag: song);

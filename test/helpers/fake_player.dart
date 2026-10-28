@@ -19,6 +19,11 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
   /// Makes the next source change throw, to exercise rollback.
   bool failNextEdit = false;
 
+  /// When set, that many source changes succeed and the next one throws
+  /// (a multi-step edit failing half way).
+  int? failEditAfter;
+
+  /// Makes the next [setAudioSources] throw, as an unreadable file would.
   bool failNextLoad = false;
 
   // What the tests look at.
@@ -111,6 +116,14 @@ class MemoryPlayer extends Fake implements audio.AudioPlayer {
   }
 
   void _check() {
+    final after = failEditAfter;
+    if (after != null) {
+      if (after == 0) {
+        failEditAfter = null;
+        throw StateError('rejected');
+      }
+      failEditAfter = after - 1;
+    }
     if (failNextEdit) {
       failNextEdit = false;
       throw StateError('rejected');

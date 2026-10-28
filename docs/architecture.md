@@ -116,6 +116,39 @@ back as a whole), `deleteSongs` (one `createDeleteRequest` on Android 11+),
 `FavoritesNotifier.setAll`, `PlaylistsNotifier.addSongsToLocalPlaylist` (one
 transaction) and `PlayerUtils.shareSongs`.
 
+## Queue selection and full-screen lyrics
+
+Queue selection (`providers/queue_selection_provider.dart`,
+`player_sheets/queue_selection.dart`). A long press on a queue row starts
+picking; rows are picked by queue INDEX (the same song can be queued twice), not
+song id, so the song selection provider is not reused. The notifier is
+`autoDispose`: leaving the Queue page or closing the sheet ends selecting, and
+any queue change other than appending clears it, so indices never go stale.
+While picking, the Queue header becomes a selection header (count, Select all /
+none, Remove, Play next, Move to end, Add to playlist, Save as playlist) and
+Back ends picking before it closes the sheet. `PlayerNotifier.removeQueueIndices`,
+`moveQueueIndicesToNext` and `moveQueueIndicesToEnd` each run as one `_edit`;
+their player calls (highest-first removals, `moveAudioSource` with the shifting
+indices tracked) are undone in reverse if one is rejected, so a failure half way
+leaves queue and sources equal. `_QueueEdit.currentIndex` sets the playing row at
+once (and is rolled back with the queue). Removing the playing row is allowed
+after a confirmation and works like the row's own X: the player moves on. Move
+next keeps the playing row where it is as the anchor, even if it is picked. With
+shuffle on, queue index is still source index; just_audio decides where a moved
+source falls in the shuffled order, as with Play next.
+
+Full-screen lyrics (`player_sheets/lyrics_fullscreen.dart`). A pushed fade route
+over the sheet. It has its own `ItemScrollController` and listens to
+`lyricsProvider`'s current line itself (jumping instead of animating with
+reduced motion), so it never uses `lyricsScrollControllerProvider`, which the
+coordinator drives for the sheet's list (it only scrolls an attached controller,
+and the list detaches when disposed). Immersive sticky mode and the wake lock
+(`lyricsScreenAwakeProvider`) start with the page; leaving restores edge-to-edge
+and hands the wake lock back to the Settings value, not simply off. The text size
+(`lyrics_fullscreen_scale`, 0.8 to 1.8) is kept in SharedPreferences. Lyrics
+without timestamps (one block at time zero) are shown as plain text with no
+seek.
+
 ## Volume keys and Open with
 
 Both are a small Kotlin helper plus a Dart wrapper behind an overridable provider

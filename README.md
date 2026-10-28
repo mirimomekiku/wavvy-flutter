@@ -12,6 +12,8 @@ build has no downloader (see [Builds](#builds)).
 - Gapless playback of MP3, FLAC, M4A, WAV and anything else Android can decode.
 - Background playback with notification and lock-screen controls.
 - Editable queue: play next, add, reorder, remove, clear upcoming.
+- Pick several queue rows (long press): remove, play next, move to the end, add to a
+  playlist or save them as a new playlist.
 - Shuffle, repeat, speed and pitch (remembered per album), A-B loop and 15 second skips.
 - Sleep timer: minutes, end of the track, after N tracks or end of the queue, with a
   fade-out. Add time from the dialog, or by shaking the phone near the end.

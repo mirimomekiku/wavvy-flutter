@@ -193,6 +193,56 @@ void showAddSongsToPlaylistSheet(
     ),
   );
 }
+
+/// Asks for a name, then creates a playlist holding [songs] (once each).
+/// [onSaved] runs after the songs were added.
+void showSaveAsPlaylistDialog(
+  WidgetRef ref,
+  List<SongModel> songs, {
+  VoidCallback? onSaved,
+}) {
+  showAppDialog<void>(
+    builder: (context) =>
+        _SavePlaylistDialog(ref: ref, songs: songs, onSaved: onSaved),
+  );
+}
+
+class _SavePlaylistDialog extends StatefulWidget {
+  const _SavePlaylistDialog({
+    required this.ref,
+    required this.songs,
+    this.onSaved,
+  });
+  final WidgetRef ref;
+  final List<SongModel> songs;
+  final VoidCallback? onSaved;
+
+  @override
+  State<_SavePlaylistDialog> createState() => _SavePlaylistDialogState();
+}
+
+class _SavePlaylistDialogState extends State<_SavePlaylistDialog> {
+  final TextEditingController _name = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _name.text.trim();
+    if (name.isEmpty) return;
+    final ref = widget.ref;
+    final notifier = ref.read(playlistsProvider.notifier);
+    Navigator.of(context).pop();
+    await notifier.createLocalPlaylist(name);
+    // The new playlist is the newest one with that name.
+    final ids = [
+      for (final p in ref.read(playlistsProvider).playlists)
+        if (p['name'] == name) p['id'] as int,
+    ];
+    if (ids.isEmpty) return;
     await notifier.addSongsToLocalPlaylist(
       ids.reduce((a, b) => a > b ? a : b),
       [for (final s in widget.songs) s.id],
@@ -204,3 +254,19 @@ void showAddSongsToPlaylistSheet(
   Widget build(BuildContext context) {
     final a = Wv.of(context);
     return WvDialog(
+      title: 'Save as Playlist',
+      content: TextField(
+        controller: _name,
+        autofocus: true,
+        style: TextStyle(fontSize: 15, color: a.text),
+        cursorColor: a.accent,
+        decoration: _wvFieldDecoration(a, 'Playlist name'),
+        onSubmitted: (_) => _save(),
+      ),
+      actions: [
+        wvDialogButton('Cancel', () => Navigator.of(context).pop()),
+        wvDialogButton('Save', _save, primary: true),
+      ],
+    );
+  }
+}
