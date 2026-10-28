@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart'
     show openAppSettings;
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/providers/home_feed_provider.dart';
+import 'package:wavvy/providers/home_shelves_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/library_section_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
@@ -56,6 +57,8 @@ class HomeView extends ConsumerWidget {
     final isPlaying = ref.watch(playerProvider.select((p) => p.isPlaying));
     final liked = ref.watch(likedSongsProvider);
     final totalMs = ref.watch(_libraryTotalMsProvider);
+    final continueAlbums = ref.watch(continueListeningProvider);
+    final rediscover = ref.watch(rediscoverProvider);
     final actions = ref.read(playerProvider.notifier);
 
     void toLibrary([LibrarySection? section]) {
@@ -165,9 +168,7 @@ class HomeView extends ConsumerWidget {
             // ---- Now playing / ready
             SliverToBoxAdapter(
               child: AquaWindow(
-                title: song == null
-                    ? 'Ready when you are'
-                    : 'Continue listening',
+                title: song == null ? 'Ready when you are' : 'Now playing',
                 subtitle: song == null
                     ? '${library.songs.length} tracks on this device'
                     : null,
@@ -355,6 +356,58 @@ class HomeView extends ConsumerWidget {
                 ),
               ),
 
+            // ---- Continue listening
+            if (stats && continueAlbums.isNotEmpty)
+              SliverToBoxAdapter(
+                child: AquaWindow(
+                  title: 'Continue listening',
+                  subtitle: 'Albums you played lately',
+                  child: SizedBox(
+                    height: 190 + shelfScale.scale(40),
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: continueAlbums.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      itemBuilder: (context, i) {
+                        final album = continueAlbums[i];
+                        return SizedBox(
+                          width: 130,
+                          child: WvGridTile(
+                            title: album.album,
+                            subtitle: album.artist,
+                            onTap: () {
+                              // From the first track; which track you were
+                              // on is not recorded.
+                              final tracks =
+                                  [
+                                    for (final s in library.songs)
+                                      if (s.albumId == album.id) s,
+                                  ]..sort(
+                                    (x, y) =>
+                                        (x.track ?? 0).compareTo(y.track ?? 0),
+                                  );
+                              if (tracks.isEmpty) return;
+                              actions.playSong(
+                                tracks.first,
+                                contextList: tracks,
+                              );
+                            },
+                            artworkBuilder: (size) => wvArtwork(
+                              context,
+                              id: album.id,
+                              type: ArtworkType.ALBUM,
+                              size: size,
+                              placeholder: Icons.album_outlined,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
             // ---- Recently played
             if (stats && feed.recentSongs.isNotEmpty)
               SliverToBoxAdapter(
@@ -507,12 +560,15 @@ class HomeView extends ConsumerWidget {
                 ),
               ),
             ),
-          if (library.songs.isNotEmpty && feed.discover.isNotEmpty)
+          if (library.songs.isNotEmpty && stats && rediscover.isNotEmpty)
             SliverToBoxAdapter(
               child: AquaWindow(
-                title: 'Rediscover your library',
-                subtitle: 'Something you have not played lately',
-                child: _TrackList(songs: feed.discover, count: 4),
+                title: 'Rediscover',
+                subtitle: 'Not played in 90 days',
+                action: 'Shuffle',
+                onAction: () =>
+                    ref.read(rediscoverRerollProvider.notifier).reroll(),
+                child: _TrackList(songs: rediscover, count: 4),
               ),
             ),
           SliverToBoxAdapter(

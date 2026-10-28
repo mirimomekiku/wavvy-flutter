@@ -306,7 +306,6 @@ void main() {
                   'On repeat',
                   'New songs',
                   'Your playlists',
-                  'Rediscover your library',
                 ]) {
                   await tester.scrollUntilVisible(
                     find.text(title),

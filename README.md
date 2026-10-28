@@ -48,6 +48,8 @@ build has no downloader (see [Builds](#builds)).
 - Songs, albums, artists and playlists, with in-place filtering and sorting.
 - A fast scroller on long lists (30+ items): drag the thumb to scrub, with a
   letter bubble for the Title and Artist sorts.
+- Home shelves "Continue listening" (albums you played lately) and
+  "Rediscover" (songs not played in 90 days, re-rollable with Shuffle).
 - Select several songs (long press) to play, queue, add to a playlist, like, share
   or delete them together.
 - Home feed built from your own listening history (incognito mode pauses it).
