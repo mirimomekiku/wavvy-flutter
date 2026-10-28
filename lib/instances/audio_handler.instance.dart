@@ -34,7 +34,7 @@ class WavvyAudioHandler extends BaseAudioHandler
       _crossfadeLevel = v;
       unawaited(_pushVolume());
     },
-    baseVolume: () => _gain * _duck,
+    baseVolume: () => _gain * _duck * _preamp,
     loudnessDb: () => _loudnessDb,
   );
 
@@ -53,6 +53,7 @@ class WavvyAudioHandler extends BaseAudioHandler
   double _fade = 1; // play / pause / sleep fades
   double _gain = 1; // ReplayGain reduction
   double _duck = 1; // lowered for a short interruption
+  double _preamp = 1; // headroom for equalizer boosts
   double _crossfadeLevel = 1;
   static const _duckLevel = 0.35;
 
@@ -180,7 +181,8 @@ class WavvyAudioHandler extends BaseAudioHandler
 
   // ------------------------------------------------------------- Levels
 
-  double get _volume => (_fade * _gain * _duck * _crossfadeLevel).clamp(0, 1);
+  double get _volume =>
+      (_fade * _gain * _duck * _preamp * _crossfadeLevel).clamp(0, 1);
 
   Future<void> _pushVolume() => _player.setVolume(_volume);
 
@@ -205,6 +207,14 @@ class WavvyAudioHandler extends BaseAudioHandler
     _gain = db < 0 ? math.pow(10, db / 20).toDouble() : 1;
     await _pushVolume();
     await _pushLoudness();
+  }
+
+  /// Headroom for the equalizer: a cut of [db] (zero or negative) so boosted
+  /// bands do not clip. A player's volume cannot go above full, so a positive
+  /// value does nothing.
+  Future<void> setPreamp(double db) {
+    _preamp = db >= 0 ? 1 : math.pow(10, db / 20).toDouble();
+    return _pushVolume();
   }
 
   /// Lowers or restores the volume for a short interruption.

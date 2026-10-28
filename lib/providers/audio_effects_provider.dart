@@ -1,7 +1,11 @@
+import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavvy/providers/player_provider.dart';
 
 /// The AndroidEqualizer that is part of the just_audio pipeline. Created in
@@ -72,6 +76,15 @@ class EqualizerState {
   final double maxDecibels;
   final String currentPreset;
 
+  /// Presets the user saved: name to the band gains in dB, low to high.
+  final Map<String, List<double>> customPresets;
+
+  /// Lower the volume by the largest boost, so boosted bands do not clip.
+  final bool autoPreamp;
+
+  /// The cut in dB being applied now (zero or negative).
+  final double preampDb;
+
   /// Why the equalizer can't be used, or empty.
   final String error;
 
@@ -81,8 +94,17 @@ class EqualizerState {
     this.minDecibels = -15.0,
     this.maxDecibels = 15.0,
     this.currentPreset = 'Custom',
+    this.customPresets = const {},
+    this.autoPreamp = true,
+    this.preampDb = 0,
     this.error = '',
   });
+
+  /// Built-in presets, then the user's own.
+  List<String> get presetNames => [
+    ...EqualizerNotifier.presets.keys,
+    ...customPresets.keys,
+  ];
 
   EqualizerState copyWith({
     bool? isEnabled,
@@ -90,6 +112,9 @@ class EqualizerState {
     double? minDecibels,
     double? maxDecibels,
     String? currentPreset,
+    Map<String, List<double>>? customPresets,
+    bool? autoPreamp,
+    double? preampDb,
     String? error,
   }) => EqualizerState(
     isEnabled: isEnabled ?? this.isEnabled,
@@ -97,6 +122,9 @@ class EqualizerState {
     minDecibels: minDecibels ?? this.minDecibels,
     maxDecibels: maxDecibels ?? this.maxDecibels,
     currentPreset: currentPreset ?? this.currentPreset,
+    customPresets: customPresets ?? this.customPresets,
+    autoPreamp: autoPreamp ?? this.autoPreamp,
+    preampDb: preampDb ?? this.preampDb,
     error: error ?? this.error,
   );
 }
@@ -118,7 +146,27 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
     'Jazz': [3, 2, -1, 2, 3],
     'Voice': [-2, -1, 3, 3, 1],
     'Treble': [0, 0, 0, 4, 6],
+    'Acoustic': [4, 3, 1, 2, 3],
+    'Bass Reducer': [-6, -4, 0, 0, 0],
+    'Classical': [4, 3, -2, 3, 4],
+    'Dance': [6, 4, 1, 3, 4],
+    'Electronic': [5, 3, 0, 3, 5],
+    'Hip Hop': [5, 4, 0, 1, 3],
+    'Loudness': [6, 2, -1, 2, 5],
+    'Lounge': [-3, -1, 2, 1, -1],
+    'Piano': [2, 1, 0, 3, 3],
+    'Small Speakers': [5, 3, 1, -1, -3],
+    'Treble Reducer': [0, 0, 0, -4, -6],
+    'Vocal Boost': [-3, -2, 3, 4, 2],
   };
+
+  /// Names a saved preset cannot take.
+  static bool isBuiltInName(String name) =>
+      name.toLowerCase() == 'custom' ||
+      presets.keys.any((k) => k.toLowerCase() == name.toLowerCase());
+
+  static const _kCustomPresets = 'eq_custom_presets';
+  static const _kAutoPreamp = 'eq_auto_preamp';
 
   /// The gain, in dB, of preset [name] at band [index] out of [count] bands.
   static double presetGain(String name, int index, int count) =>
@@ -134,6 +182,10 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
 
   bool _disposed = false;
 
+  /// What each band is set to, in dB, kept here so the preamp does not depend
+  /// on reading the bands back.
+  List<double> _gains = const [];
+
   /// Reads the band layout and returns the defaults immediately.
   @override
   EqualizerState build() {
@@ -141,7 +193,72 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
     ref.onDispose(() => _disposed = true);
     // After build returns, so a failure can be written to state.
     Future.microtask(_init);
+    Future.microtask(_loadSaved);
     return const EqualizerState();
+  }
+
+  Future<void> _loadSaved() async {
+    try {
+      final prefs = SharedPreferencesAsync();
+      final autoPreamp = await prefs.getBool(_kAutoPreamp) ?? true;
+      final raw = await prefs.getString(_kCustomPresets);
+      final custom = <String, List<double>>{};
+      if (raw != null) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          decoded.forEach((name, gains) {
+            if (name is String && gains is List && gains.isNotEmpty) {
+              custom[name] = [for (final g in gains) (g as num).toDouble()];
+            }
+          });
+        }
+      }
+      if (_disposed) return;
+      state = state.copyWith(customPresets: custom, autoPreamp: autoPreamp);
+      await _applyPreamp();
+    } catch (e) {
+      // Presets are a convenience; the equalizer works without them.
+      debugPrint('could not load equalizer settings: $e');
+    }
+  }
+
+  Future<void> _saveCustom() async {
+    try {
+      await SharedPreferencesAsync().setString(
+        _kCustomPresets,
+        jsonEncode(state.customPresets),
+      );
+    } catch (e) {
+      debugPrint('could not save equalizer presets: $e');
+    }
+  }
+
+  /// Largest boost among the bands, as the cut that keeps them from clipping.
+  static double preampFor(Iterable<double> gains, {double floor = -15}) {
+    final peak = gains.fold<double>(0, math.max);
+    return peak <= 0 ? 0 : math.max(-peak, floor);
+  }
+
+  /// Applies the volume cut for the current bands (none while the equalizer
+  /// is off or the setting is off).
+  Future<void> _applyPreamp() async {
+    final db = state.isEnabled && state.autoPreamp ? preampFor(_gains) : 0.0;
+    if (!_disposed) state = state.copyWith(preampDb: db);
+    try {
+      await ref.read(audioHandlerProvider).setPreamp(db);
+    } catch (e) {
+      debugPrint('preamp failed: $e');
+    }
+  }
+
+  Future<void> setAutoPreamp(bool value) async {
+    state = state.copyWith(autoPreamp: value);
+    await _applyPreamp();
+    try {
+      await SharedPreferencesAsync().setBool(_kAutoPreamp, value);
+    } catch (e) {
+      debugPrint('could not save the preamp setting: $e');
+    }
   }
 
   AndroidEqualizer get _eq => ref.read(equalizerInstanceProvider);
@@ -161,6 +278,8 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
         isEnabled: _eq.enabled,
         error: '',
       );
+      _gains = [for (final b in params.bands) b.gain];
+      await _applyPreamp();
     } catch (e) {
       debugPrint('equalizer init failed: $e');
       if (_disposed) return;
@@ -172,6 +291,7 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
     try {
       await _eq.setEnabled(value);
       state = state.copyWith(isEnabled: value, error: '');
+      await _applyPreamp();
     } catch (e) {
       debugPrint('equalizer toggle failed: $e');
       state = state.copyWith(error: 'The equalizer could not be switched.');
@@ -180,7 +300,12 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
 
   Future<void> _setGain(int bandIndex, double gainDb) async {
     final band = state.bands[bandIndex];
-    await band.setGain(gainDb.clamp(state.minDecibels, state.maxDecibels));
+    final gain = gainDb.clamp(state.minDecibels, state.maxDecibels).toDouble();
+    await band.setGain(gain);
+    if (_gains.length != state.bands.length) {
+      _gains = List<double>.filled(state.bands.length, 0);
+    }
+    _gains[bandIndex] = gain;
   }
 
   /// Sets one band, in dB (clamped to the device range).
@@ -189,6 +314,7 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
     try {
       await _setGain(bandIndex, gainDb);
       state = state.copyWith(currentPreset: 'Custom', error: '');
+      await _applyPreamp();
     } catch (e) {
       debugPrint('equalizer band $bandIndex failed: $e');
       state = state.copyWith(error: 'That band could not be changed.');
@@ -198,17 +324,46 @@ class EqualizerNotifier extends Notifier<EqualizerState> {
   Future<void> resetToFlat() => applyPreset('Flat');
 
   Future<void> applyPreset(String presetName) async {
-    final curve = presets[presetName];
+    final curve = presets[presetName] ?? state.customPresets[presetName];
     if (curve == null || state.bands.isEmpty) return;
     try {
       for (var i = 0; i < state.bands.length; i++) {
         await _setGain(i, _curveAt(curve, i, state.bands.length));
       }
       state = state.copyWith(currentPreset: presetName, error: '');
+      await _applyPreamp();
     } catch (e) {
       debugPrint('equalizer preset $presetName failed: $e');
       state = state.copyWith(error: 'That preset could not be applied.');
     }
+  }
+
+  /// Saves the current band settings under [name]. Returns why it could not,
+  /// or null when it was saved.
+  Future<String?> saveCustomPreset(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return 'Give the preset a name.';
+    if (trimmed.length > 24) return 'Use 24 characters or fewer.';
+    if (isBuiltInName(trimmed)) return 'That name is already used.';
+    if (state.bands.isEmpty) return 'The equalizer is not available.';
+    final gains = _gains.length == state.bands.length
+        ? [..._gains]
+        : List<double>.filled(state.bands.length, 0);
+    state = state.copyWith(
+      customPresets: {...state.customPresets, trimmed: gains},
+      currentPreset: trimmed,
+    );
+    await _saveCustom();
+    return null;
+  }
+
+  Future<void> deleteCustomPreset(String name) async {
+    if (!state.customPresets.containsKey(name)) return;
+    state = state.copyWith(
+      customPresets: {...state.customPresets}..remove(name),
+      currentPreset: state.currentPreset == name ? 'Custom' : null,
+    );
+    await _saveCustom();
   }
 }
 

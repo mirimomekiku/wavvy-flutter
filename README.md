@@ -20,7 +20,8 @@ build has no downloader (see [Builds](#builds)).
 - Volume leveling from ReplayGain tags; crossfade (experimental).
 - Favorites with a Liked songs list, and a home-screen widget.
 - Fade in and out on play and pause, and skip silence (both off by default).
-- Sound: a 5-band equalizer with presets, bass boost, virtualizer, reverb and a
+- Sound: a 5-band equalizer with 19 presets, your own saved presets and a preamp
+  that prevents clipping, bass boost, virtualizer, reverb and a
   volume boost. Effects the device does not support are shown as unavailable.
 
 ### Look and feel

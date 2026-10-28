@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
+import 'package:wavvy/core/dialogs.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
@@ -161,7 +162,8 @@ class _EqualizerTab extends ConsumerWidget {
     final eq = ref.watch(equalizerProvider);
     final controller = ref.read(equalizerProvider.notifier);
     final a = Wv.of(context);
-    final presets = EqualizerNotifier.presets.keys.toList();
+    final presets = eq.presetNames;
+    final isCustom = eq.customPresets.containsKey(eq.currentPreset);
     final hasBands = eq.bands.isNotEmpty;
 
     return ListView(
@@ -197,6 +199,38 @@ class _EqualizerTab extends ConsumerWidget {
                   onSelected: controller.applyPreset,
                 ),
               ),
+              if (hasBands) ...[
+                const SizedBox(height: 12),
+                _Line(
+                  title: isCustom ? 'Your preset' : 'Save these settings',
+                  subtitle: isCustom
+                      ? eq.currentPreset
+                      : 'Keep the current bands as a preset',
+                  trailing: isCustom
+                      ? WvButton(
+                          size: 36,
+                          onPressed: () =>
+                              controller.deleteCustomPreset(eq.currentPreset),
+                          child: const Text('Delete'),
+                        )
+                      : WvButton(
+                          size: 36,
+                          onPressed: () => _askPresetName(context, controller),
+                          child: const Text('Save…'),
+                        ),
+                ),
+              ],
+              Divider(height: 24, color: a.separator),
+              _Line(
+                title: 'Prevent clipping',
+                subtitle: eq.autoPreamp && eq.preampDb < 0
+                    ? 'Volume lowered ${(-eq.preampDb).toStringAsFixed(1)} dB for the boosted bands'
+                    : 'Lower the volume by the biggest boost so it does not distort',
+                trailing: AquaSwitch(
+                  value: eq.autoPreamp,
+                  onChanged: hasBands ? controller.setAutoPreamp : null,
+                ),
+              ),
               if (eq.error.isNotEmpty && hasBands)
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
@@ -228,6 +262,74 @@ class _EqualizerTab extends ConsumerWidget {
                   ),
                 ),
         ),
+      ],
+    );
+  }
+}
+
+/// Asks for a name, then saves the current bands as a preset.
+void _askPresetName(BuildContext context, EqualizerNotifier controller) {
+  showDialog<void>(
+    context: context,
+    builder: (_) => _PresetNameDialog(controller: controller),
+  );
+}
+
+class _PresetNameDialog extends StatefulWidget {
+  const _PresetNameDialog({required this.controller});
+  final EqualizerNotifier controller;
+
+  @override
+  State<_PresetNameDialog> createState() => _PresetNameDialogState();
+}
+
+class _PresetNameDialogState extends State<_PresetNameDialog> {
+  final _name = TextEditingController();
+  String? _problem;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final problem = await widget.controller.saveCustomPreset(_name.text);
+    if (!mounted) return;
+    if (problem == null) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => _problem = problem);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = Wv.of(context);
+    return WvDialog(
+      title: 'Save preset',
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AquaField(
+            label: 'Preset name',
+            controller: _name,
+            textInputAction: TextInputAction.done,
+          ),
+          if (_problem != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _problem!,
+                style: TextStyle(color: a.error, fontSize: 12),
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        wvDialogButton('Cancel', () => Navigator.of(context).pop()),
+        wvDialogButton('Save', _save, primary: true),
       ],
     );
   }
