@@ -303,3 +303,8 @@ dock are the same in all of them.
   player.
 - **Vinyl:** the original: the record and tonearm, then title, seek bar, extras,
   transport and mode dock.
+- **iTunes LCD:** a recessed LCD panel with the title, "Artist - Album", the quality
+  badge and the scrubber with elapsed and remaining time, then a large cover in a
+  thin bezel with a glass reflection (a flipped, faded copy in its own
+  repaint boundary), and the shared controls. Its LCD has its own copy of the seek
+  logic, so a fix to `PlayerSeekRow` does not reach it by itself.

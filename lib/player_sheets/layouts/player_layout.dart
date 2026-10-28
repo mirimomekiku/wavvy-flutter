@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/player_sheets/layouts/itunes_layout.dart';
 import 'package:wavvy/player_sheets/layouts/player_layout_data.dart';
 import 'package:wavvy/player_sheets/layouts/vinyl_layout.dart';
 import 'package:wavvy/providers/settings_provider.dart';
@@ -87,7 +88,7 @@ typedef PlayerLayoutBuilder = Widget Function(PlayerLayoutData data);
 final Map<PlayerLayout, PlayerLayoutBuilder> kPlayerLayoutBuilders = {
   PlayerLayout.vinyl: (d) => VinylLayout(data: d),
   // The others show the vinyl deck until their own layout is registered.
-  PlayerLayout.itunes: (d) => VinylLayout(data: d),
+  PlayerLayout.itunes: (d) => ItunesLayout(data: d),
   PlayerLayout.coverFlow: (d) => VinylLayout(data: d),
   PlayerLayout.hifi: (d) => VinylLayout(data: d),
   PlayerLayout.poster: (d) => VinylLayout(data: d),
@@ -103,6 +104,7 @@ final Map<PlayerLayout, PlayerLayoutBuilder> kPlayerLayoutBuilders = {
 /// shows an icon for any that is missing.
 final Map<PlayerLayout, WidgetBuilder> kPlayerLayoutPreviews = {
   PlayerLayout.vinyl: (_) => const VinylLayoutPreview(),
+  PlayerLayout.itunes: (_) => const ItunesLayoutPreview(),
 };
 
 /// Shows the chosen layout for the playing song.
