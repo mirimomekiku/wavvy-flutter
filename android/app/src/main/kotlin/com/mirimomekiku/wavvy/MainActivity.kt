@@ -10,6 +10,7 @@ import android.media.audiofx.PresetReverb
 import android.media.audiofx.Virtualizer
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
@@ -46,6 +47,18 @@ class MainActivity : AudioServiceActivity() {
 
     // Hold-a-volume-key skipping and "Open with" (VolumeKeySkip.kt, ExternalAudio.kt).
     private val volumeKeys by lazy { VolumeKeySkip(this) }
+    private val externalAudio by lazy { ExternalAudio(this) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) externalAudio.handleLaunch(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        externalAudio.handleNewIntent(intent)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
         volumeKeys.onKeyEvent(event) || super.dispatchKeyEvent(event)
 
@@ -66,6 +79,7 @@ class MainActivity : AudioServiceActivity() {
         // version of this call does nothing.
         YtDlpPlugin.register(this, flutterEngine)
         volumeKeys.register(flutterEngine.dartExecutor.binaryMessenger)
+        externalAudio.register(flutterEngine.dartExecutor.binaryMessenger)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         MethodChannel(messenger, EFFECTS_CHANNEL).setMethodCallHandler { call, result ->

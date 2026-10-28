@@ -47,6 +47,12 @@ class PaletteNotifier extends Notifier<PaletteState> {
       clear();
       return;
     }
+    // A file opened from outside the library (negative id) has no MediaStore
+    // artwork to read.
+    if (songId < 0) {
+      clear();
+      return;
+    }
 
     try {
       Uint8List? bytes = await ref

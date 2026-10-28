@@ -77,6 +77,8 @@ class FavoritesNotifier extends Notifier<Map<int, int>> {
   }
 
   Future<void> toggle(SongModel song) async {
+    // Files opened from outside the library (negative id) cannot be liked.
+    if (song.id < 0) return;
     final store = ref.read(favoritesStoreProvider);
     if (state.containsKey(song.id)) {
       state = {...state}..remove(song.id);

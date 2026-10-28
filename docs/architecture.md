@@ -126,6 +126,14 @@ Both are a small Kotlin helper plus a Dart wrapper behind an overridable provide
   changes the music volume itself, held past the long-press time it sends `skip`
   ("next" / "previous") once. Activities only see the keys while their window has
   focus, so it does nothing with the screen off or in another app.
+- Open with (`ExternalAudio.kt`, manifest `VIEW` filter, `singleTask`): the tags are
+  read with `MediaMetadataRetriever` off the main thread; the launch file waits
+  for Dart's `takePending`, later files are pushed. A file found in the library
+  (MediaStore id) plays in the library queue; any other becomes a temporary
+  `SongModel` with a negative id (`isExternal`) that plays alone. It has no
+  delete, tag editing, favorites, playlists or play counter, and no artwork. The
+  read permission of a content URI lasts only as long as Android keeps it for the app.
+
 ## Fast scroller and Home shelves
 
 `FastScroller` (`widgets/fast_scroller.dart`) wraps the Library scroll view. A

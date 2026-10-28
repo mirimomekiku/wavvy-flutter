@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:wavvy/core/external_audio.dart';
 import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/playback/favorites.dart';
 import 'package:wavvy/providers/library_provider.dart';
@@ -69,6 +70,8 @@ class SongMenuHelper {
         };
 
         final liked = ref.read(favoritesProvider).containsKey(song.id);
+        // A file opened from outside the library is a temporary queue item.
+        final inLibrary = !song.isExternal;
         final queue = <AquaMenuRow>[
           if (options.showPlayNext)
             AquaMenuRow(
@@ -86,7 +89,7 @@ class SongMenuHelper {
                 () => ref.read(playerProvider.notifier).addToQueue(song),
               ),
             ),
-          if (options.showFavorite)
+          if (options.showFavorite && inLibrary)
             AquaMenuRow(
               icon: liked
                   ? Icons.favorite_rounded
@@ -96,7 +99,7 @@ class SongMenuHelper {
                 () => ref.read(favoritesProvider.notifier).toggle(song),
               ),
             ),
-          if (options.showAddToPlaylist)
+          if (options.showAddToPlaylist && inLibrary)
             AquaMenuRow(
               icon: Icons.playlist_add_rounded,
               label: 'Add to Playlist',
@@ -136,27 +139,28 @@ class SongMenuHelper {
         ];
 
         final about = <AquaMenuRow>[
-          if (options.showGoToArtist)
+          if (options.showGoToArtist && inLibrary)
             AquaMenuRow(
               icon: Icons.person_rounded,
               label: 'Go to Artist',
               chevron: true,
               onTap: () => _handleGoToArtist(sheetContext, ref, song),
             ),
-          if (options.showGoToAlbum)
+          if (options.showGoToAlbum && inLibrary)
             AquaMenuRow(
               icon: Icons.album_rounded,
               label: 'Go to Album',
               chevron: true,
               onTap: () => _handleGoToAlbum(sheetContext, ref, song),
             ),
-          if (options.showShare)
+          if (options.showShare && inLibrary)
             AquaMenuRow(
               icon: Icons.ios_share_rounded,
               label: 'Share',
               onTap: close(() => PlayerUtils.shareSong(song)),
             ),
           if (options.showEditTags)
+          if (options.showEditTags && inLibrary)
             AquaMenuRow(
               icon: Icons.edit_rounded,
               label: 'Edit tags',
@@ -171,7 +175,7 @@ class SongMenuHelper {
         ];
 
         final danger = <AquaMenuRow>[
-          if (options.showDelete)
+          if (options.showDelete && inLibrary)
             AquaMenuRow(
               icon: Icons.delete_outline_rounded,
               label: 'Delete',

@@ -22,6 +22,9 @@ build has no downloader (see [Builds](#builds)).
 - Hold volume up for the next song and volume down for the previous one (Settings,
   off by default). Android only passes the keys to Wavvy while it is on screen, so
   this does not work with the screen off or in another app.
+- Open with Wavvy: audio files from a file manager or another app play in Wavvy.
+  Files outside your library play as temporary queue items (no delete, tag
+  editing, favorites or playlists).
 - Fade in and out on play and pause, and skip silence (both off by default).
 - Sound: a 5-band equalizer with 19 presets, your own saved presets and a preamp
   that prevents clipping, bass boost, virtualizer, reverb and a

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:metadata_god/metadata_god.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:wavvy/core/dialogs.dart';
+import 'package:wavvy/core/external_audio.dart';
 import 'package:wavvy/core/media_store.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
@@ -12,6 +13,7 @@ import 'package:wavvy/utils/snackbar.utils.dart';
 
 /// Confirms, then permanently deletes [song] from the device.
 void confirmDeleteSong(WidgetRef ref, SongModel song) {
+  if (song.isExternal) return;
   showConfirmDialog(
     title: "Delete Song?",
     message:
@@ -24,6 +26,7 @@ void confirmDeleteSong(WidgetRef ref, SongModel song) {
 
 /// Edit-tags dialog (reads deep metadata with MetadataGod, writes it back).
 Future<void> editSongTags(WidgetRef ref, SongModel song) async {
+  if (song.isExternal) return;
   String title = song.title;
   String artist = song.artist ?? "";
   String album = song.album ?? "";
