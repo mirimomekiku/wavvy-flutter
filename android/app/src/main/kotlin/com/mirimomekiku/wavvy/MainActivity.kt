@@ -80,6 +80,7 @@ class MainActivity : AudioServiceActivity() {
         YtDlpPlugin.register(this, flutterEngine)
         volumeKeys.register(flutterEngine.dartExecutor.binaryMessenger)
         externalAudio.register(flutterEngine.dartExecutor.binaryMessenger)
+        AudioInfo.register(this, flutterEngine.dartExecutor.binaryMessenger)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
 
         MethodChannel(messenger, EFFECTS_CHANNEL).setMethodCallHandler { call, result ->

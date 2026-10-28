@@ -18,6 +18,9 @@ build has no downloader (see [Builds](#builds)).
 - Smart shuffle: keeps an artist's songs apart and favors liked and less played songs.
 - Reopens with the queue and position you left; headphone and call handling you can tune.
 - Volume leveling from ReplayGain tags; crossfade (experimental).
+- Quality badge in the player and Song details: codec, bitrate, sample rate and bit
+  depth, marked Lossy, Lossless or Hi-Res Lossless (sample rate and bit depth can be
+  unknown for some files).
 - Favorites with a Liked songs list, and a home-screen widget.
 - Hold volume up for the next song and volume down for the previous one (Settings,
   off by default). Android only passes the keys to Wavvy while it is on screen, so

@@ -134,6 +134,28 @@ Both are a small Kotlin helper plus a Dart wrapper behind an overridable provide
   delete, tag editing, favorites, playlists or play counter, and no artwork. The
   read permission of a content URI lasts only as long as Android keeps it for the app.
 
+## Audio quality badges
+
+`AudioInfo.kt` (one registration line in `MainActivity.configureFlutterEngine`) answers
+the `audio_info` channel's `info` call for a content URI (or MediaStore id): it runs
+`MediaExtractor` on the first audio track, then `MediaMetadataRetriever` for what is
+missing, on a single background thread, releases everything in `finally` and answers
+null instead of throwing. It reports mime, codec, sample rate, channels, bitrate, bit
+depth, duration and lossless. Bit depth comes from the FLAC STREAMINFO header, PCM
+encoding, or the retriever on Android 12+, so it (and sometimes the sample rate) can be
+unknown, and then the file is never called Hi-Res. Dart (`core/audio_quality.dart`):
+`AudioQuality` classifies Lossy, Lossless (FLAC, ALAC, WAV, AIFF, APE, WavPack, or the
+native flag) and Hi-Res Lossless, which here means lossless, 24-bit or more and above
+48 kHz (24-bit / 48 kHz stays Lossless). `audioQualityProvider` (a `FutureProvider.family`
+over `QualityKey`, so one probe per song per session) merges the probe with the quick
+estimate from MediaStore (extension, size / duration); a null or failed probe leaves
+the estimate. The estimate shows at once, so nothing waits on the native call.
+`AquaQualityBadge` (`widgets/aqua_quality_badge.dart`) is the capsule (silver, blue gel,
+gold gel) used in the player's seek row (short text, scales down at large text) and at
+the top of Song details, whose table adds codec, sample rate, bit depth, bitrate and
+channels. Song rows do not show it: that would need a probe per row. External songs
+(negative id) are probed by their content URI.
+
 ## Fast scroller and Home shelves
 
 `FastScroller` (`widgets/fast_scroller.dart`) wraps the Library scroll view. A

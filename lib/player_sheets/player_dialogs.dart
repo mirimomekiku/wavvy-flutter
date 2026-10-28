@@ -9,7 +9,7 @@ import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
-import 'package:wavvy/utils/player.utils.dart';
+import 'package:wavvy/widgets/song_info_table.dart';
 
 /// Speed and pitch controls. They are independent: changing speed keeps the
 /// pitch you set, and vice versa.
@@ -155,65 +155,14 @@ class _RateControl extends StatelessWidget {
   }
 }
 
-/// The song's file details as a striped key / value table.
+/// The song's file details (tags, disc and track, audio quality) as a striped
+/// key / value table.
 void showSongDetailsDialog(SongModel song) {
-  final rows = PlayerUtils.songDetails(song);
   showAppDialog(
     builder: (context) {
-      final a = Wv.of(context);
       return WvDialog(
         title: "Song Details",
-        content: SingleChildScrollView(
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(7),
-              border: Border.all(color: a.outline.withValues(alpha: 0.55)),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: Column(
-                children: [
-                  for (var i = 0; i < rows.length; i++)
-                    ColoredBox(
-                      color: i.isOdd ? a.stripe : a.surface,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SizedBox(
-                              width: 72,
-                              child: Text(
-                                rows[i].$1,
-                                style: TextStyle(
-                                  color: a.textSecondary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: SelectableText(
-                                rows[i].$2,
-                                style: TextStyle(
-                                  color: a.text,
-                                  fontSize: 13,
-                                  height: 1.35,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        content: SongInfoTable(song: song),
         actions: [
           wvDialogButton(
             "Copy path",
