@@ -314,3 +314,12 @@ dock are the same in all of them.
   slide the row without telling the player again. Tapping the middle cover turns it
   over to show the next 20 songs. With reduced motion the covers are flat and the
   flip is instant. Swiping while paused does not start playback.
+- **Hi-Fi deck:** a faceplate in the chrome gradient and grain (brushed in the
+  Brushed Metal appearance), an LCD with title, artist, time and a cover thumbnail,
+  two analog meters, a jog wheel and the shared controls. The meters are real
+  level meters (BASS and TREBLE, from the visualizer's FFT bands) only when the
+  visualizer is available and running; otherwise they are honest time gauges
+  (elapsed and remaining), so nothing pretends to be a level. The visualizer is
+  used only through `hifi_live_meters.dart` behind `kVisualizerAvailable`, so the
+  Play build has none of it. The jog wheel scrubs and commits the seek on release,
+  and has slider semantics.
