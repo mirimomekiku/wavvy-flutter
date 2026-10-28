@@ -60,6 +60,17 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
         isWidePlayerScreen(size);
     final visible = playerSheetPages(settings, embedsQueueAndLyrics: embeds);
     final page = ref.watch(sheetPageIndexProvider);
+    if (embeds && (page == 1 || page == 2)) {
+      // Rotated (or opened) on a page that now lives beside the player: show
+      // the player with that pane chosen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_pages.hasClients) return;
+        ref
+            .read(twoPaneTabProvider.notifier)
+            .set(page == 2 ? TwoPaneTab.lyrics : TwoPaneTab.queue);
+        _pages.jumpToPage(0);
+      });
+    }
     final statusBar = math.max(
       MediaQuery.paddingOf(context).top,
       MediaQueryData.fromView(View.of(context)).padding.top,

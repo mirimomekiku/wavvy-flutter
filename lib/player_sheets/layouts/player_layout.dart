@@ -6,6 +6,7 @@ import 'package:wavvy/player_sheets/layouts/itunes_layout.dart';
 import 'package:wavvy/player_sheets/layouts/lyrics_first_layout.dart';
 import 'package:wavvy/player_sheets/layouts/player_layout_data.dart';
 import 'package:wavvy/player_sheets/layouts/poster_layout.dart';
+import 'package:wavvy/player_sheets/layouts/two_pane_layout.dart';
 import 'package:wavvy/player_sheets/layouts/vinyl_layout.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 
@@ -70,7 +71,7 @@ bool isWidePlayerScreen(Size size) =>
 /// Whether the two-pane layout is built. Until it is, wide screens keep the
 /// chosen layout (and the sheet keeps its Queue and Lyrics pages). The two-pane
 /// layout turns this on when it registers itself below.
-const bool kTwoPaneReady = false;
+const bool kTwoPaneReady = true;
 
 /// The layout to show: the one the user chose, unless "Two panes on wide
 /// screens" is on and the screen is wide.
@@ -97,7 +98,7 @@ final Map<PlayerLayout, PlayerLayoutBuilder> kPlayerLayoutBuilders = {
   PlayerLayout.hifi: (d) => HifiLayout(data: d),
   PlayerLayout.poster: (d) => PosterLayout(data: d),
   PlayerLayout.lyrics: (d) => LyricsFirstLayout(data: d),
-  PlayerLayout.twoPane: (d) => VinylLayout(data: d),
+  PlayerLayout.twoPane: (d) => TwoPaneLayout(data: d),
   // Show the vinyl deck until their own layout is registered.
   PlayerLayout.cassette: (d) => VinylLayout(data: d),
   PlayerLayout.cd: (d) => VinylLayout(data: d),
@@ -113,6 +114,7 @@ final Map<PlayerLayout, WidgetBuilder> kPlayerLayoutPreviews = {
   PlayerLayout.hifi: (_) => const HifiLayoutPreview(),
   PlayerLayout.poster: (_) => const PosterLayoutPreview(),
   PlayerLayout.lyrics: (_) => const LyricsFirstLayoutPreview(),
+  PlayerLayout.twoPane: (_) => const TwoPaneLayoutPreview(),
 };
 
 /// Shows the chosen layout for the playing song.

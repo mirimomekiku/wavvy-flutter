@@ -331,3 +331,14 @@ dock are the same in all of them.
 - **Lyrics first:** a small header (cover, title, artist, heart, full-screen
   lyrics) with the lyrics filling the rest through `LyricsView`, and compact
   controls below. With lyrics off, or none found, it offers "Show the cover".
+- **Two panes:** the player on the left (the vinyl deck, or a small thumbnail on
+  short landscape screens; the pane scrolls rather than clips) and a Queue/Lyrics
+  switcher on the right (`PlayerQueuePage` and `LyricsView`); the split is 45/55
+  on short screens and 40/60 on tall ones. Chosen by hand on a narrow screen it
+  stacks: compact controls on top (at most 40 percent of the height) and the
+  Queue/Lyrics tabs below.
+
+Unverified without a device: how each layout looks and feels (tilt and
+perspective values, the wheel and meter motion, blur cost, touch targets), and
+whether the Play build really drops `HifiLiveMeters`.
+

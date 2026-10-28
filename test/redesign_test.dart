@@ -386,7 +386,11 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 600));
     expect(tester.takeException(), isNull);
-    for (final label in ['Queue', 'Lyrics', 'About', 'Player']) {
+    // A short landscape screen shows two panes: the queue and the lyrics sit
+    // beside the player, so the switcher only has Player and About.
+    expect(find.byTooltip('Queue'), findsNothing);
+    expect(find.text('Up next'), findsOneWidget);
+    for (final label in ['About', 'Player']) {
       await tester.tap(find.byTooltip(label));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
@@ -396,6 +400,11 @@ void main() {
         label == 'Player' ? findsOneWidget : findsNothing,
       );
     }
+    await tester.tap(find.text('Lyrics'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Up next'), findsNothing);
   });
   for (final dark in [false, true]) {
     testWidgets('compact player and tabs at large text dark=$dark', (
