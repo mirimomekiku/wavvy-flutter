@@ -20,6 +20,7 @@ import 'package:wavvy/widgets/playlist_dialogs.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/song_selection.dart';
+import 'package:wavvy/widgets/fast_scroller.dart';
 import 'package:wavvy/widgets/page_heading.dart';
 import 'package:wavvy/playback/favorites.dart';
 import 'package:wavvy/screens/library/liked/liked.screen.dart';
@@ -59,6 +60,23 @@ final librarySongsProvider = Provider<List<SongModel>>((ref) {
 });
 
 /// The albums that match the filter field.
+final _libraryAlbumsProvider = Provider<List<AlbumModel>>((ref) {
+  final q = ref.watch(libraryQueryProvider).trim().toLowerCase();
+  return ref
+      .watch(libraryProvider.select((s) => s.albums))
+      .where((a) => '${a.album} ${a.artist ?? ''}'.toLowerCase().contains(q))
+      .toList();
+});
+
+/// The artists that match the filter field.
+final _libraryArtistsProvider = Provider<List<ArtistModel>>((ref) {
+  final q = ref.watch(libraryQueryProvider).trim().toLowerCase();
+  return ref
+      .watch(libraryProvider.select((s) => s.artists))
+      .where((a) => a.artist.toLowerCase().contains(q))
+      .toList();
+});
+
 const _sectionLabels = ['Songs', 'Albums', 'Artists', 'Playlists'];
 
 const _sortLabels = ['Title', 'Artist', 'Recently added'];
@@ -69,11 +87,24 @@ const _sortOptions = [
 ];
 
 /// The Library tab: Songs / Albums / Artists / Playlists behind toggle chips.
-class LibraryTab extends ConsumerWidget {
+class LibraryTab extends ConsumerStatefulWidget {
   const LibraryTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryTab> createState() => _LibraryTabState();
+}
+
+class _LibraryTabState extends ConsumerState<LibraryTab> {
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final section = ref.watch(librarySectionProvider);
 
     final inset = MediaQuery.paddingOf(context).top;
@@ -98,46 +129,55 @@ class LibraryTab extends ConsumerWidget {
           child: MediaQuery.removePadding(
             context: context,
             removeTop: true,
-            child: RefreshIndicator(
-              onRefresh: () =>
-                  ref.read(libraryProvider.notifier).fetchAllSongs(),
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(child: _Header(section: section)),
-                  const SliverToBoxAdapter(child: _LibrarySearch()),
-                  if (ref.watch(libraryProvider.select((s) => s.isLoading)))
-                    const SliverToBoxAdapter(
-                      child: LinearProgressIndicator(minHeight: 2),
-                    ),
-                  if (ref
-                      .watch(libraryProvider.select((s) => s.error))
-                      .isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text(ref.watch(libraryProvider).error),
+            child: _LibraryFastScroller(
+              controller: _scroll,
+              section: section,
+              trackPadding: EdgeInsets.only(
+                top: _chipsExtent(context) + 8,
+                bottom: 8,
+              ),
+              child: RefreshIndicator(
+                onRefresh: () =>
+                    ref.read(libraryProvider.notifier).fetchAllSongs(),
+                child: CustomScrollView(
+                  controller: _scroll,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(child: _Header(section: section)),
+                    const SliverToBoxAdapter(child: _LibrarySearch()),
+                    if (ref.watch(libraryProvider.select((s) => s.isLoading)))
+                      const SliverToBoxAdapter(
+                        child: LinearProgressIndicator(minHeight: 2),
+                      ),
+                    if (ref
+                        .watch(libraryProvider.select((s) => s.error))
+                        .isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(ref.watch(libraryProvider).error),
+                        ),
+                      ),
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _SectionChipsDelegate(
+                        selected: section.index,
+                        extent: _chipsExtent(context),
                       ),
                     ),
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: _SectionChipsDelegate(
-                      selected: section.index,
-                      extent: _chipsExtent(context),
+                    ...switch (section) {
+                      LibrarySection.songs => const [_SongsSection()],
+                      LibrarySection.albums => const [_AlbumsSection()],
+                      LibrarySection.artists => const [_ArtistsSection()],
+                      LibrarySection.playlists => const [_PlaylistsSection()],
+                    },
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 24 + MediaQuery.paddingOf(context).bottom,
+                      ),
                     ),
-                  ),
-                  ...switch (section) {
-                    LibrarySection.songs => const [_SongsSection()],
-                    LibrarySection.albums => const [_AlbumsSection()],
-                    LibrarySection.artists => const [_ArtistsSection()],
-                    LibrarySection.playlists => const [_PlaylistsSection()],
-                  },
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 24 + MediaQuery.paddingOf(context).bottom,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -153,6 +193,27 @@ class LibraryTab extends ConsumerWidget {
   }
 }
 
+/// The fast scroller for the current section: letters from the field the
+/// songs are sorted by, none for "Recently added"; albums and artists get
+/// letters only when they really come in alphabetical order.
+class _LibraryFastScroller extends ConsumerWidget {
+  const _LibraryFastScroller({
+    required this.controller,
+    required this.section,
+    required this.trackPadding,
+    required this.child,
+  });
+  final ScrollController controller;
+  final LibrarySection section;
+  final EdgeInsets trackPadding;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    var count = 0;
+    String Function(int)? labelAt;
+    switch (section) {
+      case LibrarySection.songs:
         final songs = ref.watch(librarySongsProvider);
         count = songs.length;
         labelAt = switch (ref.watch(libraryProvider.select((s) => s.sort))) {
@@ -161,6 +222,28 @@ class LibraryTab extends ConsumerWidget {
           SortOption.dateNewest || SortOption.dateOldest => null,
         };
       case LibrarySection.albums:
+        final items = ref.watch(_libraryAlbumsProvider);
+        count = items.length;
+        String label(int i) => items[i].album;
+        if (count >= 30 && lettersAscending(count, label)) labelAt = label;
+      case LibrarySection.artists:
+        final items = ref.watch(_libraryArtistsProvider);
+        count = items.length;
+        String label(int i) => items[i].artist;
+        if (count >= 30 && lettersAscending(count, label)) labelAt = label;
+      case LibrarySection.playlists:
+        break;
+    }
+    return FastScroller(
+      controller: controller,
+      itemCount: count,
+      labelAt: labelAt,
+      trackPadding: trackPadding,
+      child: child,
+    );
+  }
+}
+
 class _Header extends ConsumerWidget {
   final LibrarySection section;
 
@@ -678,11 +761,8 @@ class _AlbumsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final q = ref.watch(libraryQueryProvider).trim().toLowerCase();
-    final items = ref
-        .watch(libraryProvider.select((s) => s.albums))
-        .where((a) => '${a.album} ${a.artist ?? ''}'.toLowerCase().contains(q))
-        .toList();
+    final q = ref.watch(libraryQueryProvider).trim();
+    final items = ref.watch(_libraryAlbumsProvider);
 
     if (items.isEmpty) {
       return SliverFillRemaining(
@@ -730,11 +810,8 @@ class _ArtistsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final q = ref.watch(libraryQueryProvider).trim().toLowerCase();
-    final items = ref
-        .watch(libraryProvider.select((s) => s.artists))
-        .where((a) => a.artist.toLowerCase().contains(q))
-        .toList();
+    final q = ref.watch(libraryQueryProvider).trim();
+    final items = ref.watch(_libraryArtistsProvider);
 
     if (items.isEmpty) {
       return SliverFillRemaining(

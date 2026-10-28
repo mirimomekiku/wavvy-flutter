@@ -96,6 +96,28 @@ back as a whole), `deleteSongs` (one `createDeleteRequest` on Android 11+),
 `FavoritesNotifier.setAll`, `PlaylistsNotifier.addSongsToLocalPlaylist` (one
 transaction) and `PlayerUtils.shareSongs`.
 
+## Fast scroller and Home shelves
+
+`FastScroller` (`widgets/fast_scroller.dart`) wraps the Library scroll view. A
+`NotificationListener` shows a thumb while the list scrolls and hides it 1.2 s
+after the last interaction; hidden, it ignores touches, and visible it only
+catches a 28 px strip. Dragging sets `controller.jumpTo(fraction *
+maxScrollExtent)`, so no item extents are needed. Only an overlay driven by
+`ValueNotifier`s rebuilds, never the rows. The bubble shows `letterFor` of the
+item at `fraction * (count - 1)`, taken from the field the songs are sorted by
+(none for "Recently added", so a plain thumb); albums and artists get letters
+only if `lettersAscending` says they really are alphabetical. It does nothing
+under 30 items and is excluded from semantics.
+
+`home_shelves_provider.dart` holds the pure selections. "Continue listening"
+(`buildContinueListening`) maps `play_history` rows, newest first, to library
+albums by song id, else by album name and artist, one tile per album, at most
+10. "Rediscover" (`buildRediscover`) takes songs whose `song_stats.last_played`
+is missing or older than 90 days, shuffles them with a seed from the date (plus
+the Shuffle press count) and keeps 20; under 8 candidates the shelf is hidden.
+Both read through `historyStoreProvider` and `songStatsStoreProvider` (fakes in
+tests), follow the `showStats` setting, and the stats are read once per session.
+
 ## Missing album covers
 
 Albums and songs with no embedded art can get a cover from MusicBrainz and the

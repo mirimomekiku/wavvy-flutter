@@ -46,6 +46,8 @@ build has no downloader (see [Builds](#builds)).
 
 ### Library
 - Songs, albums, artists and playlists, with in-place filtering and sorting.
+- A fast scroller on long lists (30+ items): drag the thumb to scrub, with a
+  letter bubble for the Title and Artist sorts.
 - Select several songs (long press) to play, queue, add to a playlist, like, share
   or delete them together.
 - Home feed built from your own listening history (incognito mode pauses it).
