@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/player_sheets/layouts/cassette_layout.dart';
 import 'package:wavvy/player_sheets/layouts/cover_flow_layout.dart';
 import 'package:wavvy/player_sheets/layouts/hifi_layout.dart';
 import 'package:wavvy/player_sheets/layouts/itunes_layout.dart';
@@ -100,7 +101,7 @@ final Map<PlayerLayout, PlayerLayoutBuilder> kPlayerLayoutBuilders = {
   PlayerLayout.lyrics: (d) => LyricsFirstLayout(data: d),
   PlayerLayout.twoPane: (d) => TwoPaneLayout(data: d),
   // Show the vinyl deck until their own layout is registered.
-  PlayerLayout.cassette: (d) => VinylLayout(data: d),
+  PlayerLayout.cassette: (d) => CassetteLayout(data: d),
   PlayerLayout.cd: (d) => VinylLayout(data: d),
 };
 
@@ -115,6 +116,7 @@ final Map<PlayerLayout, WidgetBuilder> kPlayerLayoutPreviews = {
   PlayerLayout.poster: (_) => const PosterLayoutPreview(),
   PlayerLayout.lyrics: (_) => const LyricsFirstLayoutPreview(),
   PlayerLayout.twoPane: (_) => const TwoPaneLayoutPreview(),
+  PlayerLayout.cassette: (_) => const CassetteLayoutPreview(),
 };
 
 /// Shows the chosen layout for the playing song.
