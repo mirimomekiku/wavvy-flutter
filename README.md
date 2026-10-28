@@ -51,6 +51,8 @@ build has no downloader (see [Builds](#builds)).
 
 ### Lyrics & metadata
 - Time-synced lyrics from [LRCLib](https://lrclib.net).
+- Full-screen lyrics (the button on the Lyrics tab): large centered lines that follow the
+  music, tap a line to seek, adjustable text size, screen kept awake.
 - Artist biographies and photos from Genius.
 - Missing album covers from MusicBrainz and the Cover Art Archive: off by default
   (Settings > Find missing album covers); sends only album and artist names, keeps the
