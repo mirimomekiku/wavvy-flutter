@@ -7,6 +7,7 @@ import 'package:wavvy/downloader/ui/engine_card.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/screens/settings/album_art_setting.dart';
+import 'package:wavvy/screens/settings/visualizer_setting.dart';
 import 'package:wavvy/screens/stats/stats.screen.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
@@ -247,6 +248,16 @@ class SettingsScreen extends ConsumerWidget {
                         s.shakeExtendsSleep,
                         n.toggleShakeExtendsSleep,
                       ),
+                      if (kVisualizerAvailable)
+                        toggle(
+                          'Visualizer',
+                          'Adds a spectrum page to the player. Needs microphone permission only so Android lets Wavvy read its own audio levels; nothing is recorded or sent anywhere',
+                          Icons.equalizer_rounded,
+                          s.enableVisualizer,
+                          (v) => setVisualizerEnabled(context, ref, v),
+                        ),
+                    ],
+                  ),
                     ],
                   ),
                   const GroupHeader('Sound leveling'),

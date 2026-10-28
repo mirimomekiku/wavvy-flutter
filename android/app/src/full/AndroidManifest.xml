@@ -2,6 +2,11 @@
     <!-- Downloads keep running with the screen off, with a notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Only so Android lets the visualizer read Wavvy's own audio levels;
+         nothing is recorded. Asked for when the visualizer is turned on. The
+         Play build has no visualizer and does not declare this. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application>
         <service
             android:name="com.mirimomekiku.wavvy.ytdlp.YtDlpService"

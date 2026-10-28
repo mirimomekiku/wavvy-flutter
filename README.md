@@ -33,6 +33,10 @@ build has no downloader (see [Builds](#builds)).
   headers and the page, steel-blue accent), each in light and dark.
 - Optional **Album colors**: tint the whole app from the current artwork.
 - A vinyl-and-tonearm player sheet with Player, Queue, Lyrics and Artist tabs.
+- Optional **Visualizer** tab (full build only, off by default): a real spectrum,
+  in Aqua gel bars, from Android's audio-effects `Visualizer` on Wavvy's own
+  audio session. Android requires the microphone permission for this; nothing is
+  recorded or sent. The Play build has no visualizer and does not ask for it.
 
 ### Lyrics & metadata
 - Time-synced lyrics from [LRCLib](https://lrclib.net).
@@ -78,8 +82,8 @@ of asking again. The library stays empty until music access is granted.
 
 | Flavor | What it is |
 | --- | --- |
-| `play` | No downloader. Safe for the Play Store. |
-| `full` | Adds the yt-dlp downloader. It downloads and runs code from outside any store, so it is for sideloading only. |
+| `play` | No downloader and no visualizer (so no microphone permission). Safe for the Play Store. |
+| `full` | Adds the yt-dlp downloader and the visualizer. The downloader downloads and runs code from outside any store, so this build is for sideloading only. yt-dlp is checked against its release's published SHA-256 before it runs (see `docs/flavors.md`). |
 
 ```sh
 flutter run --flavor full      # or: --flavor play

@@ -43,8 +43,19 @@ class MainActivity : AudioServiceActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingDelete: Uri? = null
 
+    // Spectrum for the visualizer page; released with the Activity.
+    private var visualizerBridge: VisualizerBridge? = null
+
+    override fun onDestroy() {
+        visualizerBridge?.release()
+        visualizerBridge = null
+        super.onDestroy()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        visualizerBridge?.release()
+        visualizerBridge = VisualizerBridge.register(this, flutterEngine.dartExecutor.binaryMessenger)
         // The downloader exists only in the full flavor; the Play flavor's
         // version of this call does nothing.
         YtDlpPlugin.register(this, flutterEngine)

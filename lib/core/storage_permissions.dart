@@ -70,6 +70,13 @@ class StoragePermissions {
     await _ensure(Permission.notification, request: true);
   }
 
+  /// Microphone access, which Android requires for the audio visualizer even
+  /// though it only reads Wavvy's own output. Nothing is recorded.
+  static Future<StorageAccess> microphone({bool request = true}) async {
+    if (!Platform.isAndroid) return StorageAccess.granted;
+    return _ensure(Permission.microphone, request: request);
+  }
+
   /// Writing into shared storage. Only Android 9 and below need a permission;
   /// newer versions write downloads through the system downloader.
   static Future<StorageAccess> legacyWrite({bool request = true}) async {

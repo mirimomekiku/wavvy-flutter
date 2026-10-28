@@ -47,6 +47,26 @@ switches that effect off and sets `EffectsState.error`. The equalizer works in
 decibels, as `just_audio` does; preset curves are interpolated across the
 device's band count.
 
+## Visualizer
+
+Full flavor only (`kVisualizerAvailable`; the Play build has neither the code nor
+the permission, see `docs/flavors.md`), and off by default (`feature_visualizer`). Native: `VisualizerBridge.kt` attaches an
+`android.media.audiofx.Visualizer` to the audio session (capture size up to
+1024, half the maximum capture rate), turns each FFT frame into 32 log-spaced
+bands in 0..1 and sends them over an EventChannel; it is released on stop, on a
+new start and with the Activity. Dart: `VisualizerNotifier`
+(`providers/visualizer_provider.dart`) runs it only while the setting is on, the
+player's Visualizer page is showing, the app is in the foreground and music
+plays; it re-attaches on a new session id, smooths the bands (fast attack, slow
+decay, peak caps, `playback/visualizer_math.dart`) and reports a status (off,
+needsPermission, unavailable, running). `AquaVisualizer` draws one
+`CustomPainter` and respects reduced motion. Page index 4 of the player sheet
+exists only when the setting is on. The permission: Android requires
+`RECORD_AUDIO` even for a session's own output; it is asked when the setting is
+turned on (a permanent refusal offers Open Settings and leaves it off) and
+nothing is recorded or sent. Unverified without a device: the native code and
+the level scaling (`kVisualizer*Db` in Dart and `FLOOR_DB`/`CEIL_DB` in Kotlin).
+
 ## Persistence
 
 - SQLite (`wavvy_playlists.db`, version 6): `playlists`, `playlist_songs`

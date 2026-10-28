@@ -1,13 +1,14 @@
-# Flavors and the downloader
+# Flavors, the downloader and the visualizer
 
 Wavvy is built in two flavors from one code base.
 
 | | `play` | `full` |
 | --- | --- | --- |
 | Downloader | none | yt-dlp |
+| Visualizer | none | spectrum page in the player |
 | Intended for | Google Play | sideloading |
 | Native code | no Python | embedded Python (arm64 only) |
-| Extra permission | none | `FOREGROUND_SERVICE_DATA_SYNC` |
+| Extra permissions | none | `FOREGROUND_SERVICE_DATA_SYNC`, `RECORD_AUDIO` (visualizer) |
 | Install size | smaller | larger (Python runtime) |
 
 ```sh
@@ -25,11 +26,17 @@ flutter test --flavor play test/flavor_test.dart
   (the Online search source, the Downloads icon, the Settings group, the Home
   button, the providers started in `main.dart`) is behind it or behind
   `SettingsState.downloaderOn`, so the code is removed from the Play build.
+  `kVisualizerAvailable` (same file) does the same for the visualizer: the
+  Settings toggle and the player sheet's Visualizer page are behind it.
   Builds without a flavor (tests, IDE runs) count as `full`.
 - **Android:** `app/src/full/` holds the real `YtDlpPlugin`, `YtDlpRunner` and
   `YtDlpService`, the service declaration and permission, and the Gradle
   dependency (`fullImplementation`). `app/src/play/` holds a no-op `YtDlpPlugin`
-  with the same name, so `MainActivity` is identical in both flavors.
+  with the same name, so `MainActivity` is identical in both flavors. The
+  visualizer works the same way: the real `VisualizerBridge` and the
+  `RECORD_AUDIO` permission are in `app/src/full/`, and `app/src/play/` has a
+  no-op `VisualizerBridge`, so the Play build has no visualizer code and does
+  not declare the microphone permission.
 - **Packaging:** the full flavor extracts native libraries to disk
   (`useLegacyPackaging`) so Python can run as a process, and is limited to
   `arm64-v8a`.
@@ -65,6 +72,16 @@ flutter test --flavor play test/flavor_test.dart
   from the library's own update call.
 - TikTok audio-only extraction is not included.
 
+## The visualizer (full flavor)
+
+The player's optional Visualizer page uses Android's `Visualizer` effect, which
+only works if the app holds `RECORD_AUDIO`, even though it reads Wavvy's own
+audio session and nothing is recorded. Because the Play build must not ask for
+a microphone permission, the visualizer is not part of it: the permission is in
+`app/src/full/AndroidManifest.xml`, the setting is hidden and the page does not
+exist in the Play flavor. In the `full` flavor the permission is only requested
+when the user turns the Visualizer on in Settings.
+
 ## Checking a build
 
 ```sh
@@ -76,9 +93,11 @@ flutter test --flavor play test/flavor_test.dart
 flutter build apk --release --flavor play --target-platform android-arm64
 unzip -p build/app/outputs/flutter-apk/app-play-release.apk lib/arm64-v8a/libapp.so \
   | strings | grep -ci "yt-dlp\|Set up the downloader"        # expect 0
+unzip -p build/app/outputs/flutter-apk/app-play-release.apk lib/arm64-v8a/libapp.so \n  | strings | grep -ci "Visualizer unavailable\|visualizer_frames"   # expect 0
 unzip -l build/app/outputs/flutter-apk/app-play-release.apk | grep -ci "libpython\|libqjs"  # expect 0
 ```
 
 Entry points to the downloader must be guarded by `kDownloaderAvailable` directly
-(`if (kDownloaderAvailable) ...`). A runtime local such as `if (enabled)` keeps
+(`if (kDownloaderAvailable) ...`), and entry points to the visualizer by
+`kVisualizerAvailable`. A runtime local such as `if (enabled)` keeps
 the code in the build, because the compiler cannot prove it false.

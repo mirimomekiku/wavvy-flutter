@@ -21,6 +21,20 @@ import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/wv_song_list.dart';
 import 'package:wavvy/widgets/status_message.dart';
 import 'package:wavvy/screens/audio_effects/effects.screen.dart';
+/// 3 About, 4 Visualizer. Lyrics, About and Visualizer follow their settings,
+/// and the Visualizer is not in the Play build at all. With
+/// [embedsQueueAndLyrics] (the two-pane layout on a wide screen shows them
+/// beside the player) the Queue and Lyrics pages are left out of the switcher.
+List<int> playerSheetPages(
+  SettingsState settings, {
+  bool embedsQueueAndLyrics = false,
+}) => [
+  0,
+  if (!embedsQueueAndLyrics) 1,
+  if (!embedsQueueAndLyrics && settings.enableLyricsFetching) 2,
+  if (settings.enableArtistInfoFetching) 3,
+  if (kVisualizerAvailable && settings.enableVisualizer) 4,
+];
 
 class FullPlayerSheet extends ConsumerStatefulWidget {
   const FullPlayerSheet({super.key, this.initialPage = 0});
@@ -138,6 +152,9 @@ class _FullPlayerSheetState extends ConsumerState<FullPlayerSheet> {
                   const _QueuePage(),
                   _buildLyricsPage(context),
                   _buildArtistPage(context),
+                  // Last, so the other pages keep their indices.
+                  if (kVisualizerAvailable && settings.enableVisualizer)
+                    VisualizerPage(song: song, active: page == 4),
                 ],
               ),
             ),
@@ -509,8 +526,8 @@ class _SheetToolbar extends StatelessWidget {
   }
 }
 
-/// Icon-only page switcher (Player / Queue / Lyrics / About) drawn as a
-/// connected Aqua segmented control: gel segments, blue when selected.
+/// Icon-only page switcher (Player / Queue / Lyrics / About / Visualizer)
+/// drawn as a connected Aqua segmented control: gel segments, blue when selected.
 class _SheetNav extends StatelessWidget {
   const _SheetNav({
     required this.page,
@@ -526,8 +543,9 @@ class _SheetNav extends StatelessWidget {
     Icons.queue_music_rounded,
     Icons.lyrics_rounded,
     Icons.person_rounded,
+    Icons.equalizer_rounded,
   ];
-  static const _tips = ['Player', 'Queue', 'Lyrics', 'About'];
+  static const _tips = ['Player', 'Queue', 'Lyrics', 'About', 'Visualizer'];
 
   @override
   Widget build(BuildContext context) {
