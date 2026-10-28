@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:wavvy/downloader/failure.dart';
+import 'package:wavvy/downloader/integrity.dart';
 import 'package:wavvy/downloader/models.dart';
 
 /// The downloader's engine (yt-dlp) as the app sees it. The real one talks to
@@ -119,8 +120,20 @@ class DownloaderException implements Exception {
   String toString() => message;
 }
 
+/// yt-dlp could not be verified (or no longer matches what was verified), so
+/// it must not run. Unlike other install errors this leaves the engine unusable
+/// even if it worked before, because the file on disk may have been replaced.
+class IntegrityException extends DownloaderException {
+  const IntegrityException(super.message);
+}
+
 /// The real engine: yt-dlp running in the app's native side (full flavor).
 class PlatformYtDlpEngine implements YtDlpEngine {
+  PlatformYtDlpEngine({EngineIntegrity? integrity})
+    : _integrity = integrity ?? EngineIntegrity();
+
+  final EngineIntegrity _integrity;
+
   static const MethodChannel _channel = MethodChannel(
     'com.mirimomekiku.wavvy/ytdlp',
   );
@@ -175,16 +188,38 @@ class PlatformYtDlpEngine implements YtDlpEngine {
   EngineStatus _status(Map? raw) {
     if (raw == null) return const EngineStatus(EngineState.unknown);
     return EngineStatus(
-      raw['state'] == 'ready' ? EngineState.ready : EngineState.missing,
+      switch (raw['state']) {
+        'ready' => EngineState.ready,
+        'failed' => EngineState.failed,
+        _ => EngineState.missing,
+      },
       version: raw['version'] as String?,
+      message: (raw['message'] as String?) ?? '',
     );
   }
 
   @override
   Future<EngineStatus> status() async => _status(await _call<Map>('status'));
 
+  /// Native installs or updates yt-dlp and hashes it. A file that is not the
+  /// one verified before comes back as `unverified`: it is only trusted once
+  /// its hash matches the checksum the release publishes. If it can't be
+  /// verified it stays untrusted and native refuses to run it.
   @override
-  Future<EngineStatus> install() async => _status(await _call<Map>('install'));
+  Future<EngineStatus> install() async {
+    final raw = await _call<Map>('install');
+    if (raw == null || raw['state'] != 'unverified') return _status(raw);
+    final version = '${raw['version'] ?? ''}';
+    final sha = '${raw['sha256'] ?? ''}';
+    final result = await _integrity.check(version, sha);
+    if (result != IntegrityResult.match) {
+      await _call<void>('distrust');
+      throw IntegrityException(describeIntegrity(result, version));
+    }
+    return _status(
+      await _call<Map>('trust', {'version': version, 'sha256': sha}),
+    );
+  }
 
   @override
   Future<MediaInfo> resolve(String url) async {

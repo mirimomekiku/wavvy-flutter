@@ -574,7 +574,7 @@ void main() {
           path: '/x',
         ),
       );
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       expect(engine.acked, ['ghost']);
       expect(engine.published, isEmpty);
     });

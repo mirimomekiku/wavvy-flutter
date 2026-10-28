@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:wavvy/core/dialogs.dart';
+import 'package:wavvy/downloader/cover.dart';
 import 'package:wavvy/downloader/downloads_provider.dart';
 import 'package:wavvy/downloader/models.dart';
 import 'package:wavvy/screens/search/library_results.dart';
@@ -116,11 +117,12 @@ class DownloadsList extends ConsumerWidget {
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: task.thumbnail.isEmpty
+                        child: !isAllowedCoverUrl(task.thumbnail)
                             ? Icon(Icons.music_note_rounded, color: a.accent)
                             : Image.network(
                                 task.thumbnail,
                                 fit: BoxFit.cover,
+                                cacheWidth: 144,
                                 errorBuilder: (_, _, _) => Icon(
                                   Icons.music_note_rounded,
                                   color: a.accent,

@@ -67,10 +67,65 @@ flutter test --flavor play test/flavor_test.dart
   downloading from YouTube or TikTok is against their terms.
 - yt-dlp may still be blocked by a site (for example YouTube's bot check on a
   flagged network); the error says so.
-- No ffmpeg: audio is saved as the site provides it (usually m4a or opus). The
-  checksum of the downloaded yt-dlp is not verified by Wavvy; the update comes
-  from the library's own update call.
+- No ffmpeg: audio is saved as the site provides it (usually m4a or opus).
+- The yt-dlp integrity check is limited, see below.
 - TikTok audio-only extraction is not included.
+
+## Integrity of yt-dlp (full flavor)
+
+- **What is checked.** After every install or update, native code computes the
+  SHA-256 of the installed file (`noBackupFilesDir/youtubedl-android/yt-dlp/yt-dlp`,
+  the release asset named `yt-dlp` that youtubedl-android installs) and Dart
+  (`lib/downloader/integrity.dart`) compares it with the entry for `yt-dlp` in
+  that release's `SHA2-256SUMS`
+  (`github.com/yt-dlp/yt-dlp/releases/download/<version>/SHA2-256SUMS`). Only on a
+  match does native code store the version and hash as verified.
+- **Every use.** Before yt-dlp runs (search, lookup, download) native code
+  checks the file against the verified hash: a full re-hash the first time in
+  each app session and whenever the file's size or time stamp changes, otherwise
+  a cheap size and time stamp comparison. On a mismatch or a missing file it
+  refuses to run, and Settings and the Online tab show the engine as failed with
+  the reason; Try again downloads yt-dlp afresh and verifies it again.
+- **When the sums cannot be fetched** (offline, GitHub error, no entry, bad
+  tag): fail closed. A newly downloaded yt-dlp is not used, the engine is
+  marked failed with that reason, and Try again repeats the check. A yt-dlp
+  that was verified earlier and has not changed (the daily check found nothing
+  new, or the update call itself failed before touching the file) keeps working,
+  because nothing new needs verifying. Installs made before this check existed
+  are verified again on first use of Set up.
+- **What this protects against:** a corrupted or half-written download, a file
+  changed on disk after it was verified, and a mismatch between the downloaded
+  file and the checksum published for its release tag.
+- **What it does not protect against:** the sums come from the same host as
+  the file (a compromised release or GitHub account publishes matching sums),
+  and the GPG signature of `SHA2-256SUMS` is not checked. The library fetches
+  the file over HTTPS and the sums are fetched the same way, so this is
+  integrity against accidents and file tampering, not against a malicious
+  publisher. Someone who can write to the app's private storage can also change
+  the stored hash. Not verified on a device: the native hashing and gate
+  (`YtDlpRunner.kt`) were written without being run.
+
+## Download hardening (full flavor)
+
+- Staged files are named from a hash of the task id (hex only), never from the
+  site's video id; yt-dlp gets the folder as `-P` and a fixed template, so
+  nothing a site supplies reaches an output template. The output is found by
+  that exact prefix and used only if its resolved path is directly inside the
+  staging folder. Publishing accepts only a file in that folder.
+- Files of failed, canceled and unknown tasks are deleted, and at startup files
+  in the staging folder that belong to no task and are older than a day are swept.
+- The service goes foreground first thing in `onStartCommand` and stops itself
+  when no work is left, so a stop cannot overtake a start; a start that Android
+  refuses fails the task with a message instead of leaking state. On Android 15
+  `onTimeout` stops the remaining downloads as failed with the reason.
+- Cover art from a site is fetched only over https from public hosts (redirects
+  and resolved addresses are checked), at most 5 MB, 10 s, and never fails the
+  download. A host that changes its DNS answer between the check and the
+  connection is not caught.
+- Lookups run on a small bounded pool with a 60 s limit, and a new lookup stops
+  the previous yt-dlp process.
+- Without MediaStore (Android 9 and below) a name that is taken gets
+  "name (1)" instead of overwriting the file.
 
 ## The visualizer (full flavor)
 

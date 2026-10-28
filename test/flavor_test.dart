@@ -11,6 +11,7 @@ import 'package:wavvy/downloader/engine_provider.dart';
 import 'package:wavvy/downloader/flavor.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
+import 'package:wavvy/player_sheets/full_player_sheet.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/screens/search/search_tab.dart';
 import 'package:wavvy/screens/settings/settings.screen.dart';
@@ -74,6 +75,25 @@ void main() {
     expect(kDownloaderAvailable, flavor != 'play');
   });
 
+  test('the visualizer flag matches the build', () {
+    const flavor = String.fromEnvironment('FLUTTER_APP_FLAVOR');
+    expect(kVisualizerAvailable, flavor != 'play');
+  });
+
+  test(
+    'the setting alone cannot add the Visualizer page in the Play build',
+    () {
+      final on = playerSheetPages(const SettingsState(enableVisualizer: true));
+      expect(on.contains(4), kVisualizerAvailable);
+      expect(
+        playerSheetPages(const SettingsState(enableVisualizer: false)),
+        isNot(contains(4)),
+      );
+      // The other pages are the same in both builds.
+      expect(on.take(4), [0, 1, 2, 3]);
+    },
+  );
+
   test('the setting alone cannot turn the downloader on in the Play build', () {
     expect(
       const SettingsState(enableDownloader: true).downloaderOn,
@@ -103,7 +123,7 @@ void main() {
     tester,
   ) async {
     // Tall enough that the whole list is built.
-    tester.view.physicalSize = const Size(411 * 2, 3000 * 2);
+    tester.view.physicalSize = const Size(411 * 2, 4000 * 2);
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(_app(const SettingsScreen()));
@@ -116,6 +136,11 @@ void main() {
       kDownloaderAvailable ? findsNWidgets(2) : findsNothing,
     );
     expect(find.text('Wi-Fi only'), present);
+    // The Visualizer toggle is a full-build feature too.
+    expect(
+      find.text('Visualizer'),
+      kVisualizerAvailable ? findsOneWidget : findsNothing,
+    );
     // Everything else is there in both.
     expect(find.text('Lyrics'), findsOneWidget);
   });

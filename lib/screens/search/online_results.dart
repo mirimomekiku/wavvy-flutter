@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/downloader/cover.dart';
 import 'package:wavvy/downloader/downloads_provider.dart';
 import 'package:wavvy/downloader/engine_provider.dart';
 import 'package:wavvy/downloader/models.dart';
@@ -166,11 +167,12 @@ class _ResultRow extends ConsumerWidget {
             child: SizedBox(
               width: 72,
               height: 54,
-              child: info.thumbnail.isEmpty
+              child: !isAllowedCoverUrl(info.thumbnail)
                   ? Icon(Icons.music_note_rounded, color: a.textSecondary)
                   : Image.network(
                       info.thumbnail,
                       fit: BoxFit.cover,
+                      cacheWidth: 216,
                       errorBuilder: (_, _, _) => Icon(
                         Icons.music_note_rounded,
                         color: a.textSecondary,

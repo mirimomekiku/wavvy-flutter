@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wavvy/downloader/engine.dart';
+import 'package:wavvy/providers/settings_provider.dart';
 
 /// The yt-dlp engine. Overridden in tests with a fake.
 final ytDlpEngineProvider = Provider<YtDlpEngine>(
@@ -65,6 +66,13 @@ class EngineNotifier extends Notifier<EngineStatus> {
         _kLastUpdate,
         DateTime.now().millisecondsSinceEpoch,
       );
+    } on IntegrityException catch (e) {
+      // The file on disk may be the unverified one: never keep it "ready".
+      state = EngineStatus(
+        EngineState.failed,
+        version: before.version,
+        message: e.message,
+      );
     } on DownloaderException catch (e) {
       // A failed update leaves the engine usable; a failed first setup does not.
       state = EngineStatus(
@@ -78,8 +86,10 @@ class EngineNotifier extends Notifier<EngineStatus> {
   }
 
   /// Updates yt-dlp if it has not been checked for a day. Quiet: a failure
-  /// keeps the working version.
+  /// keeps the working version. Does nothing while the downloader is switched
+  /// off in Settings.
   Future<void> updateIfDue() async {
+    if (!ref.read(settingsProvider).downloaderOn) return;
     if (!state.isReady || state.isBusy) return;
     final last = await SharedPreferencesAsync().getInt(_kLastUpdate);
     final age = last == null

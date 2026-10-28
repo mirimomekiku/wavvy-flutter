@@ -4,15 +4,16 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/http.dart' as http;
 import 'package:metadata_god/metadata_god.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:wavvy/core/media_store.dart';
 import 'package:wavvy/db/db.dart';
+import 'package:wavvy/downloader/cover.dart';
 import 'package:wavvy/downloader/engine.dart';
 import 'package:wavvy/downloader/engine_provider.dart';
 import 'package:wavvy/downloader/failure.dart';
 import 'package:wavvy/downloader/models.dart';
+import 'package:wavvy/downloader/staging.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/providers/settings_provider.dart';
@@ -59,18 +60,10 @@ final tagWriterProvider =
       (ref) => (path, task) async {
         Picture? cover;
         if (task.thumbnail.isNotEmpty) {
-          try {
-            final res = await http
-                .get(Uri.parse(task.thumbnail))
-                .timeout(const Duration(seconds: 10));
-            if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
-              cover = Picture(
-                mimeType: res.headers['content-type'] ?? 'image/jpeg',
-                data: res.bodyBytes,
-              );
-            }
-          } catch (e) {
-            debugPrint('cover download failed: $e');
+          // The URL comes from a site: https, public hosts, size-capped.
+          final image = await fetchCover(task.thumbnail);
+          if (image != null) {
+            cover = Picture(mimeType: image.mime, data: image.bytes);
           }
         }
         await MetadataGod.writeMetadata(
@@ -94,6 +87,10 @@ final downloadsProvider =
 class DownloadsNotifier extends Notifier<List<DownloadTask>> {
   YtDlpEngine get _engine => ref.read(ytDlpEngineProvider);
   DownloadStore get _store => ref.read(downloadStoreProvider);
+
+  /// Tasks being tagged and published right now, so a result that arrives
+  /// twice (replayed from native and live) is published once.
+  final _publishing = <String>{};
 
   @override
   List<DownloadTask> build() {
@@ -133,6 +130,36 @@ class DownloadsNotifier extends Notifier<List<DownloadTask>> {
           ),
         );
       }
+    }
+    await _sweepStaging(pending);
+  }
+
+  /// Deletes files in the staging folder that no task needs and that have not
+  /// changed for a day (leftovers of crashes and of tasks removed meanwhile).
+  Future<void> _sweepStaging(PendingWork pending) async {
+    try {
+      final keep = <String>{
+        for (final t in state)
+          if (t.filePath.isNotEmpty) t.filePath,
+        for (final r in pending.results)
+          if (r.path != null && r.path!.isNotEmpty) r.path!,
+      };
+      await sweepStaging(
+        await ref.read(downloadDirectoryProvider)(),
+        keep: keep,
+      );
+    } catch (e) {
+      debugPrint('staging sweep skipped: $e');
+    }
+  }
+
+  /// Deletes a staged file nobody will publish, if it is in the staging folder.
+  Future<void> _discardStaged(String? path) async {
+    if (path == null || path.isEmpty) return;
+    try {
+      await deleteStaged(path, await ref.read(downloadDirectoryProvider)());
+    } catch (e) {
+      debugPrint('could not delete a staged file: $e');
     }
   }
 
@@ -239,7 +266,10 @@ class DownloadsNotifier extends Notifier<List<DownloadTask>> {
     if (event is! TaskEvent) return;
     final task = _find(event.id);
     if (task == null) {
-      // Not ours (or already removed): just stop it being reported.
+      // Not ours (or already removed): drop its file and stop it being reported.
+      if (event.status == DownloadStatus.complete) {
+        await _discardStaged(event.path);
+      }
       await _engine.ack(event.id);
       return;
     }
@@ -261,7 +291,8 @@ class DownloadsNotifier extends Notifier<List<DownloadTask>> {
             task,
             'The download finished but produced no audio file.',
           );
-        } else if (task.status != DownloadStatus.complete) {
+        } else if (task.status != DownloadStatus.complete &&
+            !_publishing.contains(task.id)) {
           await _publish(task, path);
         }
       case DownloadStatus.failed:
@@ -294,6 +325,15 @@ class DownloadsNotifier extends Notifier<List<DownloadTask>> {
   }
 
   Future<void> _publish(DownloadTask task, String path) async {
+    if (!_publishing.add(task.id)) return; // already being published
+    try {
+      await _publishNow(task, path);
+    } finally {
+      _publishing.remove(task.id);
+    }
+  }
+
+  Future<void> _publishNow(DownloadTask task, String path) async {
     var current = task.copyWith(
       status: DownloadStatus.publishing,
       progress: 100,
@@ -322,6 +362,13 @@ class DownloadsNotifier extends Notifier<List<DownloadTask>> {
         current.copyWith(
           status: DownloadStatus.failed,
           error: 'Could not add it to your music library: ${e.message}',
+        ),
+      );
+    } catch (e) {
+      await _set(
+        current.copyWith(
+          status: DownloadStatus.failed,
+          error: 'Could not add it to your music library.',
         ),
       );
     }

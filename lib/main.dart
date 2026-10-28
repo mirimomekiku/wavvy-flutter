@@ -108,7 +108,13 @@ class MyApp extends ConsumerWidget {
       ref.watch(downloadsProvider.notifier);
       // yt-dlp breaks when sites change, so keep it current.
       ref.listen(engineProvider.select((e) => e.isReady), (_, ready) {
-        if (ready) ref.read(engineProvider.notifier).updateIfDue();
+        if (ready && ref.read(settingsProvider).downloaderOn) {
+          ref.read(engineProvider.notifier).updateIfDue();
+        }
+      });
+      // Turning the downloader on later also catches up on a due update.
+      ref.listen(settingsProvider.select((s) => s.downloaderOn), (_, on) {
+        if (on) ref.read(engineProvider.notifier).updateIfDue();
       });
     }
 

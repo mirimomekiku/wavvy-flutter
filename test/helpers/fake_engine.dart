@@ -27,6 +27,9 @@ class FakeYtDlpEngine implements YtDlpEngine {
 
   DownloaderException? downloadError;
   DownloaderException? publishError;
+
+  /// When set, publish waits for this (to test results that arrive twice).
+  Completer<void>? publishGate;
   String publishUri = 'content://media/external_primary/audio/media/42';
   PendingWork pendingWork = const PendingWork();
 
@@ -85,6 +88,7 @@ class FakeYtDlpEngine implements YtDlpEngine {
   @override
   Future<String> publish(String path, String displayName) async {
     published.add((path, displayName));
+    if (publishGate != null) await publishGate!.future;
     if (publishError != null) throw publishError!;
     return publishUri;
   }
