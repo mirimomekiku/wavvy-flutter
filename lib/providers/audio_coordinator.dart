@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:wavvy/playback/coordination.dart';
+import 'package:wavvy/playback/history.dart';
 import 'package:wavvy/providers/album_art_provider.dart';
 import 'package:wavvy/providers/artist_info_provider.dart';
 import 'package:wavvy/providers/audio_effects_provider.dart';
@@ -104,7 +105,11 @@ final audioCoordinatorProvider = Provider<void>((ref) {
 
         if (position.inSeconds >= threshold && lastLoggedSongId != song.id) {
           lastLoggedSongId = song.id;
-          ref.read(playlistsProvider.notifier).logSongPlay(song.id);
+          // The play counter belongs to library songs (history logs all).
+          if (song.id >= 0) {
+            ref.read(playlistsProvider.notifier).logSongPlay(song.id);
+          }
+          ref.read(historyLoggerProvider).logPlay(song);
         }
       }
     }

@@ -49,8 +49,9 @@ device's band count.
 
 ## Persistence
 
-- SQLite (`wavvy_playlists.db`, version 3): `playlists`, `playlist_songs`
-  (unique per playlist and song), `song_stats`.
+- SQLite (`wavvy_playlists.db`, version 6): `playlists`, `playlist_songs`
+  (unique per playlist and song), `song_stats`, `downloads`, `favorites`,
+  `play_history`.
 - SharedPreferences: `feature_*` flags and `theme_scheme_index`. Theme index 5
   is Aqua (default), 6 Graphite, 7-12 the accents, 13 Pinstripe, 14 Brushed
   Metal; older indices (including the retired System, 2) migrate.
@@ -63,6 +64,18 @@ device's band count.
   `image: a.chromeGrain` to its `BoxDecoration` (brushed only). The other looks
   get no extra layer. Album colors tint the accent only; textures stay neutral.
 
+## Listening history and stats
+
+`AudioCoordinator` logs a play when a song passes its threshold (skipped in
+incognito mode), next to the `song_stats` counter. `HistoryLogger`
+(`playback/history.dart`) inserts one `play_history` row per play with the
+title, artist, album and duration copied in, so deleted songs still show and
+stats need no library join; a failed insert is logged and ignored.
+`StatsSummary.fromRows` is pure: totals, estimated listening time (the summed
+song lengths), top 10 songs/artists/albums (ties go to the latest play), plays
+per local day for the last 14 days and the latest 100 plays. `statsProvider`
+loads it for the period chosen on the Listening stats screen (Settings), and
+"Clear history" deletes the table and reloads.
 
 ## Not covered by tests
 

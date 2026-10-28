@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:wavvy/core/navigation.dart';
 import 'package:wavvy/downloader/flavor.dart';
 import 'package:wavvy/downloader/ui/engine_card.dart';
 import 'package:wavvy/providers/settings_provider.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/screens/settings/album_art_setting.dart';
+import 'package:wavvy/screens/stats/stats.screen.dart';
 import 'package:wavvy/theme/aqua_widgets.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
 import 'package:wavvy/widgets/page_heading.dart';
@@ -135,6 +137,47 @@ class SettingsScreen extends ConsumerWidget {
                         Icons.palette_outlined,
                         s.enableDynamicColors,
                         n.toggleDynamicColors,
+                      ),
+                    ],
+                  ),
+                  const GroupHeader('Your music'),
+                  InsetGroup(
+                    children: [
+                      ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 2,
+                        ),
+                        leading: Icon(
+                          Icons.insert_chart_outlined_rounded,
+                          color: a.textSecondary,
+                          size: 22,
+                        ),
+                        title: Text(
+                          'Listening stats',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: a.text,
+                          ),
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            'What you play most and when',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: a.textSecondary,
+                            ),
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right_rounded,
+                          color: a.textSecondary,
+                        ),
+                        onTap: () => AppNav.push(const StatsScreen()),
                       ),
                     ],
                   ),

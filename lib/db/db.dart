@@ -8,7 +8,7 @@ class DbHelper {
 
   static Database? _db;
 
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 6;
 
   Future<Database> get db async {
     if (_db != null) return _db!;
@@ -35,6 +35,7 @@ class DbHelper {
         await _createStatsTable(db);
         await _createDownloadsTable(db);
         await _createFavoritesTable(db);
+        await _createHistoryTable(db);
       },
 
       // For EXISTING users (Runs if they have Ver 1 and upgrade to Ver 2)
@@ -50,6 +51,9 @@ class DbHelper {
         }
         if (oldVersion < 5) {
           await _createFavoritesTable(db);
+        }
+        if (oldVersion < 6) {
+          await _createHistoryTable(db);
         }
       },
     );
@@ -99,6 +103,26 @@ class DbHelper {
         added_at INTEGER NOT NULL
       )
     ''');
+  }
+
+  /// One row per counted play. Title, artist, album and duration are copied
+  /// in so a deleted song still shows and stats need no library join.
+  Future<void> _createHistoryTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS play_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        song_id INTEGER NOT NULL,
+        played_at INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT,
+        album TEXT,
+        duration INTEGER
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_play_history_played_at '
+      'ON play_history (played_at)',
+    );
   }
 
   /// The downloader's task list (see lib/downloader/).
@@ -152,6 +176,33 @@ class DbHelper {
   Future<void> removeFavorite(int songId) async {
     final db = await this.db;
     await db.delete('favorites', where: 'song_id = ?', whereArgs: [songId]);
+  }
+
+  // --- HISTORY ---
+
+  Future<void> logHistory(Map<String, Object?> row) async {
+    final db = await this.db;
+    await db.insert('play_history', row);
+  }
+
+  /// Plays at or after [sinceMs], newest first.
+  Future<List<Map<String, Object?>>> historyRows({
+    int? sinceMs,
+    int limit = 50000,
+  }) async {
+    final db = await this.db;
+    return db.query(
+      'play_history',
+      where: sinceMs == null ? null : 'played_at >= ?',
+      whereArgs: sinceMs == null ? null : [sinceMs],
+      orderBy: 'played_at DESC, id DESC',
+      limit: limit,
+    );
+  }
+
+  Future<void> clearHistory() async {
+    final db = await this.db;
+    await db.delete('play_history');
   }
 
   // --- DOWNLOADS ---
