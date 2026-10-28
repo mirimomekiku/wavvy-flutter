@@ -59,6 +59,8 @@ build has no downloader (see [Builds](#builds)).
 
 ### Library
 - Songs, albums, artists and playlists, with in-place filtering and sorting.
+- Multi-disc albums: tracks grouped under Disc 1, Disc 2 and so on, played in disc and
+  track order.
 - A fast scroller on long lists (30+ items): drag the thumb to scrub, with a
   letter bubble for the Title and Artist sorts.
 - Home shelves "Continue listening" (albums you played lately) and

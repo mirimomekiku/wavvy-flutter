@@ -156,6 +156,16 @@ the top of Song details, whose table adds codec, sample rate, bit depth, bitrate
 channels. Song rows do not show it: that would need a probe per row. External songs
 (negative id) are probed by their content URI.
 
+## Disc numbers
+
+MediaStore stores `disc * 1000 + track` in the track tag and `SongModel.track` returns it
+as is. `core/disc_numbers.dart`: `discOf` (1 when there is no disc part),
+`trackNumberOf` (null when missing), `groupByDisc` (by disc, then track number, then
+title; unnumbered songs after the numbered ones, ties in incoming order). The album screen
+plays, shuffles and picks from that one ordered list; with more than one disc it adds
+`DiscHeaderRow`s and puts the track number in front of the artist in each row, and a
+single-disc album looks as before. Song details shows "Disc 2 - Track 3".
+
 ## Fast scroller and Home shelves
 
 `FastScroller` (`widgets/fast_scroller.dart`) wraps the Library scroll view. A

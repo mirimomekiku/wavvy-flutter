@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:wavvy/core/disc_numbers.dart';
 import 'package:wavvy/providers/library_provider.dart';
 import 'package:wavvy/providers/player_provider.dart';
 import 'package:wavvy/theme/wavvy_widgets.dart';
@@ -9,6 +10,7 @@ import 'package:wavvy/widgets/song_selection.dart';
 import 'package:wavvy/widgets/song_menu.dart';
 import 'package:wavvy/widgets/album_cover_menu.dart';
 import 'package:wavvy/widgets/bottom_bar.dart';
+import 'package:wavvy/widgets/disc_header.dart';
 
 class AlbumDetailScreen extends ConsumerWidget {
   final AlbumModel album;
@@ -19,7 +21,16 @@ class AlbumDetailScreen extends ConsumerWidget {
     final allSongs = ref.watch(libraryProvider.select((s) => s.songs));
     final albumSongs = allSongs.where((s) => s.albumId == album.id).toList();
 
-    albumSongs.sort((a, b) => (a.track ?? 0).compareTo(b.track ?? 0));
+    // (disc, track) order; Play, Shuffle and taps all use this list.
+    final groups = groupByDisc(albumSongs);
+    final multiDisc = groups.length > 1;
+    final ordered = [for (final g in groups) ...g.songs];
+    final entries = <_Entry>[
+      for (final g in groups) ...[
+        if (multiDisc) _Entry.header(g),
+        for (final song in g.songs) _Entry.song(song),
+      ],
+    ];
 
     return WvSystemUi(
       child: Scaffold(
@@ -70,7 +81,19 @@ class AlbumDetailScreen extends ConsumerWidget {
             ),
             SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
-                final song = albumSongs[index];
+                final entry = entries[index];
+                final group = entry.group;
+                if (group != null) {
+                  return DiscHeaderRow(
+                    disc: group.disc,
+                    count: group.songs.length,
+                  );
+                }
+                final song = entry.song!;
+                final position = ordered.indexOf(song);
+                // The track number leads the artist where the album has discs.
+                final number = trackNumberOf(song.track);
+                final artist = song.artist ?? "Unknown Artist";
                 return Consumer(
                   builder: (context, ref, child) {
                     final isCurrent = ref.watch(
@@ -88,10 +111,12 @@ class AlbumDetailScreen extends ConsumerWidget {
                       scope: ordered,
                       isCurrent: isCurrent,
                       isPlaying: isPlaying,
-                      secondary: song.artist ?? "Unknown Artist",
+                      secondary: multiDisc && number != null
+                          ? '$number · $artist'
+                          : artist,
                       onTap: () => ref
                           .read(playerProvider.notifier)
-                          .playSong(song, contextList: albumSongs),
+                          .playSong(song, contextList: ordered),
                       onAction: () => SongMenuHelper.show(
                         context,
                         ref,
@@ -101,7 +126,7 @@ class AlbumDetailScreen extends ConsumerWidget {
                     );
                   },
                 );
-              }, childCount: albumSongs.length),
+              }, childCount: entries.length),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
@@ -109,4 +134,12 @@ class AlbumDetailScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// One line of the track list: a disc header or a song.
+class _Entry {
+  const _Entry.header(DiscGroup this.group) : song = null;
+  const _Entry.song(SongModel this.song) : group = null;
+  final DiscGroup? group;
+  final SongModel? song;
 }
