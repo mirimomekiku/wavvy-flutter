@@ -323,3 +323,8 @@ dock are the same in all of them.
   used only through `hifi_live_meters.dart` behind `kVisualizerAvailable`, so the
   Play build has none of it. The jog wheel scrubs and commits the seek on release,
   and has slider semantics.
+- **Poster:** the cover as a blurred, dimmed, page-colored backdrop
+  (`PlayerBackdrop`, blurred once per cover, cross-faded on a song change, tinted
+  by Album colors), a large sharp cover, 30 sp bold title, thin seek bar, a round
+  play button and few controls; a "Queue" handle opens the queue on a tap or an
+  upward swipe. Text contrast over the scrim is checked in tests.
